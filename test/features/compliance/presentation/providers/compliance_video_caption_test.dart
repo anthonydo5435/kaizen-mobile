@@ -143,6 +143,27 @@ void main() {
     expect(controller.activeTranscriptText, 'One two three');
   });
 
+  test('single-line paging keeps playback progress with reduced motion', () {
+    final controller = ComplianceVideoController(
+      '[00:00 --> 00:03] One two three',
+    );
+    addTearDown(controller.dispose);
+    controller.updatePlaybackPosition(Duration.zero, animate: false);
+    expect(controller.activeTranscriptText, 'One two three');
+    expect(controller.activeTranscriptProgressText, 'One');
+    var notifications = 0;
+    controller.addListener(() => notifications++);
+    controller.updatePlaybackPosition(
+      const Duration(seconds: 1),
+      animate: false,
+    );
+    expect(controller.activeTranscriptProgressText, 'One two');
+    expect(controller.activeTranscriptText, 'One two three');
+    expect(notifications, 1);
+    controller.updatePlaybackPosition(Duration.zero, animate: false);
+    expect(controller.activeTranscriptProgressText, 'One');
+  });
+
   test('only notifies when the visible text or active cue changes', () {
     final controller = ComplianceVideoController(
       '[00:00 --> 00:03] One two three',
