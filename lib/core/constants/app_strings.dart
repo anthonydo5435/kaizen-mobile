@@ -526,6 +526,8 @@ class AppStrings {
   static const String complianceTrackSearchFailed =
       'Unable to search learning tracks. Please try again.';
   static const String complianceNoDocumentsFound = 'No Documents Found';
+  static const String complianceDocumentSearchFailed =
+      'Unable to search documents. Please try again.';
   static const String trainingVideoTab = 'Video';
   static const String trainingDocumentTab = 'Document';
   static const String trainingSopTab = 'SOP';
@@ -886,12 +888,67 @@ class AppStrings {
   static const String trainingPauseQuizCancel = 'Continue Quiz';
   static const String uploadDoc = 'Upload Document';
   static const String uploadDocumentTitle = 'Upload Document';
+  static const String complianceCamera = 'Camera';
+  static const String complianceCameraDescription = 'Take a photo of your document';
+  static const String complianceMediaSelectionFailedTitle = 'Unable to select document';
+  static const String complianceSelectImage = 'Select Image';
+  static const String complianceSelectImageDescription = 'Choose a PNG, JPG, or JPEG from gallery';
+  static const String complianceSelectPdf = 'Select PDF';
+  static const String complianceSelectPdfDescription = 'Choose a PDF document from files';
+  static const String complianceCameraPermissionRequired =
+      'Camera permission is required to photograph your document.';
+  static const String complianceCameraOpenError =
+      'Unable to open the camera right now. Please try again.';
+  static const String compliancePickImageError =
+      'Unable to select an image right now. Please try again.';
+  static const String compliancePickPdfError =
+      'Unable to select a PDF right now. Please try again.';
   static const String rejectionReasonTitle = 'Rejection Reason';
+  static const String complianceShowMore = 'Show More';
+  static const String complianceRejectionPreviewEllipsis = '… ';
+  static const String complianceRejectionReasonOk = 'OK';
   static const String rejectionReasonBody = 'Lorem Ipsum Lorem ipsum Lorem Ipsum Lorem ipsum';
   static const String clickToUploadDocument = 'Click to upload\nDocument';
   static const String uploadFileFormat = 'File Format: JPEG, PNG, JPG, PDF';
   static const String uploadMaxFileSize = 'Max file size is 20 MB';
-  static const String enterExpiryDate = 'Enter Expiry Date (yyyy-dd-mm)';
+  static const String enterExpiryDate = 'MMMM DD, YYYY';
+  static const String enterExpirationDate = 'Expiration Date';
+  static const String expirationDateWithFormat = '$enterExpirationDate ($enterExpiryDate)';
+  static const String expiryDateMonthPlaceholder = 'MMMM';
+  static const String expiryDateDayPlaceholder = 'DD';
+  static const String expiryDateYearPlaceholder = 'YYYY';
+  static const String selectExpiryDate = 'Select expiration date';
+  static const String expiryDateRequired = 'Please enter an expiration date.';
+  static const String expiryDateInvalid = 'Enter a valid date, for example Apr 05, 2027.';
+  static const String expiryDateInPast = 'Expiration date must be today or later.';
+  static const List<String> expiryDateMonths = [
+    'Jan',
+    'Feb',
+    'Mar',
+    'Apr',
+    'May',
+    'Jun',
+    'Jul',
+    'Aug',
+    'Sep',
+    'Oct',
+    'Nov',
+    'Dec',
+  ];
+  static const List<String> expiryDateFullMonths = [
+    'January',
+    'February',
+    'March',
+    'April',
+    'May',
+    'June',
+    'July',
+    'August',
+    'September',
+    'October',
+    'November',
+    'December',
+  ];
   static const String cancelUpload = 'Cancel Upload';
   static const String submit = 'Submit';
   static const String reUpload = 'Re-Upload';

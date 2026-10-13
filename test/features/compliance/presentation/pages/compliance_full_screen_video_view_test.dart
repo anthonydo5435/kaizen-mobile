@@ -1,5 +1,6 @@
 import 'dart:async';
 
+import 'package:flutter/foundation.dart';
 import 'package:flutter/material.dart';
 import 'package:flutter/services.dart';
 import 'package:flutter_test/flutter_test.dart';
@@ -20,6 +21,11 @@ void main() {
   late _VideoPlatform platform;
   late VideoPlayerController controller;
   final orientationRequests = <List<dynamic>>[];
+  const fullscreenOrientations = [
+    'DeviceOrientation.portraitUp',
+    'DeviceOrientation.landscapeLeft',
+    'DeviceOrientation.landscapeRight',
+  ];
   final fullscreenRequests = <bool>[];
   final systemUiRequests = <String>[];
 
@@ -310,77 +316,82 @@ void main() {
     },
   );
 
-  testWidgets(
-    'long fullscreen captions retain their scroll position as words appear',
-    (tester) async {
-      tester.view.devicePixelRatio = 1;
-      tester.view.physicalSize = const Size(320, 640);
-      addTearDown(tester.view.reset);
-      final cue = List.filled(
-        30,
-        'Long caption content that wraps across the display',
-      ).join('\n');
-      final transcript = ComplianceVideoController('[00:00 --> 01:00] $cue');
-      addTearDown(transcript.dispose);
-      await openPlayer(
-        tester,
-        playing: false,
-        transcriptController: transcript,
-        textScale: 2,
-      );
-      expect(transcript.activeTranscriptText, isNot(cue));
-      final caption = find.text(transcript.activeTranscriptText!);
-      final paragraph = tester.renderObject<RenderParagraph>(
-        find.descendant(of: caption, matching: find.byType(RichText)),
-      );
-      expect(paragraph.didExceedMaxLines, isFalse);
-      final viewport = find.ancestor(
-        of: caption,
-        matching: find.byType(SingleChildScrollView),
-      );
-      final titleRow = find
-          .ancestor(of: find.text('Lesson'), matching: find.byType(Row))
-          .first;
-      expect(
-        tester.getTopLeft(titleRow).dy -
-            tester
-                .getBottomLeft(
-                  find.byKey(const ValueKey('fullscreen-active-transcript')),
-                )
-                .dy,
-        closeTo(6, 0.01),
-      );
-      final scrollable = find.descendant(
-        of: viewport,
-        matching: find.byType(Scrollable),
-      );
-      final position = tester.state<ScrollableState>(scrollable).position;
-      expect(position.maxScrollExtent, greaterThan(0));
-      await tester.drag(viewport, Offset(0, -position.maxScrollExtent - 100));
-      await tester.pumpAndSettle();
-      expect(position.pixels, closeTo(position.maxScrollExtent, 1));
-      final scrollOffset = position.pixels;
-      await controller.seekTo(const Duration(seconds: 21));
-      await tester.pump();
-      final updatedScrollable = find.descendant(
-        of: find.byKey(const ValueKey('fullscreen-active-transcript')),
-        matching: find.byType(Scrollable),
-      );
-      expect(
-        tester.state<ScrollableState>(updatedScrollable).position.pixels,
-        closeTo(scrollOffset, 1),
-      );
-      await tester.tap(find.text(AppStrings.trainingViewTranscript));
-      await tester.pumpAndSettle();
-      expect(find.byType(BottomSheet), findsOneWidget);
-      expect(
-        find.descendant(of: find.byType(BottomSheet), matching: find.text(cue)),
-        findsOneWidget,
-      );
-      await tester.pumpWidget(const SizedBox.shrink());
-      expect(tester.takeException(), isNull);
-    },
-  );
+  for (final screenSize in [const Size(320, 640), const Size(844, 390)]) {
+    testWidgets(
+      'long fullscreen captions retain their scroll position as words appear at $screenSize',
+      (tester) async {
+        tester.view.devicePixelRatio = 1;
+        tester.view.physicalSize = screenSize;
+        addTearDown(tester.view.reset);
+        final cue = List.filled(
+          30,
+          'Long caption content that wraps across the display',
+        ).join('\n');
+        final transcript = ComplianceVideoController('[00:00 --> 01:00] $cue');
+        addTearDown(transcript.dispose);
+        await openPlayer(
+          tester,
+          playing: false,
+          transcriptController: transcript,
+          textScale: 2,
+        );
+        expect(transcript.activeTranscriptText, isNot(cue));
+        final caption = find.text(transcript.activeTranscriptText!);
+        final paragraph = tester.renderObject<RenderParagraph>(
+          find.descendant(of: caption, matching: find.byType(RichText)),
+        );
+        expect(paragraph.didExceedMaxLines, isFalse);
+        final viewport = find.ancestor(
+          of: caption,
+          matching: find.byType(SingleChildScrollView),
+        );
+        final titleRow = find
+            .ancestor(of: find.text('Lesson'), matching: find.byType(Row))
+            .first;
+        expect(
+          tester.getTopLeft(titleRow).dy -
+              tester
+                  .getBottomLeft(
+                    find.byKey(const ValueKey('fullscreen-active-transcript')),
+                  )
+                  .dy,
+          closeTo(6, 0.01),
+        );
+        final scrollable = find.descendant(
+          of: viewport,
+          matching: find.byType(Scrollable),
+        );
+        final position = tester.state<ScrollableState>(scrollable).position;
+        expect(position.maxScrollExtent, greaterThan(0));
+        await tester.drag(viewport, Offset(0, -position.maxScrollExtent - 100));
+        await tester.pumpAndSettle();
+        expect(position.pixels, closeTo(position.maxScrollExtent, 1));
+        final scrollOffset = position.pixels;
+        await controller.seekTo(const Duration(seconds: 21));
+        await tester.pump();
+        final updatedScrollable = find.descendant(
+          of: find.byKey(const ValueKey('fullscreen-active-transcript')),
+          matching: find.byType(Scrollable),
+        );
+        expect(
+          tester.state<ScrollableState>(updatedScrollable).position.pixels,
+          closeTo(scrollOffset, 1),
+        );
+        await tester.tap(find.text(AppStrings.trainingViewTranscript));
+        await tester.pumpAndSettle();
+        expect(find.byType(BottomSheet), findsOneWidget);
+        expect(
+          find.descendant(
+            of: find.byType(BottomSheet),
+            matching: find.text(cue),
+          ),
+          findsOneWidget,
+        );
+        await tester.pumpWidget(const SizedBox.shrink());
+        expect(tester.takeException(), isNull);
+      },
+    );
+  }
 
   testWidgets('fullscreen transcript action handles empty content', (
     tester,
@@ -395,7 +406,7 @@ void main() {
 
   for (final useSystemBack in [false, true]) {
     testWidgets(
-      'wide video stays portrait without rotation controls and restores on ${useSystemBack ? 'system' : 'button'} back',
+      'fullscreen allows phone rotation and restores portrait on ${useSystemBack ? 'system' : 'button'} back',
       (tester) async {
         tester.view.devicePixelRatio = 1;
         tester.view.physicalSize = const Size(390, 844);
@@ -408,7 +419,7 @@ void main() {
         addTearDown(tester.view.reset);
         await openPlayer(tester);
 
-        expect(orientationRequests.single, ['DeviceOrientation.portraitUp']);
+        expect(orientationRequests.single, fullscreenOrientations);
         expect(fullscreenRequests, [true]);
         final video = find.byType(VideoPlayer);
         expect(tester.getSize(video).width, 390);
@@ -428,17 +439,33 @@ void main() {
         expect(controller.value.position, const Duration(seconds: 20));
         expect(controller.value.isPlaying, isTrue);
 
+        tester.view.physicalSize = const Size(844, 390);
+        await tester.pumpAndSettle();
+        expect(orientationRequests, [fullscreenOrientations]);
+        expect(find.byIcon(Icons.screen_rotation_outlined), findsNothing);
+        final landscapeVideoSize = tester.getSize(video);
+        expect(landscapeVideoSize.height, 390);
+        expect(landscapeVideoSize.width, closeTo(390 * 16 / 9, 0.01));
+        expect(tester.widget<VideoPlayer>(video).controller, same(controller));
+        expect(controller.value.isPlaying, isTrue);
+        expect(controller.value.position, const Duration(seconds: 20));
+
         if (useSystemBack) {
           await tester.binding.handlePopRoute();
         } else {
           await tester.tap(find.byType(AppBackButton));
         }
+        await tester.pump();
+        expect(orientationRequests.last, ['DeviceOrientation.portraitUp']);
+        expect(fullscreenRequests, [true, false]);
+        // Native orientation requests update the viewport on a real phone.
+        tester.view.physicalSize = const Size(390, 844);
         await tester.pumpAndSettle();
         expect(find.byType(ComplianceFullScreenVideoView), findsNothing);
-        expect(
-          orientationRequests,
-          everyElement(['DeviceOrientation.portraitUp']),
-        );
+        expect(orientationRequests, [
+          fullscreenOrientations,
+          ['DeviceOrientation.portraitUp'],
+        ]);
         expect(find.byIcon(Icons.screen_rotation_outlined), findsNothing);
         expect(fullscreenRequests, [true, false]);
         expect(controller.value.isPlaying, isTrue);
@@ -450,6 +477,55 @@ void main() {
   }
 
   testWidgets(
+    'phone rotation preserves playback without a rotate control',
+    (tester) async {
+      tester.view.devicePixelRatio = 1;
+      tester.view.physicalSize = const Size(390, 844);
+      addTearDown(tester.view.reset);
+      await openPlayer(tester);
+      final video = find.byType(VideoPlayer);
+
+      expect(orientationRequests.single, fullscreenOrientations);
+      expect(find.byIcon(Icons.screen_rotation_outlined), findsNothing);
+      tester.view.physicalSize = const Size(844, 390);
+      await tester.pumpAndSettle();
+      expect(find.byIcon(Icons.screen_rotation_outlined), findsNothing);
+      expect(tester.widget<VideoPlayer>(video).controller, same(controller));
+      expect(controller.value.isPlaying, isTrue);
+      expect(controller.value.position, const Duration(seconds: 20));
+
+      tester.view.physicalSize = const Size(390, 844);
+      await tester.pumpAndSettle();
+      expect(orientationRequests, [fullscreenOrientations]);
+      expect(find.byIcon(Icons.screen_rotation_outlined), findsNothing);
+      expect(tester.widget<VideoPlayer>(video).controller, same(controller));
+      expect(controller.value.isPlaying, isTrue);
+      expect(controller.value.position, const Duration(seconds: 20));
+      expect(
+        fullscreenRequests,
+        defaultTargetPlatform == TargetPlatform.android ? [true] : isEmpty,
+      );
+
+      await tester.pumpWidget(const SizedBox.shrink());
+      await tester.pump();
+      expect(orientationRequests.last, ['DeviceOrientation.portraitUp']);
+      if (defaultTargetPlatform == TargetPlatform.android) {
+        expect(fullscreenRequests, [true, false]);
+      } else {
+        expect(systemUiRequests, [
+          'SystemUiMode.immersiveSticky',
+          'SystemUiMode.edgeToEdge',
+        ]);
+      }
+      expect(tester.takeException(), isNull);
+    },
+    variant: TargetPlatformVariant({
+      TargetPlatform.android,
+      TargetPlatform.iOS,
+    }),
+  );
+
+  testWidgets(
     'portrait video fits the screen and remains seekable',
     (tester) async {
       tester.view.devicePixelRatio = 1;
@@ -457,7 +533,7 @@ void main() {
       addTearDown(tester.view.reset);
       platform.size = const Size(360, 640);
       await openPlayer(tester, playing: false);
-      expect(orientationRequests.single, ['DeviceOrientation.portraitUp']);
+      expect(orientationRequests.single, fullscreenOrientations);
       final size = tester.getSize(find.byType(VideoPlayer));
       expect(size.width, 390);
       expect(size.height, closeTo(390 * 16 / 9, 0.01));

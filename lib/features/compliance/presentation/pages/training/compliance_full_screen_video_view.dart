@@ -47,6 +47,7 @@ class _ComplianceFullScreenVideoViewState
   Timer? _pendingBufferingIndicatorTimer;
   Duration _lastObservedPosition = Duration.zero;
   bool _isEntryBufferingSuppressed = false;
+  bool _hasRestoredDisplay = false;
   bool _animateTranscript = true;
   late final ComplianceVideoController? _transcriptController;
 
@@ -85,19 +86,30 @@ class _ComplianceFullScreenVideoViewState
     _detachController(widget.controller);
     _showBufferingIndicator.dispose();
     _scrubPositionMillis.dispose();
+    _restoreDisplay();
+    super.dispose();
+  }
+
+  void _restoreDisplay() {
+    if (_hasRestoredDisplay) {
+      return;
+    }
+
+    _hasRestoredDisplay = true;
     unawaited(
       SystemChrome.setPreferredOrientations(const [
         DeviceOrientation.portraitUp,
       ]),
     );
     unawaited(VideoPlaybackService.setFullscreen(false));
-    super.dispose();
   }
 
   void _enterFullscreen() {
     unawaited(
       SystemChrome.setPreferredOrientations(const [
         DeviceOrientation.portraitUp,
+        DeviceOrientation.landscapeLeft,
+        DeviceOrientation.landscapeRight,
       ]),
     );
     unawaited(VideoPlaybackService.setFullscreen(true));
@@ -256,51 +268,64 @@ class _ComplianceFullScreenVideoViewState
 
   @override
   Widget build(BuildContext context) {
-    return Scaffold(
-      backgroundColor: Colors.black,
-      body: ValueListenableBuilder<VideoPlayerValue>(
-        valueListenable: widget.controller,
-        child: VideoPlayer(widget.controller),
-        builder: (context, controllerValue, child) {
-          final controller = widget.controller;
-          final isReady = controllerValue.isInitialized;
+    return PopScope<void>(
+      onPopInvokedWithResult: (didPop, _) {
+        if (didPop) {
+          _restoreDisplay();
+        }
+      },
+      child: Scaffold(
+        backgroundColor: Colors.black,
+        body: ValueListenableBuilder<VideoPlayerValue>(
+          valueListenable: widget.controller,
+          child: VideoPlayer(widget.controller),
+          builder: (context, controllerValue, child) {
+            final controller = widget.controller;
+            final isReady = controllerValue.isInitialized;
 
-          return ValueListenableBuilder<bool>(
-            valueListenable: _showBufferingIndicator,
-            builder: (context, showBufferingIndicator, _) {
-              return Stack(
-                fit: StackFit.expand,
-                children: [
-                  Center(
-                    child: isReady
-                        ? AspectRatio(
-                            aspectRatio: controllerValue.aspectRatio,
-                            child: child ?? VideoPlayer(controller),
-                          )
-                        : FastCircularProgressIndicator(width: 32, height: 32),
-                  ),
-                  if (isReady &&
-                      controllerValue.isBuffering &&
-                      showBufferingIndicator)
+            return ValueListenableBuilder<bool>(
+              valueListenable: _showBufferingIndicator,
+              builder: (context, showBufferingIndicator, _) {
+                return Stack(
+                  fit: StackFit.expand,
+                  children: [
                     Center(
-                      child: SizedBox(
-                        width: 30,
-                        height: 30,
-                        child: FastCircularProgressIndicator(),
-                      ),
+                      child: isReady
+                          ? AspectRatio(
+                              aspectRatio: controllerValue.aspectRatio,
+                              child: child ?? VideoPlayer(controller),
+                            )
+                          : FastCircularProgressIndicator(
+                              width: 32,
+                              height: 32,
+                            ),
                     ),
-                  _buildControlsOverlay(controllerValue),
-                ],
-              );
-            },
-          );
-        },
+                    if (isReady &&
+                        controllerValue.isBuffering &&
+                        showBufferingIndicator)
+                      Center(
+                        child: SizedBox(
+                          width: 30,
+                          height: 30,
+                          child: FastCircularProgressIndicator(),
+                        ),
+                      ),
+                    _buildControlsOverlay(controllerValue),
+                  ],
+                );
+              },
+            );
+          },
+        ),
       ),
     );
   }
 
   Widget _buildControlsOverlay(VideoPlayerValue controllerValue) {
+    final isLandscape =
+        MediaQuery.orientationOf(context) == Orientation.landscape;
     return SafeArea(
+      bottom: !isLandscape,
       child: LayoutBuilder(
         builder: (context, constraints) => Stack(
           children: [
@@ -317,7 +342,7 @@ class _ComplianceFullScreenVideoViewState
             Positioned(
               left: 8,
               right: 8,
-              bottom: 24,
+              bottom: isLandscape ? 0 : 24,
               child: _FullScreenVideoFooter(
                 title: widget.title,
                 maxHeight: (constraints.maxHeight - 100).clamp(
