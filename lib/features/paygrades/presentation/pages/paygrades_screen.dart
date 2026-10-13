@@ -25,19 +25,15 @@ class PaygradesScreen extends StatelessWidget {
   Widget build(BuildContext context) {
     return MultiProvider(
       providers: [
-        Provider<PaygradeRemoteDataSource>(
-          create: (_) => createPaygradeRemoteDataSource(),
-        ),
+        Provider<PaygradeRemoteDataSource>(create: (_) => createPaygradeRemoteDataSource()),
         ProxyProvider<PaygradeRemoteDataSource, PaygradeRepositoryImpl>(
-          update: (_, remoteDataSource, __) =>
-              createPaygradeRepository(remoteDataSource),
+          update: (_, remoteDataSource, __) => createPaygradeRepository(remoteDataSource),
         ),
         ProxyProvider<PaygradeRepositoryImpl, GetPaygradesUseCase>(
           update: (_, repository, __) => createGetPaygradesUseCase(repository),
         ),
         ChangeNotifierProvider<PaygradesController>(
-          create: (context) =>
-              PaygradesController(context.read<GetPaygradesUseCase>()),
+          create: (context) => PaygradesController(context.read<GetPaygradesUseCase>()),
         ),
       ],
       child: const _PaygradesScreenView(),
@@ -80,8 +76,7 @@ class _PaygradesScreenViewState extends State<_PaygradesScreenView> {
   }
 
   void _handleScroll() {
-    if (!_scrollController.hasClients ||
-        _scrollController.position.extentAfter > 360) {
+    if (!_scrollController.hasClients || _scrollController.position.extentAfter > 360) {
       return;
     }
 
@@ -116,9 +111,7 @@ class _PaygradesScreenViewState extends State<_PaygradesScreenView> {
         onRefresh: controller.refresh,
         child: CustomScrollView(
           controller: _scrollController,
-          physics: const AlwaysScrollableScrollPhysics(
-            parent: ClampingScrollPhysics(),
-          ),
+          physics: const AlwaysScrollableScrollPhysics(parent: ClampingScrollPhysics()),
           slivers: [
             SliverToBoxAdapter(
               child: SeatProfileSearchBar(
@@ -161,10 +154,7 @@ class _PaygradesScreenViewState extends State<_PaygradesScreenView> {
     }
 
     if (items.isEmpty) {
-      return SliverFillRemaining(
-        hasScrollBody: false,
-        child: Center(child: _buildEmptyState()),
-      );
+      return SliverFillRemaining(hasScrollBody: false, child: Center(child: _buildEmptyState()));
     }
 
     return SliverList.separated(
@@ -185,15 +175,12 @@ class _PaygradesScreenViewState extends State<_PaygradesScreenView> {
     );
   }
 
-  List<AppDepartmentFilterItem> _departmentFilterItems(
-    PaygradesController controller,
-  ) {
+  List<AppDepartmentFilterItem> _departmentFilterItems(PaygradesController controller) {
     return <AppDepartmentFilterItem>[
       if (controller.hasGlobalDepartmentAccess)
         const AppDepartmentFilterItem(id: 'all', name: AppStrings.categoryAll),
       ...controller.departments.map(
-        (department) =>
-            AppDepartmentFilterItem(id: department.id, name: department.name),
+        (department) => AppDepartmentFilterItem(id: department.id, name: department.name),
       ),
     ];
   }
@@ -241,10 +228,7 @@ class _PaygradesScreenViewState extends State<_PaygradesScreenView> {
             textAlign: TextAlign.center,
           ),
           const SizedBox(height: 12),
-          FilledButton(
-            onPressed: controller.refresh,
-            child: const Text('Retry'),
-          ),
+          FilledButton(onPressed: controller.refresh, child: const Text('Retry')),
         ],
       ),
     );

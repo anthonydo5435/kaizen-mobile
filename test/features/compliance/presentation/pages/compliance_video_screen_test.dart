@@ -98,8 +98,8 @@ void main() {
     await _openTranscript(tester);
     expect(find.text('Old transcript'), findsNothing);
     expect(
-      tester.widget<Text>(find.text('New transcript')).style?.color,
-      AppColors.textPrimary,
+      tester.widget<Text>(_sheetText('New transcript')).style?.color,
+      AppColors.secondaryColor,
     );
     expect(tester.takeException(), isNull);
   });
@@ -119,9 +119,11 @@ void main() {
         tester
             .getSize(find.byKey(const ValueKey('training-video-frame')))
             .height,
-        368,
+        383,
       );
-      expect(player.height, 368);
+      expect(player.height, 383);
+      expect(player.mediaAlignment, const Alignment(0, -0.5));
+      expect(player.topControlsInset, 6);
       expect(player.fillBounds, isTrue);
       expect(player.topRightActions, isEmpty);
       expect(
@@ -167,7 +169,7 @@ void main() {
       final controller = tester.element(cc).read<ComplianceVideoController>();
       final video = find.byType(FastCircularProgressIndicator);
       final videoBounds = tester.getRect(video);
-      expect(videoBounds.height, 266);
+      expect(videoBounds.height, 281);
       expect(controller.isCcEnabled, isFalse);
       expect(tester.getTopLeft(ccButton).dx, videoBounds.left + 10);
       expect(
@@ -365,9 +367,11 @@ void main() {
 Widget _screen(String? transcript, {double textScale = 1, String? videoUrl}) {
   return MaterialApp(
     builder: (context, child) => MediaQuery(
-      data: MediaQuery.of(
-        context,
-      ).copyWith(textScaler: TextScaler.linear(textScale)),
+      data: MediaQuery.of(context).copyWith(
+        textScaler: TextScaler.linear(textScale),
+        // Caption pacing is covered by the shared player tests.
+        disableAnimations: true,
+      ),
       child: child!,
     ),
     home: Scaffold(

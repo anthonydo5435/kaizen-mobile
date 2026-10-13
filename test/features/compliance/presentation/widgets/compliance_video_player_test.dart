@@ -236,156 +236,225 @@ void main() {
     );
   }
 
-  testWidgets(
-    'preserves the whole preview and anchors controls below its visible image',
-    (tester) async {
-      tester.view.physicalSize = const Size(390, 844);
-      tester.view.devicePixelRatio = 1;
-      addTearDown(tester.view.resetPhysicalSize);
-      addTearDown(tester.view.resetDevicePixelRatio);
-      platform.autoInitialize = false;
-      final originalImageClientProvider = debugNetworkImageHttpClientProvider;
-      final releaseThumbnail = Completer<void>();
+  for (final thumbnailSize in [const Size(640, 360), const Size(360, 640)]) {
+    testWidgets(
+      'preserves the whole $thumbnailSize preview below actions and anchors its footer',
+      (tester) async {
+        tester.view.physicalSize = const Size(390, 844);
+        tester.view.devicePixelRatio = 1;
+        addTearDown(tester.view.resetPhysicalSize);
+        addTearDown(tester.view.resetDevicePixelRatio);
+        platform.autoInitialize = false;
+        final originalImageClientProvider = debugNetworkImageHttpClientProvider;
+        final releaseThumbnail = Completer<void>();
 
-      await tester.runAsync(() async {
-        final recorder = ui.PictureRecorder();
-        Canvas(recorder).drawColor(Colors.blue, BlendMode.src);
-        final picture = recorder.endRecording();
-        final image = await picture.toImage(640, 360);
-        final bytes = (await image.toByteData(
-          format: ui.ImageByteFormat.png,
-        ))!.buffer.asUint8List();
-        image.dispose();
-        picture.dispose();
-        final server = await HttpServer.bind(InternetAddress.loopbackIPv4, 0);
-        server.listen((request) async {
-          await releaseThumbnail.future;
-          request.response.headers.contentType = ContentType('image', 'png');
-          request.response.add(bytes);
-          unawaited(request.response.close());
-        });
-        final client = HttpOverrides.runWithHttpOverrides(
-          HttpClient.new,
-          _LocalImageHttpOverrides(),
-        );
-        debugNetworkImageHttpClientProvider = () => client;
-        addTearDown(() async {
-          if (!releaseThumbnail.isCompleted) releaseThumbnail.complete();
-          debugNetworkImageHttpClientProvider = originalImageClientProvider;
-          client.close(force: true);
-          await server.close(force: true);
-        });
-        await tester.pumpWidget(
-          MaterialApp(
-            home: Scaffold(
-              body: ComplianceVideoTranscriptPanel(
-                videoId: 'lesson',
-                videoUrl: 'https://example.test/video.mp4',
-                localVideoPath: videoPath,
-                title: 'Lesson',
-                thumbnailLink: 'http://127.0.0.1:${server.port}/thumbnail.png',
-                transcript: '[00:10] Later caption',
+        await tester.runAsync(() async {
+          final recorder = ui.PictureRecorder();
+          Canvas(recorder).drawColor(Colors.white, BlendMode.src);
+          final picture = recorder.endRecording();
+          final image = await picture.toImage(
+            thumbnailSize.width.toInt(),
+            thumbnailSize.height.toInt(),
+          );
+          final bytes = (await image.toByteData(
+            format: ui.ImageByteFormat.png,
+          ))!.buffer.asUint8List();
+          image.dispose();
+          picture.dispose();
+          final server = await HttpServer.bind(InternetAddress.loopbackIPv4, 0);
+          server.listen((request) async {
+            await releaseThumbnail.future;
+            request.response.headers.contentType = ContentType('image', 'png');
+            request.response.add(bytes);
+            unawaited(request.response.close());
+          });
+          final client = HttpOverrides.runWithHttpOverrides(
+            HttpClient.new,
+            _LocalImageHttpOverrides(),
+          );
+          debugNetworkImageHttpClientProvider = () => client;
+          addTearDown(() async {
+            if (!releaseThumbnail.isCompleted) releaseThumbnail.complete();
+            debugNetworkImageHttpClientProvider = originalImageClientProvider;
+            client.close(force: true);
+            await server.close(force: true);
+          });
+          await tester.pumpWidget(
+            MaterialApp(
+              home: Scaffold(
+                body: RepaintBoundary(
+                  key: const ValueKey('video-preview-pixels'),
+                  child: ComplianceVideoTranscriptPanel(
+                    videoId: 'lesson',
+                    videoUrl: 'https://example.test/video.mp4',
+                    localVideoPath: videoPath,
+                    title: 'Lesson',
+                    thumbnailLink:
+                        'http://127.0.0.1:${server.port}/thumbnail.png',
+                    transcript: '[00:10] Later caption',
+                    topRightActions: const [
+                      SizedBox(
+                        key: ValueKey('thumbnail-edit-action'),
+                        width: 60,
+                        height: 56,
+                      ),
+                    ],
+                  ),
+                ),
               ),
             ),
-          ),
+          );
+          await platform.created.future;
+        });
+        await tester
+            .pump(); // Apply the measured action row before image decoding.
+        final frame = find.byKey(const ValueKey('training-video-frame'));
+        final frameBounds = tester.getRect(frame);
+        final surface = find
+            .descendant(
+              of: find.byType(ComplianceVideoTranscriptPanel),
+              matching: find.byType(Material),
+            )
+            .first;
+        final initialSurfaceBounds = tester.getRect(surface);
+        final initialTitleBounds = tester.getRect(find.text('Lesson'));
+        final previewBottom =
+            frameBounds.top + 68 + frameBounds.width / (16 / 9);
+        expect(initialTitleBounds.top, closeTo(previewBottom + 10, 0.01));
+        await tester.pump();
+        expect(tester.getRect(surface), initialSurfaceBounds);
+        expect(tester.getRect(find.text('Lesson')), initialTitleBounds);
+        releaseThumbnail.complete();
+        final thumbnail = find.descendant(
+          of: find.byKey(const ValueKey('video-thumbnail-preview')),
+          matching: find.byType(RawImage),
         );
-        await platform.created.future;
-      });
-      final frame = find.byKey(const ValueKey('training-video-frame'));
-      final frameBounds = tester.getRect(frame);
-      final surface = find
-          .descendant(
-            of: find.byType(ComplianceVideoTranscriptPanel),
-            matching: find.byType(Material),
-          )
-          .first;
-      final initialSurfaceBounds = tester.getRect(surface);
-      final initialTitleBounds = tester.getRect(find.text('Lesson'));
-      final previewBottom =
-          frameBounds.top +
-          (frameBounds.height + frameBounds.width / (16 / 9)) / 2;
-      expect(initialTitleBounds.top, closeTo(previewBottom + 10, 0.01));
-      await tester.pump();
-      expect(tester.getRect(surface), initialSurfaceBounds);
-      expect(tester.getRect(find.text('Lesson')), initialTitleBounds);
-      releaseThumbnail.complete();
-      final thumbnail = find.descendant(
-        of: find.byKey(const ValueKey('video-thumbnail-preview')),
-        matching: find.byType(RawImage),
-      );
-      for (
-        var attempt = 0;
-        attempt < 100 && tester.widget<RawImage>(thumbnail).image == null;
-        attempt++
-      ) {
-        await tester.runAsync(
-          () => Future<void>.delayed(const Duration(milliseconds: 10)),
+        for (
+          var attempt = 0;
+          attempt < 100 && tester.widget<RawImage>(thumbnail).image == null;
+          attempt++
+        ) {
+          await tester.runAsync(
+            () => Future<void>.delayed(const Duration(milliseconds: 10)),
+          );
+          await tester.pump();
+        }
+        expect(tester.widget<RawImage>(thumbnail).image, isNotNull);
+        await tester.pump();
+        final rawImage = tester.widget<RawImage>(thumbnail);
+        expect(rawImage.fit, BoxFit.contain);
+        final image = rawImage.image!;
+        final thumbnailBox = tester.getRect(thumbnail);
+        final fitted = applyBoxFit(
+          BoxFit.contain,
+          Size(image.width.toDouble(), image.height.toDouble()),
+          thumbnailBox.size,
+        );
+        final thumbnailBounds = Alignment.topCenter.inscribe(
+          fitted.destination,
+          thumbnailBox,
+        );
+        if (thumbnailSize.width > thumbnailSize.height) {
+          expect(tester.getRect(surface), initialSurfaceBounds);
+          expect(tester.getRect(find.text('Lesson')), initialTitleBounds);
+        }
+        expect(thumbnailBounds.left, greaterThanOrEqualTo(frameBounds.left));
+        expect(thumbnailBounds.center.dx, closeTo(frameBounds.center.dx, 0.01));
+        expect(thumbnailBounds.right, lessThanOrEqualTo(frameBounds.right));
+        expect(
+          thumbnailBounds.width / thumbnailBounds.height,
+          closeTo(thumbnailSize.width / thumbnailSize.height, 0.01),
+        );
+        expect(
+          thumbnailBounds.top -
+              tester
+                  .getBottomLeft(
+                    find.byKey(const ValueKey('thumbnail-edit-action')),
+                  )
+                  .dy,
+          closeTo(6, 0.01),
+        );
+        expect(thumbnailBounds.bottom, lessThanOrEqualTo(frameBounds.bottom));
+        expect(find.text('Later caption'), findsNothing);
+        expect(
+          tester.getTopLeft(find.text('Lesson')).dy - thumbnailBounds.bottom,
+          closeTo(10, 0.01),
+        );
+        expectSeekActionGap(tester);
+        expect(find.byType(VideoPlayer), findsNothing);
+
+        final captions = tester
+            .element(find.text(AppStrings.trainingViewTranscript))
+            .read<ComplianceVideoController>();
+        captions.updatePlaybackPosition(
+          const Duration(seconds: 10),
+          animate: false,
         );
         await tester.pump();
-      }
-      expect(tester.widget<RawImage>(thumbnail).image, isNotNull);
-      await tester.pump();
-      final rawImage = tester.widget<RawImage>(thumbnail);
-      expect(rawImage.fit, BoxFit.contain);
-      final image = rawImage.image!;
-      final thumbnailBox = tester.getRect(thumbnail);
-      final fitted = applyBoxFit(
-        BoxFit.contain,
-        Size(image.width.toDouble(), image.height.toDouble()),
-        thumbnailBox.size,
-      );
-      final thumbnailBounds = Alignment.center.inscribe(
-        fitted.destination,
-        thumbnailBox,
-      );
-      expect(tester.getRect(surface), initialSurfaceBounds);
-      expect(tester.getRect(find.text('Lesson')), initialTitleBounds);
-      expect(thumbnailBounds.left, frameBounds.left);
-      expect(thumbnailBounds.right, frameBounds.right);
-      expect(
-        thumbnailBounds.width / thumbnailBounds.height,
-        closeTo(16 / 9, 0.01),
-      );
-      expect(find.text('Later caption'), findsNothing);
-      expect(
-        tester.getTopLeft(find.text('Lesson')).dy - thumbnailBounds.bottom,
-        closeTo(10, 0.01),
-      );
-      expectSeekActionGap(tester);
-      expect(find.byType(VideoPlayer), findsNothing);
+        final captionBounds = tester.getRect(
+          find.byKey(const ValueKey('active-video-caption')),
+        );
+        final colors = await _previewPixelColors(tester, [
+          Offset(thumbnailBounds.center.dx, thumbnailBounds.top + 8),
+          Offset(thumbnailBounds.left + 2, thumbnailBounds.bottom - 4),
+          Offset(captionBounds.left + 4, captionBounds.center.dy),
+        ]);
+        expect(
+          colors,
+          [Colors.white, Colors.white, Colors.black],
+          reason:
+              'The preview stays bright throughout and its caption blocks light from the image.',
+        );
+        captions.updatePlaybackPosition(Duration.zero, animate: false);
+        await tester.pump();
 
-      await tester.runAsync(() async {
-        platform.initialize();
-        await platform.initialized.future;
-        await Future<void>.delayed(Duration.zero);
-      });
-      await tester.pump();
-      await tester.pump();
-      expect(find.text('Later caption'), findsNothing);
-      expect(find.text('01:00'), findsOneWidget);
-      expect(
-        tester.getTopLeft(find.text('Lesson')).dy - thumbnailBounds.bottom,
-        closeTo(10, 0.01),
-      );
-      await tester.tap(find.byIcon(Icons.play_arrow_rounded));
-      await tester.pump(const Duration(milliseconds: 300));
-      await tester.pump();
-      expect(find.byType(Slider), findsNothing);
-      expect(find.text('Later caption'), findsNothing);
-      final actions = find.ancestor(
-        of: find.text(AppStrings.trainingViewTranscript),
-        matching: find.byType(TextButton),
-      );
-      expect(
-        tester.getTopLeft(actions).dy -
-            tester.getBottomLeft(find.byType(VideoPlayer)).dy,
-        closeTo(6, 0.01),
-      );
-      expect(tester.getRect(frame), frameBounds);
-      await disposePlayer(tester);
-      debugNetworkImageHttpClientProvider = originalImageClientProvider;
-    },
-  );
+        await tester.runAsync(() async {
+          platform.initialize();
+          await platform.initialized.future;
+          await Future<void>.delayed(Duration.zero);
+        });
+        await tester.pump();
+        await tester.pump();
+        expect(find.text('Later caption'), findsNothing);
+        expect(find.text('01:00'), findsOneWidget);
+        expect(
+          tester.getTopLeft(find.text('Lesson')).dy - thumbnailBounds.bottom,
+          closeTo(10, 0.01),
+        );
+        await tester.tap(find.byIcon(Icons.play_arrow_rounded));
+        await tester.pump(const Duration(milliseconds: 300));
+        await tester.pump();
+        expect(find.byType(Slider), findsNothing);
+        expect(find.text('Later caption'), findsNothing);
+        final runningVideoBounds = tester.getRect(find.byType(VideoPlayer));
+        expect(
+          runningVideoBounds.top -
+              tester
+                  .getBottomLeft(
+                    find.byKey(const ValueKey('thumbnail-edit-action')),
+                  )
+                  .dy,
+          closeTo(6, 0.01),
+        );
+        expect(
+          runningVideoBounds.width / runningVideoBounds.height,
+          closeTo(platform.videoSize.width / platform.videoSize.height, 0.01),
+        );
+        final actions = find.ancestor(
+          of: find.text(AppStrings.trainingViewTranscript),
+          matching: find.byType(TextButton),
+        );
+        expect(
+          tester.getTopLeft(actions).dy -
+              tester.getBottomLeft(find.byType(VideoPlayer)).dy,
+          closeTo(6, 0.01),
+        );
+        expect(tester.getRect(frame), frameBounds);
+        await disposePlayer(tester);
+        debugNetworkImageHttpClientProvider = originalImageClientProvider;
+      },
+    );
+  }
 
   testWidgets(
     'shared panel keeps its transcript and playback controller in fullscreen',
@@ -618,7 +687,17 @@ void main() {
         find.byKey(const ValueKey('training-video-frame')),
       );
       final media = tester.getRect(find.byType(VideoPlayer));
-      expect(media.height, closeTo(frame.height, 0.01));
+      expect(media.height, closeTo(frame.height - 46, 0.01));
+      expect(media.top - frame.top, closeTo(46, 0.01));
+      expect(
+        media.top -
+            tester
+                .getBottomLeft(
+                  find.byKey(const ValueKey('video-fullscreen-button')),
+                )
+                .dy,
+        greaterThanOrEqualTo(6),
+      );
       expect(media.width / media.height, closeTo(9 / 16, 0.01));
       expect(media.left, greaterThan(frame.left));
       expect(media.right, lessThan(frame.right));
@@ -883,6 +962,35 @@ void main() {
       await disposePlayer(tester);
     },
   );
+}
+
+Future<List<Color>> _previewPixelColors(
+  WidgetTester tester,
+  List<Offset> points,
+) async {
+  final boundaryFinder = find.byKey(const ValueKey('video-preview-pixels'));
+  final boundary = tester.renderObject<RenderRepaintBoundary>(boundaryFinder);
+  final origin = tester.getTopLeft(boundaryFinder);
+  return (await tester.runAsync(() async {
+    final image = await boundary.toImage(pixelRatio: 1);
+    try {
+      final bytes = (await image.toByteData(
+        format: ui.ImageByteFormat.rawRgba,
+      ))!.buffer.asUint8List();
+      return points.map((point) {
+        final local = point - origin;
+        final index = (local.dy.floor() * image.width + local.dx.floor()) * 4;
+        return Color.fromARGB(
+          bytes[index + 3],
+          bytes[index],
+          bytes[index + 1],
+          bytes[index + 2],
+        );
+      }).toList();
+    } finally {
+      image.dispose();
+    }
+  }))!;
 }
 
 class _LocalImageHttpOverrides extends HttpOverrides {}

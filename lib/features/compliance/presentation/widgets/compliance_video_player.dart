@@ -18,6 +18,24 @@ class ComplianceVideoPlayer extends StatefulWidget {
   static const bottomControlsInset = 30.0;
   static const contentHorizontalInset = 10.0;
   static const contentPadding = EdgeInsets.symmetric(horizontal: contentHorizontalInset);
+  static const topControlsMinHeight = 34.0;
+
+  /// Fitted media bounds with enough room above the image for its actions.
+  static Rect previewMediaBounds(
+    Size viewport, {
+    required Alignment alignment,
+    Size mediaSize = const Size(16, 9),
+    double minimumTop = 0,
+  }) {
+    final fitted = applyBoxFit(BoxFit.contain, mediaSize, viewport).destination;
+    final preferred = alignment.inscribe(fitted, Offset.zero & viewport);
+    final top = preferred.top.clamp(minimumTop.clamp(0, viewport.height), viewport.height).toDouble();
+    final available = Size(viewport.width, viewport.height - top);
+    return Alignment.topCenter.inscribe(
+      applyBoxFit(BoxFit.contain, mediaSize, available).destination,
+      Offset(0, top) & available,
+    );
+  }
 
   const ComplianceVideoPlayer({
     super.key,
@@ -538,38 +556,57 @@ class _ComplianceVideoPlayerState extends State<ComplianceVideoPlayer>
           child: ClipRect(
             child: widget.fillBounds
                 ? SizedBox.expand(
-                    child: Stack(
-                      fit: StackFit.expand,
+                    child: CustomMultiChildLayout(
+                      delegate: _VideoMediaLayoutDelegate(
+                        showThumbnail: showThumbnailPreview,
+                        videoSize: isReady ? controllerValue!.size : const Size(16, 9),
+                        mediaAlignment: widget.mediaAlignment,
+                        topControlsInset: widget.topControlsInset,
+                      ),
                       children: [
-                        AnimatedSwitcher(
-                          duration: const Duration(milliseconds: 280),
-                          switchInCurve: Curves.easeOutCubic,
-                          switchOutCurve: Curves.easeInCubic,
-                          child: showThumbnailPreview
-                              ? _buildThumbnailPreview(thumbnailUrl)
-                              : isReady
-                              ? SizedBox.expand(
-                                  key: ValueKey(controller),
-                                  child: FittedBox(
-                                    fit: BoxFit.contain,
-                                    alignment: widget.mediaAlignment,
-                                    child: SizedBox(
-                                      width: controllerValue!.size.width,
-                                      height: controllerValue.size.height,
-                                      child: VideoPlayer(controller, key: _videoKey),
+                        LayoutId(
+                          id: _VideoMediaSlot.media,
+                          child: AnimatedSwitcher(
+                            duration: const Duration(milliseconds: 280),
+                            switchInCurve: Curves.easeOutCubic,
+                            switchOutCurve: Curves.easeInCubic,
+                            child: showThumbnailPreview
+                                ? _buildThumbnailPreview(thumbnailUrl)
+                                : isReady
+                                ? SizedBox.expand(
+                                    key: ValueKey(controller),
+                                    child: FittedBox(
+                                      fit: BoxFit.contain,
+                                      alignment: Alignment.topCenter,
+                                      child: SizedBox(
+                                        width: controllerValue!.size.width,
+                                        height: controllerValue.size.height,
+                                        child: VideoPlayer(controller, key: _videoKey),
+                                      ),
                                     ),
-                                  ),
-                                )
-                              : const ColoredBox(key: ValueKey('video-loading-background'), color: Colors.black),
+                                  )
+                                : const ColoredBox(key: ValueKey('video-loading-background'), color: Colors.black),
+                          ),
                         ),
-                        _buildOverlay(
-                          controller: controller,
-                          controllerValue: controllerValue,
-                          initializationError: initializationError,
-                          isReady: isReady,
-                          isLoading: isLoading,
-                          isBuffering: isBuffering,
-                          showThumbnailPreview: showThumbnailPreview,
+                        LayoutId(
+                          id: _VideoMediaSlot.overlay,
+                          child: _buildOverlay(
+                            controller: controller,
+                            controllerValue: controllerValue,
+                            initializationError: initializationError,
+                            isReady: isReady,
+                            isLoading: isLoading,
+                            isBuffering: isBuffering,
+                            showThumbnailPreview: showThumbnailPreview,
+                            includeTopControls: false,
+                          ),
+                        ),
+                        LayoutId(
+                          id: _VideoMediaSlot.topControls,
+                          child: ConstrainedBox(
+                            constraints: const BoxConstraints(minHeight: ComplianceVideoPlayer.topControlsMinHeight),
+                            child: _buildTopControls(),
+                          ),
                         ),
                       ],
                     ),
@@ -616,7 +653,7 @@ class _ComplianceVideoPlayerState extends State<ComplianceVideoPlayer>
       thumbnailUrl,
       key: _thumbnailKey,
       fit: widget.fillBounds ? BoxFit.contain : BoxFit.cover,
-      alignment: widget.mediaAlignment,
+      alignment: widget.fillBounds ? Alignment.topCenter : widget.mediaAlignment,
       frameBuilder: (context, child, frame, wasSynchronouslyLoaded) {
         if (frame != null && widget.onVideoBoundsChanged != null) {
           WidgetsBinding.instance.addPostFrameCallback((_) => _reportVideoBounds());
@@ -654,7 +691,10 @@ class _ComplianceVideoPlayerState extends State<ComplianceVideoPlayer>
     if (showThumbnail && media is RenderImage) {
       final image = media.image;
       if (image == null) {
-        widget.onVideoBoundsChanged?.call(null);
+        // Use the laid-out action row even while the thumbnail is decoding.
+        final fitted = applyBoxFit(BoxFit.contain, const Size(16, 9), media.size);
+        final previewBounds = Alignment.topCenter.inscribe(fitted.destination, visibleBounds);
+        widget.onVideoBoundsChanged?.call(MatrixUtils.transformRect(media.getTransformTo(frame), previewBounds));
         return;
       }
       // The image widget includes letterboxing; measure its painted image instead.
@@ -663,7 +703,10 @@ class _ComplianceVideoPlayerState extends State<ComplianceVideoPlayer>
         Size(image.width.toDouble(), image.height.toDouble()),
         media.size,
       );
-      visibleBounds = widget.mediaAlignment.inscribe(fitted.destination, visibleBounds);
+      visibleBounds = (widget.fillBounds ? Alignment.topCenter : widget.mediaAlignment).inscribe(
+        fitted.destination,
+        visibleBounds,
+      );
     }
     final bounds = MatrixUtils.transformRect(media.getTransformTo(frame), visibleBounds);
     widget.onVideoBoundsChanged?.call(bounds.intersect(Offset.zero & frame.size));
@@ -677,22 +720,47 @@ class _ComplianceVideoPlayerState extends State<ComplianceVideoPlayer>
     required bool isLoading,
     required bool isBuffering,
     required bool showThumbnailPreview,
+    bool includeTopControls = true,
   }) {
+    final playbackControls = _buildPlaybackControlsVisibility(
+      child: Row(
+        mainAxisAlignment: MainAxisAlignment.center,
+        children: [
+          _CircleIconButton(
+            icon: Icons.replay_10_rounded,
+            onTap: isReady ? () => _seekBy(const Duration(seconds: -10)) : null,
+          ),
+          const SizedBox(width: 8),
+          _PlayButton(
+            isLoading: isLoading,
+            isPlaying: controllerValue?.isPlaying ?? false,
+            onTap: initializationError != null ? null : _togglePlayback,
+          ),
+          const SizedBox(width: 8),
+          _CircleIconButton(
+            icon: Icons.forward_10_rounded,
+            onTap: isReady ? () => _seekBy(const Duration(seconds: 10)) : null,
+          ),
+        ],
+      ),
+    );
     return Stack(
       fit: StackFit.expand,
       children: [
         GestureDetector(
           behavior: HitTestBehavior.opaque,
           onTap: _revealPlaybackControls,
-          child: DecoratedBox(
-            decoration: BoxDecoration(
-              gradient: LinearGradient(
-                begin: Alignment.topCenter,
-                end: Alignment.bottomCenter,
-                colors: [Colors.black.withValues(alpha: 0.10), Colors.black.withValues(alpha: 0.45)],
-              ),
-            ),
-          ),
+          child: showThumbnailPreview
+              ? const ColoredBox(color: Colors.transparent)
+              : DecoratedBox(
+                  decoration: BoxDecoration(
+                    gradient: LinearGradient(
+                      begin: Alignment.topCenter,
+                      end: Alignment.bottomCenter,
+                      colors: [Colors.black.withValues(alpha: 0.10), Colors.black.withValues(alpha: 0.45)],
+                    ),
+                  ),
+                ),
         ),
         if (initializationError != null)
           const Center(
@@ -712,28 +780,15 @@ class _ComplianceVideoPlayerState extends State<ComplianceVideoPlayer>
           right: ComplianceVideoPlayer.contentHorizontalInset,
           top: 0,
           bottom: 0,
-          child: _buildPlaybackControlsVisibility(
-            child: Row(
-              mainAxisAlignment: MainAxisAlignment.center,
-              children: [
-                _CircleIconButton(
-                  icon: Icons.replay_10_rounded,
-                  onTap: isReady ? () => _seekBy(const Duration(seconds: -10)) : null,
-                ),
-                const SizedBox(width: 8),
-                _PlayButton(
-                  isLoading: isLoading,
-                  isPlaying: controllerValue?.isPlaying ?? false,
-                  onTap: initializationError != null ? null : _togglePlayback,
-                ),
-                const SizedBox(width: 8),
-                _CircleIconButton(
-                  icon: Icons.forward_10_rounded,
-                  onTap: isReady ? () => _seekBy(const Duration(seconds: 10)) : null,
-                ),
-              ],
-            ),
-          ),
+          child: widget.fillBounds && includeTopControls
+              ? Align(
+                  alignment: widget.mediaAlignment,
+                  child: AspectRatio(
+                    aspectRatio: isReady ? controllerValue!.aspectRatio : 16 / 9,
+                    child: playbackControls,
+                  ),
+                )
+              : playbackControls,
         ),
         if (widget.layoutBuilder == null)
           ValueListenableBuilder<bool>(
@@ -745,26 +800,26 @@ class _ComplianceVideoPlayerState extends State<ComplianceVideoPlayer>
               child: showControls ? _buildBottomControls(controller, controllerValue) : const SizedBox.shrink(),
             ),
           ),
-        Positioned(
-          top: widget.topControlsInset,
-          right: 10,
-          child: Row(
-            mainAxisSize: MainAxisSize.min,
-            children: [
-              ...widget.topRightActions.expand((action) => [const SizedBox(width: 8), action]),
-              GestureDetector(
-                key: const ValueKey('video-fullscreen-button'),
-                onTap: _openFullScreenVideo,
-                child: Container(
-                  width: 30,
-                  height: 30,
-                  margin: EdgeInsets.only(left: 7),
-                  alignment: Alignment.center,
-                  decoration: BoxDecoration(color: AppColors.surfaceDark2, borderRadius: BorderRadius.circular(8)),
-                  child: Icon(Icons.fullscreen, size: 23, color: AppColors.textPrimary),
-                ),
-              ),
-            ],
+        if (includeTopControls) Positioned(top: widget.topControlsInset, right: 10, child: _buildTopControls()),
+      ],
+    );
+  }
+
+  Widget _buildTopControls() {
+    return Row(
+      mainAxisSize: MainAxisSize.min,
+      children: [
+        ...widget.topRightActions.expand((action) => [const SizedBox(width: 8), action]),
+        GestureDetector(
+          key: const ValueKey('video-fullscreen-button'),
+          onTap: _openFullScreenVideo,
+          child: Container(
+            width: 30,
+            height: 30,
+            margin: EdgeInsets.only(left: 7),
+            alignment: Alignment.center,
+            decoration: BoxDecoration(color: AppColors.surfaceDark2, borderRadius: BorderRadius.circular(8)),
+            child: Icon(Icons.fullscreen, size: 23, color: AppColors.textPrimary),
           ),
         ),
       ],
@@ -934,6 +989,50 @@ class _ComplianceVideoPlayerState extends State<ComplianceVideoPlayer>
       ],
     );
   }
+}
+
+enum _VideoMediaSlot { media, overlay, topControls }
+
+/// Keeps previews and playback below the measured action row in the fixed frame.
+class _VideoMediaLayoutDelegate extends MultiChildLayoutDelegate {
+  _VideoMediaLayoutDelegate({
+    required this.showThumbnail,
+    required this.videoSize,
+    required this.mediaAlignment,
+    required this.topControlsInset,
+  });
+
+  final bool showThumbnail;
+  final Size videoSize;
+  final Alignment mediaAlignment;
+  final double topControlsInset;
+
+  @override
+  void performLayout(Size size) {
+    final controlsSize = layoutChild(
+      _VideoMediaSlot.topControls,
+      BoxConstraints.loose(Size((size.width - 20).clamp(0, double.infinity), size.height)),
+    );
+    positionChild(_VideoMediaSlot.topControls, Offset(size.width - controlsSize.width - 10, topControlsInset));
+    final mediaBounds = ComplianceVideoPlayer.previewMediaBounds(
+      size,
+      alignment: mediaAlignment,
+      mediaSize: showThumbnail ? const Size(16, 9) : videoSize,
+      minimumTop: topControlsInset + controlsSize.height + 6,
+    );
+    final mediaHeight = showThumbnail ? size.height - mediaBounds.top : mediaBounds.height;
+    layoutChild(_VideoMediaSlot.media, BoxConstraints.tight(Size(size.width, mediaHeight)));
+    positionChild(_VideoMediaSlot.media, Offset(0, mediaBounds.top));
+    layoutChild(_VideoMediaSlot.overlay, BoxConstraints.tight(Size(size.width, mediaBounds.height)));
+    positionChild(_VideoMediaSlot.overlay, Offset(0, mediaBounds.top));
+  }
+
+  @override
+  bool shouldRelayout(_VideoMediaLayoutDelegate oldDelegate) =>
+      showThumbnail != oldDelegate.showThumbnail ||
+      videoSize != oldDelegate.videoSize ||
+      mediaAlignment != oldDelegate.mediaAlignment ||
+      topControlsInset != oldDelegate.topControlsInset;
 }
 
 class _CircleIconButton extends StatelessWidget {

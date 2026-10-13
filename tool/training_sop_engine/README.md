@@ -33,11 +33,13 @@ content bridge. Printing hides display decorations and uses native A4 print
 fragmentation. The mobile viewport fits the paper initially, allows pinch zoom,
 and leaves horizontal Training swipes available at the initial scale.
 
-The first short editing tap resolves its document position before focusing with
-`preventScroll`, avoiding iOS form zoom and a jump to the document start. A second
-short tap in that first gesture selects the word across inline formatting marks.
-Drags,
-pinches, long presses and read-only taps retain native behavior. The interaction
+Every short editing tap resolves its document position before focusing with
+`preventScroll`, avoiding iOS form zoom and a jump to the document start, including
+when the editor is already focused. A second short tap selects the word across
+inline formatting marks. A short tap replaces an existing selection with the
+caret at the tapped text; rapid taps on different words remain cursor moves.
+Small selection-handle drags, pinches, long presses and read-only taps retain
+native behavior. The interaction
 extension also keeps `can().blur()` probes free of side effects; explicit blur
 still dismisses the keyboard. The adapter sends replies and editing events
 through Flutter's registered `TiptapBridge` channel on both platforms instead
@@ -50,6 +52,19 @@ stored marks and mixed selections. On iOS, the SOP controller uses a scoped nati
 bridge to hide the WebView's previous/next/Done keyboard accessory. Its public
 responder getter is overridden only on that WebView's text input instance;
 other WebViews and the app's formatting toolbar and Done button keep their behavior.
+
+The SOP's iOS scroll delegate also retains the last zoom set by a two-finger
+pinch. This prevents native long-press focus from magnifying small text after the
+keyboard was dismissed. Pinch zoom, zoom bounce and viewport minimum-scale
+changes remain native; existing external scroll callbacks are forwarded and
+WebKit keeps its internal delegate. The protection belongs to the individual
+SOP WebView and is released with it.
+
+Native selection changes tell Flutter when a text range is selected. Selection
+handle drags, long presses and pinch gestures stay in the SOP instead of changing
+Training tabs. At page-fit size, clearing the selection restores horizontal tab
+swipes. Gesture factories stay mounted while selection and zoom state change so
+an in-progress native gesture is not cancelled.
 
 The layout tests use a locally installed Chromium browser through its DevTools
 protocol, with a temporary profile. Set `CHROME_BIN` if it is installed outside

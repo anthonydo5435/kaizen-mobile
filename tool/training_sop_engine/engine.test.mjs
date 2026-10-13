@@ -240,6 +240,147 @@ test('the first touch focuses without scrolling and retains the tapped caret aft
   } finally { e.close(); }
 });
 
+test('later editing taps place the caret without native focus zoom and leave selection drags alone', () => {
+  const e = create('<p>Alpha beta gamma</p>');
+  try {
+    const view = e.dom.window.__tiptapEngineInstance.editor.view;
+    let now = 0, position = 3;
+    e.dom.window.Date.now = () => now;
+    view.posAtCoords = () => ({ pos: position, inside: 0 });
+    const options = [];
+    const focus = view.dom.focus.bind(view.dom);
+    // Browsers read the getter used by ProseMirror's preventScroll detection;
+    // jsdom's focus implementation does not inspect focus options itself.
+    view.dom.focus = option => { options.push(option?.preventScroll); focus(option); };
+    const touch = { screenX: 20, screenY: 30, clientX: 20, clientY: 30 };
+    const dispatch = (type, touches, changed = touch) => {
+      const event = new e.dom.window.Event(type, { bubbles: true, cancelable: true });
+      Object.defineProperties(event, { touches: { value: touches }, changedTouches: { value: [changed] } });
+      view.dom.querySelector('p').dispatchEvent(event);
+      return event;
+    };
+    for (const caret of [3, 8, 13]) {
+      now += 600;
+      position = caret;
+      dispatch('touchstart', [touch]);
+      assert.equal(dispatch('touchend', []).defaultPrevented, true, 'Every short tap suppresses browser focus');
+      assert.equal(view.state.selection.from, caret);
+      assert.equal(view.hasFocus(), true);
+    }
+    assert.ok(options.every(preventScroll => preventScroll), 'Focus must never request scroll or zoom');
+
+    now += 600;
+    dispatch('touchstart', [touch]);
+    dispatch('touchmove', [{ ...touch, screenX: 80 }]);
+    assert.equal(dispatch('touchend', []).defaultPrevented, false);
+    dispatch('touchstart', [touch]);
+    now += 600;
+    assert.equal(dispatch('touchend', []).defaultPrevented, false, 'Long presses retain native handling');
+    dispatch('touchstart', [touch, { ...touch, screenX: 80 }]);
+    assert.equal(dispatch('touchend', []).defaultPrevented, false, 'Pinches retain native handling');
+
+    e.dom.window.__tiptapEngineInstance.editor.commands.setTextSelection({ from: 1, to: 6 });
+    dispatch('touchstart', [touch]);
+    dispatch('touchmove', [{ ...touch, screenX: 80 }]);
+    assert.equal(dispatch('touchend', []).defaultPrevented, false, 'Selected text handles retain native handling');
+    assert.equal(view.state.doc.textBetween(view.state.selection.from, view.state.selection.to), 'Alpha');
+    now += 600;
+    position = 15;
+    dispatch('touchstart', [touch]);
+    assert.equal(dispatch('touchend', []).defaultPrevented, true, 'A tap replaces the selected range');
+    assert.equal(view.state.selection.empty, true);
+    assert.equal(view.state.selection.from, 15);
+    assert.equal(e.dom.window.getSelection().isCollapsed, true);
+    assert.equal(e.command('getContent', { format: 'html' }).content, '<p>Alpha beta gamma</p>');
+  } finally { e.close(); }
+});
+
+test('rapid taps on different words move the caret and small handle drags keep their selection', () => {
+  const e = create('<p>Alpha beta gamma</p>');
+  try {
+    const editor = e.dom.window.__tiptapEngineInstance.editor;
+    let now = 0, position = 3;
+    e.dom.window.Date.now = () => now;
+    editor.view.posAtCoords = () => ({ pos: position, inside: 0 });
+    const touch = { screenX: 20, screenY: 30, clientX: 20, clientY: 30 };
+    const dispatch = (type, touches) => {
+      const event = new e.dom.window.Event(type, { bubbles: true, cancelable: true });
+      Object.defineProperties(event, { touches: { value: touches }, changedTouches: { value: [touch] } });
+      editor.view.dom.querySelector('p').dispatchEvent(event);
+      return event;
+    };
+    for (const caret of [3, 8, 13]) {
+      position = caret;
+      dispatch('touchstart', [touch]);
+      assert.equal(dispatch('touchend', []).defaultPrevented, true);
+      assert.equal(editor.state.selection.empty, true);
+      assert.equal(editor.state.selection.from, caret);
+      now += 80;
+    }
+    editor.commands.setTextSelection({ from: 1, to: 6 });
+    editor.view.focus();
+    dispatch('touchstart', [touch]);
+    dispatch('touchmove', [{ ...touch, screenX: 24 }]);
+    assert.equal(dispatch('touchend', []).defaultPrevented, true, 'Finger jitter remains a normal tap');
+    assert.equal(editor.state.selection.empty, true);
+    assert.equal(editor.state.selection.from, position);
+
+    editor.commands.setTextSelection({ from: 1, to: 6 });
+    editor.view.focus();
+    dispatch('touchstart', [touch]);
+    dispatch('touchmove', [{ ...touch, screenX: 22 }]);
+    editor.commands.setTextSelection({ from: 1, to: 8 });
+    editor.view.focus();
+    assert.equal(dispatch('touchend', []).defaultPrevented, false, 'A range extended by a handle is preserved');
+    assert.equal(editor.state.selection.to, 8);
+    editor.commands.setTextSelection({ from: 1, to: 6 });
+    editor.view.focus();
+    dispatch('touchstart', [touch]);
+    dispatch('touchmove', [{ ...touch, screenX: 22 }]);
+    const text = editor.view.dom.querySelector('p').firstChild;
+    e.dom.window.getSelection().setBaseAndExtent(text, 0, text, 7);
+    assert.equal(editor.state.selection.to, 6, 'The engine has not received the native handle update yet');
+    assert.equal(dispatch('touchend', []).defaultPrevented, false);
+    assert.equal(e.dom.window.getSelection().toString(), 'Alpha b', 'Native handle changes must survive before the engine catches up');
+    assert.equal(e.command('getContent', { format: 'html' }).content, '<p>Alpha beta gamma</p>');
+  } finally { e.close(); }
+});
+
+for (const editable of [true, false]) test(`selection changes reserve drags only for SOP text ranges in ${editable ? 'editor' : 'reader'} mode`, () => {
+  const e = create('<p>Alpha beta</p>', editable);
+  try {
+    const document = e.dom.window.document;
+    const selection = document.getSelection();
+    const text = document.querySelector('p').firstChild;
+    const publish = () => document.dispatchEvent(new e.dom.window.Event('selectionchange'));
+    const selections = () => e.links.filter(message => typeof message.hasSelection === 'boolean');
+    const originalDocument = JSON.stringify(e.dom.window.__tiptapEngineInstance.editor.state.doc.toJSON());
+    const range = document.createRange();
+    range.setStart(text, 0);
+    range.setEnd(text, 5);
+    selection.removeAllRanges();
+    selection.addRange(range);
+    publish();
+    publish();
+    assert.deepEqual(selections(), [{ hasSelection: true }], 'Repeated native changes do not flood Flutter');
+    selection.collapse(text, 2);
+    publish();
+    assert.deepEqual(selections(), [{ hasSelection: true }, { hasSelection: false }]);
+
+    const outside = document.createElement('div');
+    outside.textContent = 'Outside';
+    document.body.append(outside);
+    range.selectNodeContents(outside);
+    selection.removeAllRanges();
+    selection.addRange(range);
+    publish();
+    assert.equal(selections().length, 2, 'Selections outside the SOP must not reserve its drags');
+    assert.equal(JSON.stringify(e.dom.window.__tiptapEngineInstance.editor.state.doc.toJSON()), originalDocument,
+      'Selection must not edit the document');
+    assert.equal(e.command('getContent', { format: 'html' }).content, '<p>Alpha beta</p>');
+  } finally { e.close(); }
+});
+
 test('toolbar states follow formatted text, plain text, mixed selections and stored marks', () => {
   const e = create('<p><strong>Bold</strong> plain <em>Italic</em> <u>Underline</u></p>' +
     '<ul><li><p>Bullet</p></li></ul><ol><li><p>Numbered</p></li></ol>' +
@@ -298,6 +439,9 @@ test('an initial double touch selects the whole word across formatting boundarie
     assert.equal(e.dom.window.getSelection().toString(), 'formatted');
     assert.equal(e.command('getContent', { format: 'html' }).content, '<p>Alpha <strong>for</strong><em>matted</em> text.</p>');
     dispatch('touchstart', [touch]);
-    assert.equal(dispatch('touchend', []).defaultPrevented, false, 'Later touches retain native selection');
+    assert.equal(dispatch('touchend', []).defaultPrevented, true, 'A later tap clears word selection');
+    assert.equal(editor.state.selection.empty, true);
+    assert.equal(editor.state.selection.from, 11);
+    assert.equal(e.dom.window.getSelection().isCollapsed, true);
   } finally { e.close(); }
 });

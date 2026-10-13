@@ -50,6 +50,20 @@ window.visualViewport?.addEventListener('resize', () => {
   }));
 });
 
+// Native selection handles can start outside the text nodes themselves. Let
+// Flutter reserve the entire document's next drag while a text range is selected,
+// in both the editor and reader, then restore tab swipes when it is collapsed.
+let hadSelection = false;
+document.addEventListener('selectionchange', () => {
+  const selection = document.getSelection();
+  const editor = document.querySelector('.tiptap');
+  const hasSelection = !!(selection && !selection.isCollapsed && editor &&
+    editor.contains(selection.anchorNode) && editor.contains(selection.focusNode));
+  if (hasSelection === hadSelection) return;
+  hadSelection = hasSelection;
+  window.TrainingSopLinks?.postMessage(JSON.stringify({ hasSelection }));
+});
+
 // Keep links inside the document from replacing the editor or its JS bridge.
 document.addEventListener('click', event => {
   const link = (event.target as Element | null)?.closest<HTMLAnchorElement>('a[href]');

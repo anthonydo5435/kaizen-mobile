@@ -20,8 +20,8 @@ class ComplianceVideoTranscriptPanel extends StatelessWidget {
     this.localVideoPath,
     this.thumbnailLink,
     this.activeCaptionMaxLines = 2,
-    this.mediaAlignment = Alignment.center,
-    this.topControlsInset = 10,
+    this.mediaAlignment = const Alignment(0, -0.5),
+    this.topControlsInset = 6,
     this.topRightActions = const <Widget>[],
   });
 
@@ -80,19 +80,19 @@ class _VideoTranscriptLayout extends StatelessWidget {
     final showControls = controlsVisible && controls != null;
     return LayoutBuilder(
       builder: (context, constraints) {
-        final previewHeight = (constraints.maxWidth / (16 / 9)).clamp(
-          0.0,
-          videoHeight,
-        );
+        final minimumPreviewTop =
+            panel.topControlsInset +
+            ComplianceVideoPlayer.topControlsMinHeight +
+            6;
         final mediaBounds =
             videoBounds ??
-            panel.mediaAlignment.inscribe(
-              Size(
-                constraints.maxWidth,
-                controls == null ? videoHeight : previewHeight,
-              ),
-              Rect.fromLTWH(0, 0, constraints.maxWidth, videoHeight),
-            );
+            (controls == null
+                ? Rect.fromLTWH(0, 0, constraints.maxWidth, videoHeight)
+                : ComplianceVideoPlayer.previewMediaBounds(
+                    Size(constraints.maxWidth, videoHeight),
+                    alignment: panel.mediaAlignment,
+                    minimumTop: minimumPreviewTop,
+                  ));
         final footerTop = mediaBounds.bottom;
         final minimumHeight =
             videoHeight + MediaQuery.textScalerOf(context).scale(120) + 80;
@@ -326,7 +326,7 @@ class _ActiveTranscriptLine extends StatelessWidget {
         width: double.infinity,
         padding: const EdgeInsets.symmetric(horizontal: 8, vertical: 5),
         decoration: BoxDecoration(
-          color: Colors.black.withValues(alpha: 0.8),
+          color: Colors.black,
           borderRadius: BorderRadius.circular(6),
         ),
         child: maxLines == 1

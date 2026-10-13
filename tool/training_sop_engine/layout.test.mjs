@@ -309,3 +309,86 @@ test('native word selection and cursor moves publish the matching toolbar state'
   assert.equal(await evaluate('command("getContent",{format:"html"}).content'), initial.html);
   assert.equal(await evaluate('visualViewport.scale'), initial.scale);
 });
+
+test('a mobile tap replaces selected text with the tapped caret and typing preserves the previous text', async () => {
+  await call('Emulation.setDeviceMetricsOverride', { width: 390, height: 844, deviceScaleFactor: 1, mobile: true });
+  await call('Emulation.setTouchEmulationEnabled', { enabled: true, maxTouchPoints: 2 });
+  try {
+    await open('<p>Alpha beta</p><p>Second line remains.</p>');
+    const original = await evaluate('({scale:visualViewport.scale,html:command("getContent",{format:"html"}).content})');
+    const point = paragraph => evaluate(`(() => {
+      const view=__tiptapEngineInstance.editor.view,rect=document.querySelectorAll('p')[${paragraph}].getBoundingClientRect();
+      const left=rect.left+15,top=rect.top+rect.height/2;
+      return {x:left,y:top,
+        pos:view.posAtCoords({left,top}).pos};
+    })()`);
+    const tap = async target => {
+      await call('Input.dispatchTouchEvent', { type: 'touchStart', touchPoints: [{x:target.x,y:target.y}] });
+      await call('Input.dispatchTouchEvent', { type: 'touchEnd', touchPoints: [] });
+      await settle();
+    };
+    const first = await point(0);
+    await tap(first);
+    await delay(80);
+    await tap(first);
+    assert.equal(await evaluate('getSelection().toString()'), 'Alpha');
+    assert.equal(await evaluate('links.filter(message=>typeof message.hasSelection==="boolean").at(-1)?.hasSelection'), true);
+    const second = await point(1);
+    await tap(second);
+    const caret = await evaluate('({from:__tiptapEngineInstance.editor.state.selection.from,to:__tiptapEngineInstance.editor.state.selection.to,collapsed:getSelection().isCollapsed})');
+    assert.deepEqual(caret, {from:second.pos,to:second.pos,collapsed:true});
+    assert.equal(await evaluate('links.filter(message=>typeof message.hasSelection==="boolean").at(-1)?.hasSelection'), false);
+    assert.equal(await evaluate('visualViewport.scale'), original.scale);
+    assert.equal(await evaluate('command("getContent",{format:"html"}).content'), original.html);
+    await call('Input.insertText', {text:'CHECK '});
+    await settle();
+    assert.equal(await evaluate('document.querySelectorAll("p")[0].textContent'), 'Alpha beta');
+    assert.match(await evaluate('document.querySelectorAll("p")[1].textContent'), /CHECK /);
+  } finally {
+    await call('Emulation.setTouchEmulationEnabled', { enabled: false });
+    await call('Emulation.clearDeviceMetricsOverride');
+  }
+});
+
+for (const editable of [true, false]) test(`mobile double taps preserve scale and pinches zoom in and out in ${editable ? 'editor' : 'reader'} mode`, async () => {
+  await call('Emulation.setDeviceMetricsOverride', { width: 390, height: 844, deviceScaleFactor: 1, mobile: true });
+  await call('Emulation.setTouchEmulationEnabled', { enabled: true, maxTouchPoints: 2 });
+  try {
+    await open(Array.from({ length: 30 }, (_, index) => `<p>Step ${index + 1}: Read this instruction.</p>`).join(''), editable);
+    const initial = await evaluate('({scale:visualViewport.scale,html:command("getContent",{format:"html"}).content})');
+    const doubleTap = async () => {
+      const point = await evaluate(`(() => {
+        const rect=document.querySelector('p').getBoundingClientRect();
+        return {x:rect.left+40,y:rect.top+rect.height/2};
+      })()`);
+      for (let tap = 0; tap < 2; tap++) {
+        await call('Input.dispatchTouchEvent', { type: 'touchStart', touchPoints: [point] });
+        await call('Input.dispatchTouchEvent', { type: 'touchEnd', touchPoints: [] });
+        if (tap === 0) await delay(80);
+      }
+      await settle();
+    };
+    await doubleTap();
+    const tapped = await evaluate('visualViewport.scale');
+    assert.ok(Math.abs(tapped - initial.scale) < 0.01, `Double tap must preserve scale: ${initial.scale} -> ${tapped}`);
+    assert.match(await evaluate('document.querySelector("meta[name=viewport]").content'), /maximum-scale=4,user-scalable=yes/);
+    assert.equal(await evaluate('command("getContent",{format:"html"}).content'), initial.html);
+    await call('Input.synthesizePinchGesture', { x: 195, y: 200, scaleFactor: 2, gestureSourceType: 'touch' });
+    await settle();
+    const pinched = await evaluate('({scale:visualViewport.scale,viewport:document.querySelector("meta[name=viewport]").content})');
+    assert.ok(pinched.scale > initial.scale + 0.05, `Native pinch zoom remains enabled: ${JSON.stringify(pinched)}`);
+    assert.equal(await evaluate('links.filter(message=>typeof message.zoomed==="boolean").at(-1)?.zoomed'), true);
+    await doubleTap();
+    const stillZoomed = await evaluate('visualViewport.scale');
+    assert.ok(Math.abs(stillZoomed - pinched.scale) < 0.01, `Double tap must preserve zoomed scale: ${pinched.scale} -> ${stillZoomed}`);
+    await call('Input.synthesizePinchGesture', { x: 195, y: 200, scaleFactor: 0.5, gestureSourceType: 'touch' });
+    await settle();
+    const restored = await evaluate('visualViewport.scale');
+    assert.ok(Math.abs(restored - initial.scale) < 0.01, `Pinch out must restore page-fit size: ${pinched.scale} -> ${restored}`);
+    assert.equal(await evaluate('links.filter(message=>typeof message.zoomed==="boolean").at(-1)?.zoomed'), false);
+    assert.equal(await evaluate('command("getContent",{format:"html"}).content'), initial.html);
+  } finally {
+    await call('Emulation.setTouchEmulationEnabled', { enabled: false });
+    await call('Emulation.clearDeviceMetricsOverride');
+  }
+});

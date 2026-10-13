@@ -43,8 +43,10 @@ import webview_flutter_wkwebview
   }
 }
 
-/// Applies keyboard presentation only to the SOP's own WKWebView instance.
+/// Applies keyboard presentation and zoom protection only to the SOP's WKWebView.
 final class TrainingSopWebViewBridge {
+  private static var zoomProtectionKey: UInt8 = 0
+
   func register(with messenger: FlutterBinaryMessenger, registry: FlutterPluginRegistry) {
     let channel = FlutterMethodChannel(
       name: "kaizenteams/training_sop_webview", binaryMessenger: messenger)
@@ -62,6 +64,13 @@ final class TrainingSopWebViewBridge {
       else {
         result(FlutterError(code: "SOP_WEBVIEW_UNAVAILABLE", message: nil, details: nil))
         return
+      }
+      if objc_getAssociatedObject(webView, &Self.zoomProtectionKey) == nil {
+        // The WebView owns this delegate for its own lifetime. Its internal
+        // WebKit delegate and the plugin's external callbacks remain intact.
+        let protection = TrainingSopZoomProtection(scrollView: webView.scrollView)
+        objc_setAssociatedObject(
+          webView, &Self.zoomProtectionKey, protection, .OBJC_ASSOCIATION_RETAIN_NONATOMIC)
       }
       result(nil)
     }
@@ -103,6 +112,51 @@ final class TrainingSopWebViewBridge {
       return true
     }
     return configure(webView.scrollView)
+  }
+}
+
+/// iOS can zoom small editable text when a native long press focuses it, even
+/// when ordinary taps use preventScroll. Preserve the last user-selected scale
+/// unless a pinch or a changed viewport minimum is responsible for the zoom.
+private final class TrainingSopZoomProtection: NSObject, UIScrollViewDelegate {
+  private weak var forwardedDelegate: UIScrollViewDelegate?
+  private var scale: CGFloat
+  private var minimumScale: CGFloat
+  private var restoring = false
+
+  init(scrollView: UIScrollView) {
+    forwardedDelegate = scrollView.delegate
+    scale = scrollView.zoomScale
+    minimumScale = scrollView.minimumZoomScale
+    super.init()
+    scrollView.delegate = self
+  }
+
+  override func responds(to selector: Selector!) -> Bool {
+    super.responds(to: selector) || forwardedDelegate?.responds(to: selector) == true
+  }
+
+  override func forwardingTarget(for selector: Selector!) -> Any? {
+    if forwardedDelegate?.responds(to: selector) == true { return forwardedDelegate }
+    return super.forwardingTarget(for: selector)
+  }
+
+  func scrollViewDidZoom(_ scrollView: UIScrollView) {
+    defer { forwardedDelegate?.scrollViewDidZoom?(scrollView) }
+    guard !restoring else { return }
+    let pinch = scrollView.pinchGestureRecognizer?.state
+    let viewportChanged = abs(scrollView.minimumZoomScale - minimumScale) > 0.0001
+    if viewportChanged || pinch == .began || pinch == .changed || pinch == .ended
+      || scrollView.isZoomBouncing
+    {
+      minimumScale = scrollView.minimumZoomScale
+      scale = min(max(scrollView.zoomScale, minimumScale), scrollView.maximumZoomScale)
+      return
+    }
+    guard abs(scrollView.zoomScale - scale) > 0.0001 else { return }
+    restoring = true
+    scrollView.setZoomScale(scale, animated: false)
+    restoring = false
   }
 }
 

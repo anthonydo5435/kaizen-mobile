@@ -25,7 +25,8 @@ class TrainingSopEngineController extends EditorController implements TrainingSo
     (super.webViewWidget as WebViewWidget).platform.params.controller,
   );
   final _links = StreamController<String>.broadcast();
-  final _isZoomed = ValueNotifier<bool>(false);
+  bool _isZoomed = false;
+  bool _hasSelection = false;
   bool _disposed = false;
   bool _documentReady = false;
   double _width = 320;
@@ -93,7 +94,9 @@ class TrainingSopEngineController extends EditorController implements TrainingSo
     if (data['href'] case final String href) {
       _links.add(href);
     } else if (data['zoomed'] case final bool zoomed) {
-      _isZoomed.value = zoomed;
+      _isZoomed = zoomed;
+    } else if (data['hasSelection'] case final bool hasSelection) {
+      _hasSelection = hasSelection;
     }
   }
 
@@ -107,17 +110,15 @@ class TrainingSopEngineController extends EditorController implements TrainingSo
       _textScale = textScale;
       if (_documentReady) unawaited(_configureViewport());
     }
-    return ValueListenableBuilder<bool>(
-      valueListenable: _isZoomed,
-      builder: (_, zoomed, _) => WebViewWidget(
-        controller: _view,
-        gestureRecognizers: {
-          Factory<VerticalDragGestureRecognizer>(VerticalDragGestureRecognizer.new),
-          Factory<_SopPinchGestureRecognizer>(_SopPinchGestureRecognizer.new),
-          // At page-fit size, horizontal drags remain Training tab swipes.
-          if (zoomed) Factory<HorizontalDragGestureRecognizer>(HorizontalDragGestureRecognizer.new),
-        },
-      ),
+    return WebViewWidget(
+      controller: _view,
+      gestureRecognizers: {
+        Factory<VerticalDragGestureRecognizer>(VerticalDragGestureRecognizer.new),
+        Factory<LongPressGestureRecognizer>(LongPressGestureRecognizer.new),
+        Factory<_SopDocumentGestureRecognizer>(
+          () => _SopDocumentGestureRecognizer(claimSinglePointer: () => _isZoomed || _hasSelection),
+        ),
+      },
     );
   }
 
@@ -136,20 +137,23 @@ class TrainingSopEngineController extends EditorController implements TrainingSo
   void dispose() {
     _disposed = true;
     unawaited(_links.close());
-    _isZoomed.dispose();
     super.dispose();
   }
 }
 
-/// Claims two-finger zoom without stealing one-finger Training page swipes.
-class _SopPinchGestureRecognizer extends OneSequenceGestureRecognizer {
+/// Keeps native selection and zoom drags in the SOP. Read live state on pointer
+/// down instead of rebuilding recognizers, which would cancel an ongoing drag.
+class _SopDocumentGestureRecognizer extends OneSequenceGestureRecognizer {
+  _SopDocumentGestureRecognizer({required this.claimSinglePointer});
+
+  final bool Function() claimSinglePointer;
   final _pointers = <int>{};
 
   @override
   void addAllowedPointer(PointerDownEvent event) {
     startTrackingPointer(event.pointer);
     _pointers.add(event.pointer);
-    if (_pointers.length >= 2) resolve(GestureDisposition.accepted);
+    if (_pointers.length >= 2 || claimSinglePointer()) resolve(GestureDisposition.accepted);
   }
 
   @override
@@ -164,5 +168,5 @@ class _SopPinchGestureRecognizer extends OneSequenceGestureRecognizer {
   void didStopTrackingLastPointer(int pointer) => resolve(GestureDisposition.rejected);
 
   @override
-  String get debugDescription => 'SOP page zoom';
+  String get debugDescription => 'SOP selection and zoom';
 }
