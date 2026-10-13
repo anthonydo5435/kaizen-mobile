@@ -45,6 +45,7 @@ void main() {
     String? transcript,
     double textScale = 1,
     bool disableAnimations = true,
+    int activeCaptionMaxLines = 2,
   }) async {
     await tester.runAsync(() async {
       await tester.pumpWidget(
@@ -71,6 +72,7 @@ void main() {
                     localVideoPath: videoPath,
                     title: 'Lesson',
                     transcript: transcript,
+                    activeCaptionMaxLines: activeCaptionMaxLines,
                   ),
           ),
         ),
@@ -145,6 +147,92 @@ void main() {
       tester.getTopLeft(actionButton).dy -
           tester.getBottomLeft(find.byType(Slider)).dy,
       closeTo(6, 0.01),
+    );
+  }
+
+  for (final disableAnimations in [false, true]) {
+    testWidgets(
+      'single-line captions advance through every word with reduced motion $disableAnimations',
+      (tester) async {
+        tester.view.physicalSize = const Size(320, 640);
+        tester.view.devicePixelRatio = 1;
+        addTearDown(tester.view.reset);
+        const words = [
+          'First',
+          'second',
+          'third',
+          'fourth',
+          'fifth',
+          'sixth',
+          'seventh',
+          'eighth',
+          'ninth',
+          'tenth',
+          'eleventh',
+          'twelfth',
+        ];
+        final cue = words.join(' ');
+        final controller = await mountPlayer(
+          tester,
+          transcript: '[00:00 --> 00:24] $cue',
+          textScale: 2,
+          disableAnimations: disableAnimations,
+          activeCaptionMaxLines: 1,
+        );
+        final seenWords = <String>{};
+        String? firstPage;
+        String? finalPage;
+        for (var index = 0; index < words.length; index++) {
+          await controller.seekTo(Duration(seconds: index * 2));
+          await tester.pump();
+          final text = find.descendant(
+            of: find.byKey(const ValueKey('active-video-caption')),
+            matching: find.byType(Text),
+          );
+          final caption = tester.widget<Text>(text);
+          final visibleText = caption.data!;
+          expect(visibleText, contains(words[index]));
+          expect(caption.maxLines, 1);
+          expect(
+            tester
+                .renderObject<RenderParagraph>(
+                  find.descendant(of: text, matching: find.byType(RichText)),
+                )
+                .didExceedMaxLines,
+            isFalse,
+          );
+          seenWords.addAll(visibleText.split(RegExp(r'\s+')));
+          firstPage ??= visibleText;
+          finalPage = visibleText;
+        }
+        expect(seenWords, containsAll(words));
+        expect(finalPage, isNot(contains('First')));
+        await tester.pump(const Duration(seconds: 3));
+        expect(find.text(finalPage!), findsOneWidget);
+        await controller.seekTo(Duration.zero);
+        await tester.pump();
+        expect(find.text(firstPage!), findsOneWidget);
+        await tester.tap(find.text(AppStrings.trainingCc));
+        await tester.pump();
+        expect(
+          find.byKey(const ValueKey('active-video-caption')),
+          findsNothing,
+        );
+        await tester.tap(find.text(AppStrings.trainingCc));
+        await tester.pump();
+        expect(find.text(firstPage), findsOneWidget);
+
+        await tester.tap(find.text(AppStrings.trainingViewTranscript));
+        await tester.pumpAndSettle();
+        expect(
+          find.descendant(
+            of: find.byType(BottomSheet),
+            matching: find.text(cue),
+          ),
+          findsOneWidget,
+        );
+        await disposePlayer(tester);
+      },
     );
   }
 
@@ -423,7 +511,7 @@ void main() {
       final frame = find.byKey(const ValueKey('training-video-frame'));
       final frameBounds = tester.getRect(frame);
       expect(frameBounds.width, 390);
-      expect(frameBounds.height, 368);
+      expect(frameBounds.height, 383);
       final seekBounds = tester.getRect(find.byType(Slider));
       final titleBounds = tester.getRect(find.text('Lesson'));
       final mediaBounds = tester.getRect(find.byType(VideoPlayer));
@@ -568,7 +656,7 @@ void main() {
       final frameBounds = tester.getRect(frame);
       final seekBounds = tester.getRect(find.byType(Slider));
       expect(frameBounds.width, 320);
-      expect(frameBounds.height, 266);
+      expect(frameBounds.height, 281);
       await tester.tap(find.byIcon(Icons.play_arrow_rounded));
       await tester.pump();
       final caption = find.text(cue);

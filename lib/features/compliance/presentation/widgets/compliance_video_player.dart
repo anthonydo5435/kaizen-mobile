@@ -30,6 +30,8 @@ class ComplianceVideoPlayer extends StatefulWidget {
     this.showSeekBar = true,
     this.showDuration = true,
     this.fillBounds = false,
+    this.mediaAlignment = Alignment.center,
+    this.topControlsInset = 10,
     this.topRightActions = const <Widget>[],
     this.onPositionChanged,
     this.onSeekHandlerChanged,
@@ -48,6 +50,8 @@ class ComplianceVideoPlayer extends StatefulWidget {
   final bool showSeekBar;
   final bool showDuration;
   final bool fillBounds;
+  final Alignment mediaAlignment;
+  final double topControlsInset;
   final List<Widget> topRightActions;
   final ValueChanged<Duration>? onPositionChanged;
   final ValueChanged<Future<bool> Function(Duration)?>? onSeekHandlerChanged;
@@ -548,6 +552,7 @@ class _ComplianceVideoPlayerState extends State<ComplianceVideoPlayer>
                                   key: ValueKey(controller),
                                   child: FittedBox(
                                     fit: BoxFit.contain,
+                                    alignment: widget.mediaAlignment,
                                     child: SizedBox(
                                       width: controllerValue!.size.width,
                                       height: controllerValue.size.height,
@@ -611,6 +616,7 @@ class _ComplianceVideoPlayerState extends State<ComplianceVideoPlayer>
       thumbnailUrl,
       key: _thumbnailKey,
       fit: widget.fillBounds ? BoxFit.contain : BoxFit.cover,
+      alignment: widget.mediaAlignment,
       frameBuilder: (context, child, frame, wasSynchronouslyLoaded) {
         if (frame != null && widget.onVideoBoundsChanged != null) {
           WidgetsBinding.instance.addPostFrameCallback((_) => _reportVideoBounds());
@@ -657,7 +663,7 @@ class _ComplianceVideoPlayerState extends State<ComplianceVideoPlayer>
         Size(image.width.toDouble(), image.height.toDouble()),
         media.size,
       );
-      visibleBounds = Alignment.center.inscribe(fitted.destination, visibleBounds);
+      visibleBounds = widget.mediaAlignment.inscribe(fitted.destination, visibleBounds);
     }
     final bounds = MatrixUtils.transformRect(media.getTransformTo(frame), visibleBounds);
     widget.onVideoBoundsChanged?.call(bounds.intersect(Offset.zero & frame.size));
@@ -740,7 +746,7 @@ class _ComplianceVideoPlayerState extends State<ComplianceVideoPlayer>
             ),
           ),
         Positioned(
-          top: 10,
+          top: widget.topControlsInset,
           right: 10,
           child: Row(
             mainAxisSize: MainAxisSize.min,

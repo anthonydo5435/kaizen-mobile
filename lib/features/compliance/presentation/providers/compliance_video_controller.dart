@@ -15,6 +15,7 @@ class ComplianceVideoController extends ChangeNotifier {
   ComplianceVideoTranscript _transcript;
   int? _activeTranscriptIndex;
   String? _activeTranscriptText;
+  String? _activeTranscriptProgressText;
   List<int> _activeTranscriptWordEnds = const [];
   Duration? _lastPlaybackPosition;
   bool _animateActiveTranscript = true;
@@ -35,6 +36,7 @@ class ComplianceVideoController extends ChangeNotifier {
       ? null
       : transcriptLines[_activeTranscriptIndex!];
   String? get activeTranscriptText => _activeTranscriptText;
+  String? get activeTranscriptProgressText => _activeTranscriptProgressText;
   bool get isCcEnabled => _isCcEnabled;
   bool get hasVisibleActiveTranscript =>
       !_isCcEnabled && activeTranscriptLine != null;
@@ -140,6 +142,7 @@ class ComplianceVideoController extends ChangeNotifier {
     final index = _transcript.activeLineAt(position);
     final previousIndex = _activeTranscriptIndex;
     final previousText = _activeTranscriptText;
+    final previousProgressText = _activeTranscriptProgressText;
     _lastPlaybackPosition = position;
     _animateActiveTranscript = animate;
     if (index != previousIndex) {
@@ -147,7 +150,9 @@ class ComplianceVideoController extends ChangeNotifier {
       _updateActiveTranscriptWordEnds();
     }
     _updateActiveTranscriptText();
-    if (index != previousIndex || _activeTranscriptText != previousText) {
+    if (index != previousIndex ||
+        _activeTranscriptText != previousText ||
+        _activeTranscriptProgressText != previousProgressText) {
       notifyListeners();
     }
   }
@@ -163,7 +168,8 @@ class ComplianceVideoController extends ChangeNotifier {
   void _updateActiveTranscriptText() {
     final line = activeTranscriptLine;
     _activeTranscriptText = line?.text;
-    if (line == null || !_animateActiveTranscript || _isCcEnabled) return;
+    _activeTranscriptProgressText = line?.text;
+    if (line == null || _isCcEnabled) return;
 
     final wordCount = _activeTranscriptWordEnds.length;
     if (wordCount < 2) return;
@@ -178,10 +184,13 @@ class ComplianceVideoController extends ChangeNotifier {
         (1 + elapsed.inMicroseconds * wordCount ~/ duration.inMicroseconds)
             .clamp(1, wordCount);
     if (visibleWords < wordCount) {
-      _activeTranscriptText = line.text.substring(
+      _activeTranscriptProgressText = line.text.substring(
         0,
         _activeTranscriptWordEnds[visibleWords - 1],
       );
+    }
+    if (_animateActiveTranscript) {
+      _activeTranscriptText = _activeTranscriptProgressText;
     }
   }
 

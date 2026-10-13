@@ -79,6 +79,9 @@ class _VideoTabContent extends StatelessWidget {
             localVideoPath: localVideoPath,
             title: detail?.title ?? '',
             thumbnailLink: detail?.previewThumbnailLink,
+            activeCaptionMaxLines: 1,
+            mediaAlignment: const Alignment(0, -0.5),
+            topControlsInset: 6,
             topRightActions: !isReadOnly
                 ? [
                     _TrainingVideoActionButton(

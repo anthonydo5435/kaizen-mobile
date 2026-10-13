@@ -178,14 +178,27 @@ void main() {
               matching: find.byType(Material),
             )
             .first;
-        expect(bounds.height, 368);
+        expect(bounds.height, 383);
         expect(bounds.left, 0);
         expect(bounds.right, 390);
-        expect(tester.widget<ComplianceVideoPlayer>(player).height, 368);
+        expect(tester.widget<ComplianceVideoPlayer>(player).height, 383);
         expect(mediaBounds.left, closeTo(bounds.left, 0.01));
         expect(mediaBounds.right, closeTo(bounds.right, 0.01));
         expect(mediaBounds.width / mediaBounds.height, closeTo(16 / 9, 0.01));
         expect(mediaBounds.top, greaterThanOrEqualTo(bounds.top));
+        expect(
+          mediaBounds.top - bounds.top,
+          closeTo((bounds.height - mediaBounds.height) / 4, 0.01),
+        );
+        expect(
+          mediaBounds.top -
+              tester
+                  .getBottomLeft(
+                    find.byKey(const ValueKey('video-fullscreen-button')),
+                  )
+                  .dy,
+          greaterThan(0),
+        );
         expect(mediaBounds.bottom, lessThanOrEqualTo(bounds.bottom));
         expect(tester.widget<ComplianceVideoPlayer>(player).fillBounds, isTrue);
         expect(controller.transcriptLines.map((line) => line.text), [
@@ -268,16 +281,26 @@ void main() {
         await tester.tap(cc);
         await tester.pump();
         expect(find.text('Main'), findsOneWidget);
+        await nativeController.seekTo(const Duration(milliseconds: 5450));
+        await tester.pump();
+        expect(find.text('Main point'), findsOneWidget);
+        await nativeController.seekTo(const Duration(milliseconds: 5900));
+        await tester.pump();
+        expect(find.text('A'), findsOneWidget);
+        expect(find.text('Main point'), findsNothing);
+        await nativeController.seekTo(const Duration(milliseconds: 6800));
+        await tester.pump();
+        expect(find.text('A second line'), findsOneWidget);
         await nativeController.seekTo(const Duration(seconds: 9));
         await tester.pump();
-        final caption = find.text(mainCaption);
+        final caption = find.text('And a third line');
         expect(caption, findsOneWidget);
         _expectCaptionOverlay(tester, mediaBounds, caption);
         _expectGap(tester, slider, actions, 6);
         final paragraph = tester.renderObject<RenderParagraph>(
           find.descendant(of: caption, matching: find.byType(RichText)),
         );
-        expect(paragraph.didExceedMaxLines, isTrue);
+        expect(paragraph.didExceedMaxLines, isFalse);
         expect(tester.getSize(surface).height, expandedHeight);
         await tester.pump(const Duration(seconds: 3));
         expect(slider, findsNothing);
@@ -337,7 +360,7 @@ void _expectCaptionOverlay(
   expect(overlay.left, videoBounds.left + 8);
   expect(overlay.right, videoBounds.right - 8);
   expect(overlay.top, greaterThanOrEqualTo(videoBounds.top + 8));
-  expect(tester.widget<Text>(caption).maxLines, 2);
+  expect(tester.widget<Text>(caption).maxLines, 1);
   expect(tester.widget<Text>(caption).overflow, TextOverflow.ellipsis);
 }
 

@@ -19,6 +19,9 @@ class ComplianceVideoTranscriptPanel extends StatelessWidget {
     required this.transcript,
     this.localVideoPath,
     this.thumbnailLink,
+    this.activeCaptionMaxLines = 2,
+    this.mediaAlignment = Alignment.center,
+    this.topControlsInset = 10,
     this.topRightActions = const <Widget>[],
   });
 
@@ -28,6 +31,9 @@ class ComplianceVideoTranscriptPanel extends StatelessWidget {
   final String? transcript;
   final String? localVideoPath;
   final String? thumbnailLink;
+  final int activeCaptionMaxLines;
+  final Alignment mediaAlignment;
+  final double topControlsInset;
   final List<Widget> topRightActions;
 
   @override
@@ -80,11 +86,12 @@ class _VideoTranscriptLayout extends StatelessWidget {
         );
         final mediaBounds =
             videoBounds ??
-            Rect.fromLTWH(
-              0,
-              controls == null ? 0 : (videoHeight - previewHeight) / 2,
-              constraints.maxWidth,
-              controls == null ? videoHeight : previewHeight,
+            panel.mediaAlignment.inscribe(
+              Size(
+                constraints.maxWidth,
+                controls == null ? videoHeight : previewHeight,
+              ),
+              Rect.fromLTWH(0, 0, constraints.maxWidth, videoHeight),
             );
         final footerTop = mediaBounds.bottom;
         final minimumHeight =
@@ -146,11 +153,13 @@ class _VideoTranscriptLayout extends StatelessWidget {
                       left: mediaBounds.left + 8,
                       right: constraints.maxWidth - mediaBounds.right + 8,
                       height: mediaBounds.height,
-                      child: const Padding(
-                        padding: EdgeInsets.symmetric(vertical: 8),
+                      child: Padding(
+                        padding: const EdgeInsets.symmetric(vertical: 8),
                         child: Align(
                           alignment: Alignment.bottomCenter,
-                          child: _ActiveTranscriptLine(),
+                          child: _ActiveTranscriptLine(
+                            maxLines: panel.activeCaptionMaxLines,
+                          ),
                         ),
                       ),
                     ),
@@ -189,6 +198,8 @@ class _VideoPlayerArea extends StatelessWidget {
       thumbnailLink: panel.thumbnailLink,
       height: height,
       fillBounds: true,
+      mediaAlignment: panel.mediaAlignment,
+      topControlsInset: panel.topControlsInset,
       topRightActions: panel.topRightActions,
       onPositionChanged: (position) => context
           .read<ComplianceVideoController>()
@@ -284,17 +295,22 @@ class _CcToggleButton extends StatelessWidget {
 }
 
 class _ActiveTranscriptLine extends StatelessWidget {
-  const _ActiveTranscriptLine();
+  const _ActiveTranscriptLine({required this.maxLines});
+
+  final int maxLines;
 
   @override
   Widget build(BuildContext context) {
     final disableAnimations = MediaQuery.disableAnimationsOf(context);
-    final (text, isCcEnabled, controlsVisible) = context
-        .select<ComplianceVideoController, (String?, bool, bool)>(
+    final (text, cueText, isCcEnabled, controlsVisible) = context
+        .select<ComplianceVideoController, (String?, String?, bool, bool)>(
           (controller) => (
-            disableAnimations
+            maxLines == 1
+                ? controller.activeTranscriptProgressText
+                : disableAnimations
                 ? controller.activeTranscriptLine?.text
                 : controller.activeTranscriptText,
+            controller.activeTranscriptLine?.text,
             controller.isCcEnabled,
             controller.arePlaybackControlsVisible,
           ),
@@ -313,15 +329,73 @@ class _ActiveTranscriptLine extends StatelessWidget {
           color: Colors.black.withValues(alpha: 0.8),
           borderRadius: BorderRadius.circular(6),
         ),
-        child: AppTextView.body3(
-          text,
+        child: maxLines == 1
+            ? _SingleLineTranscriptText(
+                cueText: cueText!,
+                progressText: text,
+                revealWords: !disableAnimations,
+              )
+            : AppTextView.body3(
+                text,
+                color: AppColors.textPrimary,
+                height: 1.4,
+                textAlign: TextAlign.left,
+                maxLines: maxLines,
+                overflow: TextOverflow.ellipsis,
+              ),
+      ),
+    );
+  }
+}
+
+/// Measures the full cue so each page stays stable while its words are revealed.
+class _SingleLineTranscriptText extends StatelessWidget {
+  const _SingleLineTranscriptText({
+    required this.cueText,
+    required this.progressText,
+    required this.revealWords,
+  });
+
+  final String cueText;
+  final String progressText;
+  final bool revealWords;
+
+  @override
+  Widget build(BuildContext context) {
+    return LayoutBuilder(
+      builder: (context, constraints) {
+        final painter = TextPainter(
+          text: TextSpan(
+            text: cueText,
+            style: DefaultTextStyle.of(context).style.merge(
+              const TextStyle(
+                fontSize: 12,
+                fontWeight: FontWeight.w400,
+                height: 1.4,
+              ),
+            ),
+          ),
+          textDirection: Directionality.of(context),
+          textScaler: MediaQuery.textScalerOf(context),
+          locale: Localizations.maybeLocaleOf(context),
+        )..layout(maxWidth: constraints.maxWidth);
+        final progressEnd = progressText.length.clamp(1, cueText.length);
+        final range = painter.getLineBoundary(
+          TextPosition(offset: progressEnd - 1),
+        );
+        painter.dispose();
+        final end = revealWords
+            ? progressEnd.clamp(range.start, range.end)
+            : range.end;
+        return AppTextView.body3(
+          cueText.substring(range.start, end).trim(),
           color: AppColors.textPrimary,
           height: 1.4,
           textAlign: TextAlign.left,
-          maxLines: 2,
+          maxLines: 1,
           overflow: TextOverflow.ellipsis,
-        ),
-      ),
+        );
+      },
     );
   }
 }
