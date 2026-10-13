@@ -6,10 +6,13 @@ import '../../../../core/constants/app_strings.dart';
 import '../../../../core/navigation/app_menu_type.dart';
 import '../../../../core/widgets/drawer_main_screen.dart';
 import '../../data/datasources/compliance_remote_data_source.dart';
+import '../../data/repositories/compliance_document_media_repository_impl.dart';
 import '../../data/repositories/compliance_repository_impl.dart';
 import '../../domain/entities/compliance_tab_type.dart';
+import '../../domain/repositories/compliance_document_media_repository.dart';
 import '../../domain/usecases/get_compliance_documents_usecase.dart';
 import '../../domain/usecases/get_compliance_overview_usecase.dart';
+import '../../domain/usecases/pick_compliance_document_file_usecase.dart';
 import '../../domain/usecases/upload_compliance_document_usecase.dart';
 import '../providers/compliance_controller.dart';
 import '../providers/compliance_document_controller.dart';
@@ -26,6 +29,16 @@ class ComplianceScreen extends StatelessWidget {
   Widget build(BuildContext context) {
     return MultiProvider(
       providers: [
+        Provider<ComplianceDocumentMediaRepository>(
+          create: (_) => ComplianceDocumentMediaRepositoryImpl(),
+        ),
+        ProxyProvider<
+          ComplianceDocumentMediaRepository,
+          PickComplianceDocumentFileUseCase
+        >(
+          update: (_, repository, __) =>
+              PickComplianceDocumentFileUseCase(repository),
+        ),
         Provider<ComplianceRemoteDataSource>(
           create: (_) => createComplianceRemoteDataSource(),
         ),

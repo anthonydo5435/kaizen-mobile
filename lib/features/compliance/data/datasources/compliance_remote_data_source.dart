@@ -73,15 +73,30 @@ class ComplianceRemoteDataSource {
 
   Future<List<ComplianceDocument>> getComplianceDocuments({
     bool forceRefresh = false,
+    String? name,
   }) {
+    final searchName = name?.trim();
+    final isSearch = searchName != null && searchName.isNotEmpty;
     return _apiCallExecutor.processApi<List<ComplianceDocument>>(
       apiCallType: ApiCallType.get,
-      endpoint: ApiEndPoints.myDocumentCompliances,
+      endpoint: isSearch
+          ? ApiEndPoints.complianceDocumentTypes
+          : ApiEndPoints.myDocumentCompliances,
+      parameters: isSearch
+          ? {'name': searchName, 'page': 1, 'page_size': 10}
+          : null,
       authToken: AppPreference.getAuthToken(),
       invalidateCacheBeforeRequest: forceRefresh,
       decoder: (json) {
         return _extractResultList(json)
-            .map((item) => ComplianceDocumentModal.fromApiJson(item))
+            .map((item) {
+              if (isSearch &&
+                  !item.containsKey('has_expiry') &&
+                  !item.containsKey('latest_document')) {
+                return ComplianceDocumentModel.fromApiJson(item);
+              }
+              return ComplianceDocumentModal.fromApiJson(item);
+            })
             .toList(growable: false);
       },
     );
