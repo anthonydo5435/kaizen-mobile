@@ -5,7 +5,13 @@ class GoogleAuthorization {
   final String redirectUri;
 }
 
-enum GoogleAuthorizationFailure { unavailable, invalidResponse, timedOut }
+enum GoogleAuthorizationFailure {
+  unavailable,
+  invalidResponse,
+  timedOut,
+  browserUnavailable,
+  callbackNotVerified,
+}
 
 class GoogleAuthorizationException implements Exception {
   const GoogleAuthorizationException(this.reason);

@@ -74,6 +74,22 @@ void main() {
     expect(AppPreference.getAuthToken(), isEmpty);
   });
 
+  for (final failure in {
+    GoogleAuthorizationFailure.browserUnavailable: AppStrings.loginGoogleBrowserUnavailable,
+    GoogleAuthorizationFailure.callbackNotVerified: AppStrings.loginGoogleAppNotVerified,
+  }.entries) {
+    test('${failure.key.name} shows an app error without exchanging credentials', () async {
+      final repository = _Repository()
+        ..authorizationError = GoogleAuthorizationException(failure.key);
+      await expectLater(
+        GoogleLoginUseCase(repository)(),
+        throwsA(isA<LoginException>().having((error) => error.message, 'message', failure.value)),
+      );
+      expect(repository.exchangedCode, isNull);
+      expect(AppPreference.getAuthToken(), isEmpty);
+    });
+  }
+
   test('rejected authorization code yields a readable error without saving tokens', () async {
     final repository = _Repository()
       ..exchangeError = ApiError.requestFailed(400, message: 'invalid_google_code');
@@ -116,6 +132,7 @@ class _Repository implements AuthRepository {
   LoginResponse response = const LoginResponse(access: 'app-access', refresh: 'app-refresh');
   final profile = User(uuid: 'member-id', email: 'member@example.com', name: 'Member');
   Object? exchangeError;
+  Object? authorizationError;
   Object? profileError;
   String? exchangedCode;
   String? exchangedRedirect;
@@ -123,7 +140,11 @@ class _Repository implements AuthRepository {
   User? savedProfile;
 
   @override
-  Future<GoogleAuthorization?> authorizeGoogle() async => authorization;
+  Future<GoogleAuthorization?> authorizeGoogle() async {
+    if (authorizationError != null) throw authorizationError!;
+    return authorization;
+  }
+
   @override
   void cancelGoogleAuthorization() {}
   @override

@@ -41,6 +41,8 @@ class GoogleLoginUseCase {
         GoogleAuthorizationFailure.timedOut => AppStrings.loginGoogleTimedOut,
         GoogleAuthorizationFailure.unavailable => AppStrings.loginGoogleUnavailable,
         GoogleAuthorizationFailure.invalidResponse => AppStrings.loginGoogleFailed,
+        GoogleAuthorizationFailure.browserUnavailable => AppStrings.loginGoogleBrowserUnavailable,
+        GoogleAuthorizationFailure.callbackNotVerified => AppStrings.loginGoogleAppNotVerified,
       });
     } on ApiError catch (error) {
       if (error.message == AppStrings.apiInvalidResponse) {

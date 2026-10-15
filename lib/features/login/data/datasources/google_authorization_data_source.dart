@@ -4,6 +4,7 @@ import 'dart:math';
 
 import 'package:app_links/app_links.dart';
 import 'package:flutter/foundation.dart';
+import 'package:flutter/services.dart';
 import 'package:url_launcher/url_launcher.dart';
 
 import '../../../../core/navigation/browser_app_link.dart';
@@ -11,7 +12,7 @@ import '../../domain/entities/google_authorization.dart';
 import '../../google_sign_in_diagnostics.dart';
 import 'google_oauth_configuration.dart';
 
-/// Uses the browser and the app's verified HTTPS callback for the web code flow.
+/// Uses a browser OAuth code flow, with a captured Auth Tab callback on Android.
 class GoogleAuthorizationDataSource {
   GoogleAuthorizationDataSource({
     String? clientId,
@@ -24,6 +25,8 @@ class GoogleAuthorizationDataSource {
        redirectUri = redirectUri ?? GoogleOAuthConfiguration.current.redirectUri,
        _callbackUris = callbackUris,
        _launchBrowser = launchBrowser ?? _openBrowser,
+       _usesAndroidAuthTab =
+           launchBrowser == null && !kIsWeb && defaultTargetPlatform == TargetPlatform.android,
        _isSupported =
            isSupported ??
            (!kIsWeb &&
@@ -36,6 +39,8 @@ class GoogleAuthorizationDataSource {
   final Stream<Uri>? _callbackUris;
   final Future<bool> Function(Uri) _launchBrowser;
   final bool _isSupported;
+  final bool _usesAndroidAuthTab;
+  static const _androidBrowser = MethodChannel('kaizenteams/google_browser_authorization');
   Completer<GoogleAuthorization?>? _pending;
 
   Future<GoogleAuthorization?> authorize() async {
@@ -76,27 +81,30 @@ class GoogleAuthorizationDataSource {
     Timer? timer;
 
     try {
-      subscription = (_callbackUris ?? AppLinks().uriLinkStream).listen(
-        (uri) => _handleCallback(uri, callback, state, result),
-        onError: (Object error, StackTrace stackTrace) {
-          GoogleSignInDiagnostics.log(
-            'callback.stream_error',
-            error: error,
-            stackTrace: stackTrace,
-          );
-          _fail(result, GoogleAuthorizationFailure.unavailable);
-        },
-        onDone: () => GoogleSignInDiagnostics.log('callback.stream_closed'),
-      );
-      GoogleSignInDiagnostics.log('callback.listener_attached');
+      if (!_usesAndroidAuthTab) {
+        subscription = (_callbackUris ?? AppLinks().uriLinkStream).listen(
+          (uri) => _handleCallback(uri, callback, state, result),
+          onError: (Object error, StackTrace stackTrace) {
+            GoogleSignInDiagnostics.log(
+              'callback.stream_error',
+              error: error,
+              stackTrace: stackTrace,
+            );
+            _fail(result, GoogleAuthorizationFailure.unavailable);
+          },
+          onDone: () => GoogleSignInDiagnostics.log('callback.stream_closed'),
+        );
+        GoogleSignInDiagnostics.log('callback.listener_attached');
+      }
       timer = Timer(timeout, () {
         GoogleSignInDiagnostics.log(
           'callback.timeout',
           data: {
             'timeout_seconds': timeout.inSeconds,
             'expected_callback': callback,
-            'reason':
-                'No valid Google callback reached this attempt; check browser redirect and app-link association.',
+            'reason': _usesAndroidAuthTab
+                ? 'No valid Google callback returned from the Android Auth Tab.'
+                : 'No valid Google callback reached this attempt; check browser redirect and app-link association.',
           },
         );
         _fail(result, GoogleAuthorizationFailure.timedOut);
@@ -109,13 +117,66 @@ class GoogleAuthorizationDataSource {
         'prompt': 'select_account',
         'state': state,
       });
-      unawaited(_launch(authorizationUri, result));
+      unawaited(
+        _usesAndroidAuthTab
+            ? _launchAndroidAuthTab(authorizationUri, callback, state, result)
+            : _launch(authorizationUri, result),
+      );
       return await result.future;
     } finally {
       timer?.cancel();
       await subscription?.cancel();
+      if (_usesAndroidAuthTab) await _closeAndroidAuthTab(state);
       _pending = null;
       GoogleSignInDiagnostics.log('callback.listener_removed');
+    }
+  }
+
+  Future<void> _launchAndroidAuthTab(
+    Uri authorizationUri,
+    Uri callback,
+    String state,
+    Completer<GoogleAuthorization?> result,
+  ) async {
+    try {
+      GoogleSignInDiagnostics.log('auth_tab.launch', data: {'url': authorizationUri});
+      final response = await _androidBrowser.invokeMethod<String>('authorize', {
+        'authorizationUrl': authorizationUri.toString(),
+        'redirectUri': redirectUri,
+        'requestId': state,
+      });
+      if (result.isCompleted) return;
+      if (response == null) {
+        GoogleSignInDiagnostics.log('auth_tab.cancelled');
+        result.complete(null);
+        return;
+      }
+      final uri = Uri.tryParse(response);
+      if (uri != null) _handleCallback(uri, callback, state, result);
+      // The browser has closed. An invalid callback must fail here, without
+      // opening a website or waiting for another app link.
+      if (!result.isCompleted) {
+        _fail(result, GoogleAuthorizationFailure.invalidResponse);
+      }
+    } on PlatformException catch (error, stackTrace) {
+      GoogleSignInDiagnostics.log('auth_tab.error', error: error, stackTrace: stackTrace);
+      _fail(result, switch (error.code) {
+        'unsupported_browser' => GoogleAuthorizationFailure.browserUnavailable,
+        'verification_failed' => GoogleAuthorizationFailure.callbackNotVerified,
+        'verification_timed_out' => GoogleAuthorizationFailure.timedOut,
+        _ => GoogleAuthorizationFailure.unavailable,
+      });
+    } catch (error, stackTrace) {
+      GoogleSignInDiagnostics.log('auth_tab.error', error: error, stackTrace: stackTrace);
+      _fail(result, GoogleAuthorizationFailure.unavailable);
+    }
+  }
+
+  Future<void> _closeAndroidAuthTab(String requestId) async {
+    try {
+      await _androidBrowser.invokeMethod<void>('cancel', {'requestId': requestId});
+    } catch (error, stackTrace) {
+      GoogleSignInDiagnostics.log('auth_tab.close_error', error: error, stackTrace: stackTrace);
     }
   }
 
