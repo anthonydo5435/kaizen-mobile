@@ -13,6 +13,13 @@ analyzer:
   exclude:
     # Vendored plugins are separate packages, including their standalone examples.
     - third_party/**
+    - build/**
+    - android/**
+    - ios/**
+    - web/**
+    - windows/**
+    - macos/**
+    - linux/**
 
 linter:
   # The lint rules applied to this project can be customized in the
