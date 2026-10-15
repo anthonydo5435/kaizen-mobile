@@ -81,3 +81,8 @@ android {
 flutter {
     source = "../.."
 }
+
+dependencies {
+    // Already shipped by url_launcher_android; the OAuth bridge also uses it directly.
+    implementation("androidx.browser:browser:1.9.0")
+}
