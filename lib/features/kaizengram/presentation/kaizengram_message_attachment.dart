@@ -123,17 +123,25 @@ class KaizengramMessageAttachmentPicker {
     required int availableSlots,
     required Iterable<String> existingPaths,
   }) async {
-    final result = await FilePicker.platform.pickFiles(
-      allowMultiple: availableSlots > 1,
-      type: FileType.custom,
-      allowedExtensions: _pdfExtensions,
-    );
-    if (result == null || result.files.isEmpty) {
+    final List<PlatformFile> files;
+    if (availableSlots == 1) {
+      final file = await FilePicker.pickFile(
+        type: FileType.custom,
+        allowedExtensions: _pdfExtensions,
+      );
+      files = file == null ? <PlatformFile>[] : <PlatformFile>[file];
+    } else {
+      files = await FilePicker.pickFiles(
+        type: FileType.custom,
+        allowedExtensions: _pdfExtensions,
+      );
+    }
+    if (files.isEmpty) {
       return const <KaizengramMessageAttachment>[];
     }
 
     return _normalizedAttachmentsFromPaths(
-      result.files.map((file) => file.path),
+      files.map((file) => file.path),
       existingPaths: existingPaths,
       availableSlots: availableSlots,
     );
