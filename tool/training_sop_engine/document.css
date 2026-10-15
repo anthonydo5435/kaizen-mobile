@@ -1,0 +1,123 @@
+/* Keep native word selection and pinch zoom without double-tap smart zoom. */
+html { background: #e9e9ef; color: #15131a; touch-action: manipulation; }
+body { margin: 0; padding: 0; width: calc(210mm + 24px); overflow-wrap: anywhere; }
+.sop-a4-sheet {
+  box-sizing: border-box;
+  width: 210mm;
+  min-height: 297mm;
+  padding: 4.5mm 4mm 18mm;
+  margin: 12px;
+  position: relative;
+  isolation: isolate;
+}
+.sop-pages { position: absolute; inset: 0; pointer-events: none; user-select: none; }
+.sop-page {
+  box-sizing: border-box;
+  position: absolute;
+  width: 210mm;
+  height: 297mm;
+  z-index: -1;
+  background: #fff;
+  border: 1px solid #d5d4df;
+  box-shadow: 0 2px 8px #15131a18;
+}
+.sop-page-boundary {
+  position: absolute;
+  z-index: 1;
+  left: 0;
+  right: 0;
+  height: calc(18mm + 24px + 4.5mm);
+  background: linear-gradient(to bottom,
+    white 0, white calc(18mm - 1px), #d5d4df calc(18mm - 1px), #d5d4df 18mm,
+    #e9e9ef 18mm, #e9e9ef calc(18mm + 24px),
+    #d5d4df calc(18mm + 24px), #d5d4df calc(18mm + 24px + 1px),
+    white calc(18mm + 24px + 1px), white 100%);
+}
+.tiptap .sop-page-spacer {
+  display: block;
+  box-sizing: border-box;
+  margin: 0 !important;
+  padding: 0 !important;
+  border: 0 !important;
+  min-height: 0 !important;
+  font-size: 0;
+  line-height: 0;
+  list-style: none;
+  background: transparent !important;
+  pointer-events: none;
+  user-select: none;
+}
+.tiptap tr.sop-page-spacer { display: table-row; }
+.tiptap .sop-page-spacer > td { padding: 0; border: 0; background: transparent; }
+.tiptap {
+  outline: none;
+  font: calc(14px * var(--sop-text-scale, 1))/1.65 Arial, sans-serif;
+  caret-color: #9d4cff;
+  white-space: pre-wrap;
+  -webkit-text-size-adjust: 100%;
+}
+.tiptap p { margin: 0 0 12px; min-height: 1em; }
+.tiptap h1, .tiptap h2, .tiptap h3, .tiptap h4, .tiptap h5, .tiptap h6 {
+  line-height: 1.3; margin: 18px 0 10px; break-after: avoid;
+}
+.tiptap h1 { font-size: 2em; }
+.tiptap h2 { font-size: 1.6em; }
+.tiptap h3 { font-size: 1.3em; }
+.tiptap ul, .tiptap ol { padding-left: 24px; margin: 0 0 12px; }
+.tiptap li > p { margin-bottom: 6px; }
+.tiptap a { color: #7a2cdf; text-decoration: underline; cursor: pointer; }
+.tiptap table { border-collapse: collapse; width: 100%; margin: 12px 0; table-layout: fixed; }
+.tiptap td, .tiptap th { border: 1px solid #b9b6c5; padding: 8px; vertical-align: top; min-width: 30px; }
+.tiptap th { background: #f0e9fa; font-weight: 700; text-align: left; }
+.tiptap td > :last-child, .tiptap th > :last-child { margin-bottom: 0; }
+.tiptap .selectedCell { background: #e8d5fa; }
+.tiptap img { max-width: 100%; max-height: calc(297mm - 12mm - 18mm); height: auto; object-fit: contain; }
+.tiptap blockquote { margin: 12px 0; padding-left: 16px; border-left: 3px solid #9d4cff; }
+.tiptap pre { background: #f3f2f5; padding: 12px; overflow-x: auto; white-space: pre-wrap; }
+.tiptap hr { border: 0; border-top: 1px solid #b9b6c5; margin: 16px 0; }
+.tiptap ul[data-type="taskList"] { list-style: none; padding-left: 0; }
+.tiptap li[data-type="taskItem"] { display: flex; gap: 8px; }
+.tiptap li[data-type="taskItem"] > div { flex: 1; }
+
+/* Some SOPs store their design as template/role markers without a stylesheet.
+   Scope these defaults to that template; other documents keep their own design. */
+.tiptap:where(:has([data-sop-template="reference-v1"])) { color: #35404b; }
+.tiptap:where(:has([data-sop-template="reference-v1"])) [data-sop-role="eyebrow"],
+.tiptap:where(:has([data-sop-template="reference-v1"])) [data-sop-role="title"],
+.tiptap:where(:has([data-sop-template="reference-v1"])) [data-sop-role="overview"] {
+  background: #604b8c;
+  color: #fff;
+  margin: 0;
+}
+.tiptap:where(:has([data-sop-template="reference-v1"])) [data-sop-role="eyebrow"] {
+  border-radius: 12px 12px 0 0;
+  padding: 28px 28px 18px;
+  font-size: 11px;
+  font-weight: 700;
+  line-height: 1.4;
+}
+.tiptap:where(:has([data-sop-template="reference-v1"])) [data-sop-role="title"] {
+  padding: 0 28px 18px;
+  font-size: 26px;
+  line-height: 1.3;
+}
+.tiptap:where(:has([data-sop-template="reference-v1"])) [data-sop-role="overview"] {
+  padding: 0 28px 28px;
+  margin-bottom: 28px;
+  line-height: 1.6;
+}
+.tiptap:where(:has([data-sop-template="reference-v1"])) h2 {
+  color: #604b8c;
+  font-size: 18px;
+  margin: 28px 0 14px;
+  padding-bottom: 14px;
+  border-bottom: 1px solid #eee7f6;
+}
+.tiptap:where(:has([data-sop-template="reference-v1"])) h3 { color: #604b8c; }
+@page { size: A4; margin: 4.5mm 4mm 18mm; }
+@media print {
+  html, body { background: white; width: auto; }
+  .sop-a4-sheet { margin: 0; padding: 0; width: auto; min-height: 0 !important; }
+  .sop-pages, .tiptap .sop-page-spacer { display: none; }
+  .tiptap tr, .tiptap img { break-inside: avoid; }
+}

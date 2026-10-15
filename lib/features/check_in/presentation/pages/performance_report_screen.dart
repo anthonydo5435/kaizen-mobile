@@ -142,6 +142,7 @@ class _PerformanceReportViewState extends State<_PerformanceReportView> {
         backgroundColor: AppColors.mainBg,
         foregroundColor: AppColors.textPrimary,
         centerTitle: true,
+        leadingWidth: 40,
         title: AppTextView.title1(
           AppStrings.reportsScreenTitle,
           color: AppColors.secondaryColor,

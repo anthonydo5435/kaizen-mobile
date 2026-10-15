@@ -174,7 +174,10 @@ class _AssignmentInstructionsPanel extends StatelessWidget {
                   ),
                 ),
                 Padding(
-                  padding: const EdgeInsets.fromLTRB(10, 0, 10, 12),
+                  padding: const EdgeInsets.symmetric(
+                    horizontal: 10,
+                    vertical: 12,
+                  ),
                   child: TextFieldTapRegion(
                     child: _TrainingFormattingToolbar(
                       controller: descriptionController,

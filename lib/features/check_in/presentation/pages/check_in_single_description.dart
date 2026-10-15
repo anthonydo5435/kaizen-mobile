@@ -75,16 +75,16 @@ class _SingleDescriptionDetailsState extends State<SingleDescriptionDetails> {
         child: Column(
           children: [
             const Padding(
-              padding: EdgeInsets.fromLTRB(16, 2, 16, 0),
+              padding: EdgeInsets.fromLTRB(8, 2, 8, 0),
               child: _DescriptionDetailsHeader(),
             ),
             const SizedBox(height: 18),
             Padding(
-              padding: const EdgeInsets.symmetric(horizontal: 16),
+              padding: const EdgeInsets.symmetric(horizontal: 8),
               child: _CheckInProfileCard(audit: widget.audit, date: widget.date),
             ),
             Padding(
-              padding: const EdgeInsets.symmetric(horizontal: 16, vertical: 12),
+              padding: const EdgeInsets.symmetric(horizontal: 8, vertical: 12),
               child: _DescriptionPageCounter(
                 controller: _pageController,
                 pageCount: widget.descriptions.length,
@@ -168,7 +168,7 @@ class _AnimatedDescriptionPage extends StatelessWidget {
   Widget build(BuildContext context) {
     final reduceMotion = MediaQuery.disableAnimationsOf(context);
     return Padding(
-      padding: const EdgeInsets.symmetric(horizontal: 16),
+      padding: const EdgeInsets.symmetric(horizontal: 8),
       child: AnimatedBuilder(
         animation: controller,
         child: RepaintBoundary(child: child),
@@ -534,7 +534,7 @@ class _DescriptionDetailsHeader extends StatelessWidget {
               borderRadius: BorderRadius.circular(20),
               onTap: () => Navigator.of(context).pop(),
               child: Padding(
-                padding: const EdgeInsets.all(4),
+                padding: const EdgeInsets.fromLTRB(0, 4, 8, 4),
                 child: SvgPicture.asset(
                   '${AppStrings.imagePath}back.svg',
                   height: 24,
@@ -857,16 +857,11 @@ bool _canEditSingleDescriptionAudit({
   required bool isOwner,
   required String date,
 }) {
-  return AppManager.instance.canCurrentOrganizationModifyContent &&
-      !isViewOnly &&
-      isOwner &&
-      CustomFunctions.isAuditWithinContinueWindow(date);
+  return !isViewOnly && isOwner && CustomFunctions.isAuditWithinContinueWindow(date);
 }
 
 bool _canCommentOnSingleDescriptionAudit({required bool isViewOnly, required String date}) {
-  return AppManager.instance.canCurrentOrganizationModifyContent &&
-      !isViewOnly &&
-      CustomFunctions.isAuditWithinContinueWindow(date);
+  return !isViewOnly && CustomFunctions.isAuditWithinContinueWindow(date);
 }
 
 enum _PassBlockState { great, almostThere, needsImprovement, defaultValue }

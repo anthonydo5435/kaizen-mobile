@@ -13,6 +13,7 @@ typedef PaygradeEntrySaveCallback =
       required String title,
       required String description,
       required String promotionRequirement,
+      String? payRate,
     });
 
 enum PaygradeEntrySheetMode { create, update }
@@ -176,6 +177,22 @@ class _PaygradeEntryBottomSheetState extends State<_PaygradeEntryBottomSheet> {
                             ),
                             const SizedBox(height: 18),
                             const AppTextView.body2(
+                              AppStrings.paygradesRate,
+                              color: AppColors.textPrimary,
+                              fontWeight: FontWeight.w600,
+                            ),
+                            const SizedBox(height: 10),
+                            _PaygradeSheetTextField(
+                              controller: _controller.payRateController,
+                              hintText: AppStrings.paygradesPayRateInputLabel,
+                              enabled: !_controller.isSaving,
+                              keyboardType:
+                                  const TextInputType.numberWithOptions(
+                                    decimal: true,
+                                  ),
+                            ),
+                            const SizedBox(height: 18),
+                            const AppTextView.body2(
                               AppStrings.paygradesDescription,
                               color: AppColors.textPrimary,
                               fontSize: 13,
@@ -244,7 +261,9 @@ class _PaygradeEntryBottomSheetState extends State<_PaygradeEntryBottomSheet> {
 
 class _PaygradeEntrySheetController extends ChangeNotifier {
   _PaygradeEntrySheetController({required this.mode, PaygradeEntry? entry})
-    : titleController = TextEditingController(text: entry?.title ?? ''),
+    : _initialPayRate = entry?.payRate.trim() ?? '',
+      titleController = TextEditingController(text: entry?.title ?? ''),
+      payRateController = TextEditingController(text: entry?.payRate ?? ''),
       descriptionController = TextEditingController(
         text: entry?.description ?? '',
       ),
@@ -252,12 +271,15 @@ class _PaygradeEntrySheetController extends ChangeNotifier {
         text: entry?.promotionRequirement ?? '',
       ) {
     titleController.addListener(_handleChanged);
+    payRateController.addListener(_handleChanged);
     descriptionController.addListener(_handleChanged);
     promotionRequirementController.addListener(_handleChanged);
   }
 
   final PaygradeEntrySheetMode mode;
+  final String _initialPayRate;
   final TextEditingController titleController;
+  final TextEditingController payRateController;
   final TextEditingController descriptionController;
   final TextEditingController promotionRequirementController;
 
@@ -270,6 +292,14 @@ class _PaygradeEntrySheetController extends ChangeNotifier {
       (mode == PaygradeEntrySheetMode.update ||
           titleController.text.trim().isNotEmpty);
   String? get errorMessage => _errorMessage;
+
+  String? get _payRateToSave {
+    final rate = payRateController.text.trim();
+    if (mode == PaygradeEntrySheetMode.create) {
+      return rate.isEmpty ? null : rate;
+    }
+    return rate != _initialPayRate ? rate : null;
+  }
 
   Future<bool> submit(PaygradeEntrySaveCallback onSave) async {
     final validationMessage = _validate();
@@ -288,10 +318,13 @@ class _PaygradeEntrySheetController extends ChangeNotifier {
         title: titleController.text.trim(),
         description: descriptionController.text.trim(),
         promotionRequirement: promotionRequirementController.text.trim(),
+        payRate: _payRateToSave,
       );
       return true;
     } catch (error) {
-      _errorMessage = error.toString();
+      _errorMessage = _payRateToSave != null
+          ? AppStrings.paygradesPayRateSaveFailed
+          : error.toString();
       return false;
     } finally {
       _isSaving = false;
@@ -303,6 +336,11 @@ class _PaygradeEntrySheetController extends ChangeNotifier {
     if (mode == PaygradeEntrySheetMode.create &&
         titleController.text.trim().isEmpty) {
       return AppStrings.paygradesNameRequired;
+    }
+
+    final rate = _payRateToSave;
+    if (rate != null && !PaygradeEntry.isValidPayRate(rate)) {
+      return AppStrings.paygradesPayRateInvalid;
     }
 
     return null;
@@ -318,6 +356,9 @@ class _PaygradeEntrySheetController extends ChangeNotifier {
   @override
   void dispose() {
     titleController
+      ..removeListener(_handleChanged)
+      ..dispose();
+    payRateController
       ..removeListener(_handleChanged)
       ..dispose();
     descriptionController
@@ -338,6 +379,7 @@ class _PaygradeSheetTextField extends StatelessWidget {
     this.maxLines = 1,
     this.fontSize = 16,
     this.hintFontSize = 16,
+    this.keyboardType,
   });
 
   final TextEditingController controller;
@@ -346,6 +388,7 @@ class _PaygradeSheetTextField extends StatelessWidget {
   final int maxLines;
   final double fontSize;
   final double hintFontSize;
+  final TextInputType? keyboardType;
 
   @override
   Widget build(BuildContext context) {
@@ -360,7 +403,9 @@ class _PaygradeSheetTextField extends StatelessWidget {
         controller: controller,
         enabled: enabled,
         maxLines: maxLines,
+        keyboardType: keyboardType,
         cursorColor: AppColors.textPrimary,
+        cursorHeight: 15,
         style: TextStyle(color: AppColors.textPrimary, fontSize: fontSize),
         decoration: InputDecoration(
           border: InputBorder.none,

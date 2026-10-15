@@ -8,7 +8,7 @@ class AppBarGradientAction extends StatelessWidget {
     required this.label,
     required this.icon,
     required this.onTap,
-    this.endPadding = 16,
+    this.endPadding = 8,
     this.compact = false,
   });
 

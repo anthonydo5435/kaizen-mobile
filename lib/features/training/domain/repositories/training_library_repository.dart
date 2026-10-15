@@ -21,5 +21,6 @@ abstract class TrainingLibraryRepository {
     String? jobId,
     String? jobCategoryId,
     String? jobCategoryDescriptionId,
+    bool forceRefresh = false,
   });
 }

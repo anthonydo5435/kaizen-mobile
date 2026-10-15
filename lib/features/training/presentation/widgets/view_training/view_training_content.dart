@@ -29,6 +29,7 @@ class TrainingReadOnlySopTab extends StatelessWidget {
         Expanded(
           child: _DocumentReadingPanel(
             html: html,
+            isSop: true,
             isLoading: isLoading,
             message:
                 errorMessage ??
@@ -126,11 +127,17 @@ class _SectionLabel extends StatelessWidget {
 
 /// Keeps the document viewport bounded while its HTML content scrolls independently.
 class _DocumentReadingPanel extends StatelessWidget {
-  const _DocumentReadingPanel({this.html, this.isLoading = false, this.message});
+  const _DocumentReadingPanel({
+    this.html,
+    this.isLoading = false,
+    this.message,
+    this.isSop = false,
+  });
 
   final String? html;
   final bool isLoading;
   final String? message;
+  final bool isSop;
 
   @override
   Widget build(BuildContext context) {
@@ -152,6 +159,8 @@ class _DocumentReadingPanel extends StatelessWidget {
                 ),
               ),
             )
+          : isSop
+          ? TrainingSopReader(html: html ?? '')
           : SingleChildScrollView(
               primary: false,
               physics: const AlwaysScrollableScrollPhysics(),

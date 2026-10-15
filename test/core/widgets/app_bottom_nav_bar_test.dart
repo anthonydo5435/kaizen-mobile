@@ -172,32 +172,40 @@ void main() {
     expect(tester.takeException(), isNull);
   });
 
-  testWidgets('sandbox keeps all labels visible and only enables LMS', (
+  testWidgets('all four destinations are enabled and forward taps', (
     tester,
   ) async {
+    final semantics = tester.ensureSemantics();
     final selections = <AppMenuType>[];
     await tester.pumpWidget(
       MaterialApp(
         home: Scaffold(
           bottomNavigationBar: AppBottomNavBar(
             selectedMenu: AppMenuType.library,
-            isSandboxMode: true,
             onSelected: selections.add,
           ),
         ),
       ),
     );
-    for (final label in [
-      AppStrings.checkInTitle,
-      AppStrings.bottomNavPerformance,
-      AppStrings.bottomNavLtc,
+    for (final destination in [
+      (AppStrings.trainingLibraryTitle, AppMenuType.library),
+      (AppStrings.checkInTitle, AppMenuType.audits),
+      (AppStrings.bottomNavPerformance, AppMenuType.performanceSnapshot),
+      (AppStrings.bottomNavLtc, AppMenuType.learningTracks),
     ]) {
-      expect(_tab(label), findsOneWidget);
-      await tester.tap(_tab(label));
+      expect(_tab(destination.$1), findsOneWidget);
+      expect(
+        tester
+            .getSemantics(find.bySemanticsLabel(destination.$1))
+            .flagsCollection
+            .isEnabled,
+        isTrue,
+      );
+      await tester.tap(_tab(destination.$1));
+      expect(selections.last, destination.$2);
     }
-    expect(selections, isEmpty);
-    await tester.tap(_tab(AppStrings.trainingLibraryTitle));
-    expect(selections, [AppMenuType.library]);
+    expect(selections, hasLength(4));
+    semantics.dispose();
   });
 
   testWidgets(
@@ -221,7 +229,7 @@ void main() {
           home: Scaffold(
             body: const SizedBox.expand(key: ValueKey('content')),
             bottomNavigationBar: AppBottomNavBar(
-              selectedMenu: AppMenuType.library,
+              selectedMenu: AppMenuType.performanceSnapshot,
               onSelected: (menu) => selected = menu,
             ),
           ),
@@ -236,8 +244,8 @@ void main() {
       final surfaceBounds = tester.getRect(
         find.descendant(of: bar, matching: find.byType(ClipRRect)),
       );
-      expect(surfaceBounds.left, 16);
-      expect(surfaceBounds.right, 320 - 16);
+      expect(surfaceBounds.left, 12);
+      expect(surfaceBounds.right, 320 - 12);
       expect(surfaceBounds.bottom, 740 - 14);
       expect(
         tester.getBottomLeft(_tab(AppStrings.bottomNavPerformance)).dy,

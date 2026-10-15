@@ -20,12 +20,13 @@ class BreakPointScreen extends StatelessWidget {
         backgroundColor: Colors.transparent,
         foregroundColor: AppColors.textPrimary,
         elevation: 0,
+        leadingWidth: 40,
         leading: const AppBackButton(),
       ),
       body: SafeArea(
         top: false,
         child: Padding(
-          padding: const EdgeInsets.fromLTRB(28, 12, 28, 24),
+          padding: const EdgeInsets.fromLTRB(8, 12, 8, 24),
           child: Column(
             children: [
               const Spacer(),
@@ -45,7 +46,10 @@ class BreakPointScreen extends StatelessWidget {
               ),
               const SizedBox(height: 52),
               const Spacer(),
-              AppButton(text: 'Next', onPressed: () => Navigator.of(context).pop('next_video')),
+              AppButton(
+                text: 'Next',
+                onPressed: () => Navigator.of(context).pop('next_video'),
+              ),
               TextButton(
                 onPressed: () => Navigator.of(context).pop('track_modules'),
                 child: const AppTextView.body3(

@@ -417,6 +417,7 @@ class _LibraryRepository extends Fake implements TrainingLibraryRepository {
     String? jobId,
     String? jobCategoryId,
     String? jobCategoryDescriptionId,
+    bool forceRefresh = false,
   }) async {
     requests++;
     return response ??

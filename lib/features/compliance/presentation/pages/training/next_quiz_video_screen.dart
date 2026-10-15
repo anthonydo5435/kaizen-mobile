@@ -17,12 +17,13 @@ class NextQuizVideoScreen extends StatelessWidget {
         backgroundColor: Colors.transparent,
         foregroundColor: AppColors.textPrimary,
         elevation: 0,
+        leadingWidth: 40,
         leading: const AppBackButton(),
       ),
       body: SafeArea(
         top: false,
         child: Padding(
-          padding: const EdgeInsets.fromLTRB(28, 12, 28, 24),
+          padding: const EdgeInsets.fromLTRB(8, 12, 8, 24),
           child: Column(
             children: [
               const Spacer(),

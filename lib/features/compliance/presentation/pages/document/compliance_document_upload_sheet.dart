@@ -1,9 +1,8 @@
 import 'dart:io';
 
-import 'package:file_picker/file_picker.dart';
 import 'package:flutter/material.dart';
+import 'package:flutter/services.dart';
 import 'package:flutter_svg/flutter_svg.dart';
-import 'package:image_picker/image_picker.dart';
 import 'package:provider/provider.dart';
 import 'package:sparrowkaizen/core/widgets/app_dot_divider.dart';
 
@@ -12,11 +11,17 @@ import '../../../../../core/constants/app_strings.dart';
 import '../../../../../core/managers/app_manager.dart';
 import '../../../../../core/utils/custom_functions.dart';
 import '../../../../../core/widgets/app_button.dart';
+import '../../../../../core/widgets/app_dialog_style.dart';
+import '../../../../../core/widgets/app_overlay_close_button.dart';
 import '../../../../../core/widgets/app_text_view.dart';
 import '../../../../../core/widgets/fast_circular_progress.dart';
 import '../../../../check_in/presentation/widgets/upgrade_plan_dialog.dart';
 import '../../../domain/entities/compliance_document.dart';
+import '../../../domain/repositories/compliance_document_media_repository.dart';
+import '../../../domain/usecases/pick_compliance_document_file_usecase.dart';
 import '../../../domain/usecases/upload_compliance_document_usecase.dart';
+import '../../providers/compliance_document_expiry_controller.dart';
+import '../../providers/compliance_document_media_controller.dart';
 import 'compliance_document_full_screen_image.dart';
 
 class ComplianceDocumentUploadSheet extends StatefulWidget {
@@ -24,10 +29,12 @@ class ComplianceDocumentUploadSheet extends StatefulWidget {
     super.key,
     required this.document,
     required this.uploadComplianceDocumentUseCase,
+    required this.pickComplianceDocumentFileUseCase,
   });
 
   final ComplianceDocument document;
   final UploadComplianceDocumentUseCase uploadComplianceDocumentUseCase;
+  final PickComplianceDocumentFileUseCase pickComplianceDocumentFileUseCase;
 
   @override
   State<ComplianceDocumentUploadSheet> createState() => _ComplianceDocumentUploadSheetState();
@@ -37,130 +44,109 @@ class _ComplianceDocumentUploadSheetState extends State<ComplianceDocumentUpload
   static const double _uploadPanelHeight = 260;
   static const double _uploadPanelExpandedHeight = 340;
 
-  final ImagePicker _imagePicker = ImagePicker();
-  final TextEditingController _expiryDateController = TextEditingController();
-  File? _selectedFile;
-  bool _isOpeningGallery = false;
+  late final ComplianceDocumentExpiryController _expiryController;
+  late final ComplianceDocumentMediaController _mediaController;
   bool _isUploading = false;
   bool _isSubmittingRecord = false;
   double _uploadProgress = 0;
 
   @override
+  void initState() {
+    super.initState();
+    _expiryController = ComplianceDocumentExpiryController(
+      initialExpiryDate: widget.document.latestDocumentExpiryDate,
+    );
+    _mediaController = ComplianceDocumentMediaController(widget.pickComplianceDocumentFileUseCase);
+  }
+
+  @override
   void dispose() {
-    _expiryDateController.dispose();
+    _expiryController.dispose();
+    _mediaController.dispose();
     super.dispose();
   }
 
-  Future<void> _pickImage() async {
-    if (_isOpeningGallery || !_canUploadDocument) {
+  File? get _selectedFile => _mediaController.selectedFile;
+  bool get _isPickingMedia => _mediaController.isPicking;
+
+  Future<void> _pickDocument(ComplianceDocumentFileSource source) async {
+    if (_isPickingMedia || _isUploading || !_canUploadDocument) {
       return;
     }
-
-    setState(() {
-      _isOpeningGallery = true;
-    });
-
-    try {
-      final pickedImage = await _imagePicker.pickImage(
-        source: ImageSource.gallery,
-        imageQuality: 90,
-      );
-
-      if (!mounted || pickedImage == null || pickedImage.path.trim().isEmpty) {
-        return;
-      }
-
-      setState(() {
-        _selectedFile = File(pickedImage.path);
-      });
-    } finally {
-      if (mounted) {
-        setState(() {
-          _isOpeningGallery = false;
-        });
-      }
-    }
-  }
-
-  Future<void> _pickPdf() async {
-    if (_isOpeningGallery || !_canUploadDocument) {
+    await _mediaController.pickFile(source);
+    if (!mounted) {
       return;
     }
-
-    setState(() {
-      _isOpeningGallery = true;
-    });
-
-    try {
-      final pickedFile = await FilePicker.platform.pickFiles(
-        type: FileType.custom,
-        allowedExtensions: const ['pdf'],
+    final errorMessage = _mediaController.errorMessage;
+    if (errorMessage != null) {
+      await CustomFunctions.showCustomAlert(
+        context,
+        AppStrings.complianceMediaSelectionFailedTitle,
+        errorMessage,
       );
-
-      final selectedPath = pickedFile?.files.single.path;
-      if (!mounted || selectedPath == null || selectedPath.trim().isEmpty) {
-        return;
-      }
-
-      setState(() {
-        _selectedFile = File(selectedPath);
-      });
-    } finally {
-      if (mounted) {
-        setState(() {
-          _isOpeningGallery = false;
-        });
-      }
     }
   }
 
   Future<void> _showUploadOptions() async {
-    if (_isOpeningGallery || !_canUploadDocument) {
+    if (_isPickingMedia || _isUploading || !_canUploadDocument) {
       return;
     }
 
+    FocusManager.instance.primaryFocus?.unfocus();
     await showModalBottomSheet<void>(
       context: context,
       backgroundColor: Colors.transparent,
-      builder: (_) {
+      builder: (optionsContext) {
         return Container(
           padding: const EdgeInsets.fromLTRB(20, 16, 20, 24),
           decoration: const BoxDecoration(
             color: AppColors.surfaceDark,
             borderRadius: BorderRadius.vertical(top: Radius.circular(12)),
           ),
-          child: Column(
-            mainAxisSize: MainAxisSize.min,
-            children: [
-              Container(
-                width: 42,
-                height: 4,
-                decoration: BoxDecoration(
-                  color: AppColors.grey1,
-                  borderRadius: BorderRadius.circular(999),
+          child: SingleChildScrollView(
+            child: Column(
+              mainAxisSize: MainAxisSize.min,
+              children: [
+                Container(
+                  width: 42,
+                  height: 4,
+                  decoration: BoxDecoration(
+                    color: AppColors.grey1,
+                    borderRadius: BorderRadius.circular(999),
+                  ),
                 ),
-              ),
-              const SizedBox(height: 20),
-              _UploadOptionTile(
-                icon: Icons.image_outlined,
-                title: 'Select Image',
-                subtitle: 'Choose a PNG, JPG, or JPEG from gallery',
-                onTap: () async {
-                  Navigator.of(context).pop();
-                  await _pickImage();
-                },
-              ),
-              const SizedBox(height: 12),
-              _UploadOptionTile(
-                icon: Icons.picture_as_pdf_outlined,
-                title: 'Select PDF',
-                subtitle: 'Choose a PDF document from files',
-                onTap: () async {
-                  Navigator.of(context).pop();
-                  await _pickPdf();
-                },
-              ),
-            ],
+                const SizedBox(height: 20),
+                _UploadOptionTile(
+                  icon: Icons.camera_alt_outlined,
+                  title: AppStrings.complianceCamera,
+                  subtitle: AppStrings.complianceCameraDescription,
+                  onTap: () async {
+                    Navigator.of(optionsContext).pop();
+                    await _pickDocument(ComplianceDocumentFileSource.camera);
+                  },
+                ),
+                const SizedBox(height: 12),
+                _UploadOptionTile(
+                  icon: Icons.image_outlined,
+                  title: AppStrings.complianceSelectImage,
+                  subtitle: AppStrings.complianceSelectImageDescription,
+                  onTap: () async {
+                    Navigator.of(optionsContext).pop();
+                    await _pickDocument(ComplianceDocumentFileSource.gallery);
+                  },
+                ),
+                const SizedBox(height: 12),
+                _UploadOptionTile(
+                  icon: Icons.picture_as_pdf_outlined,
+                  title: AppStrings.complianceSelectPdf,
+                  subtitle: AppStrings.complianceSelectPdfDescription,
+                  onTap: () async {
+                    Navigator.of(optionsContext).pop();
+                    await _pickDocument(ComplianceDocumentFileSource.pdf);
+                  },
+                ),
+              ],
+            ),
           ),
         );
       },
@@ -182,12 +168,7 @@ class _ComplianceDocumentUploadSheetState extends State<ComplianceDocumentUpload
       return;
     }
 
-    if (widget.document.hasExpiry && _expiryDateController.text.trim().isEmpty) {
-      CustomFunctions.showCustomAlert(
-        context,
-        'Missing Expiry Date',
-        'Please provide an expiry date before uploading this document.',
-      );
+    if (widget.document.hasExpiry && !_expiryController.validate()) {
       return;
     }
 
@@ -207,7 +188,7 @@ class _ComplianceDocumentUploadSheetState extends State<ComplianceDocumentUpload
           selectedFile.path,
           fallback: 'application/pdf',
         ),
-        expiryDate: widget.document.hasExpiry ? _expiryDateController.text : null,
+        expiryDate: widget.document.hasExpiry ? _expiryController.apiExpiryDate : null,
         onUploadProgress: (progress) {
           if (!mounted) {
             return;
@@ -274,13 +255,64 @@ class _ComplianceDocumentUploadSheetState extends State<ComplianceDocumentUpload
     await _showUploadOptions();
   }
 
+  Future<void> _pickExpiryDate() async {
+    if (_isUploading || !_canUploadDocument) {
+      return;
+    }
+    FocusManager.instance.primaryFocus?.unfocus();
+    final today = _expiryController.today;
+    final selectedDate = _expiryController.selectedDate;
+    final date = await showDatePicker(
+      context: context,
+      initialDate: selectedDate != null && !selectedDate.isBefore(today) ? selectedDate : today,
+      firstDate: today,
+      lastDate: DateTime(9999, 12, 31),
+      initialEntryMode: DatePickerEntryMode.calendarOnly,
+      builder: (context, child) => Theme(
+        data: Theme.of(context).copyWith(
+          colorScheme: ColorScheme.fromSeed(
+            seedColor: AppColors.secondaryColor,
+            brightness: Brightness.dark,
+          ).copyWith(surface: AppColors.surfaceDark),
+          datePickerTheme: DatePickerThemeData(
+            shape: AppDialogStyle.shape(radius: 28),
+            dayShape: WidgetStateProperty.resolveWith<OutlinedBorder?>(
+              (states) => states.contains(WidgetState.selected)
+                  ? RoundedRectangleBorder(borderRadius: BorderRadius.circular(8))
+                  : null,
+            ),
+            dayBackgroundColor: WidgetStateProperty.resolveWith<Color?>(
+              (states) => states.contains(WidgetState.selected) ? AppColors.secondaryColor : null,
+            ),
+            dayForegroundColor: WidgetStateProperty.resolveWith<Color?>(
+              (states) => states.contains(WidgetState.selected) ? AppColors.textPrimary : null,
+            ),
+            todayBackgroundColor: WidgetStateProperty.resolveWith<Color?>(
+              (states) => states.contains(WidgetState.selected) ? AppColors.secondaryColor : null,
+            ),
+            todayForegroundColor: WidgetStateProperty.resolveWith<Color?>(
+              (states) => states.contains(WidgetState.selected) ? AppColors.textPrimary : null,
+            ),
+          ),
+        ),
+        child: child!,
+      ),
+    );
+    if (mounted && date != null) {
+      _expiryController.selectDate(date);
+    }
+  }
+
   bool get _hasSelectedFile => _selectedFile != null;
   bool get _canUploadDocument => !_isPendingApproval;
   bool get _isUploadingToStorage => _isUploading && !_isSubmittingRecord;
   bool get _hasRejectionReason => !_hasSelectedFile && _rejectionReason != null;
-  bool get _showExpiryField => _hasSelectedFile && widget.document.hasExpiry;
-  double get _resolvedUploadPanelHeight =>
-      _hasRejectionReason ? _uploadPanelHeight : _uploadPanelExpandedHeight;
+  bool get _showExpiryField => widget.document.hasExpiry;
+  double get _resolvedUploadPanelHeight {
+    final height = _hasRejectionReason ? _uploadPanelHeight : _uploadPanelExpandedHeight;
+    return _hasSelectedFile ? height : height + 48;
+  }
+
   bool get _isSelectedFileImage {
     final path = _selectedFile?.path.toLowerCase();
     if (path == null) {
@@ -312,13 +344,81 @@ class _ComplianceDocumentUploadSheetState extends State<ComplianceDocumentUpload
     return reason;
   }
 
+  Future<void> _showRejectionReasonDialog() async {
+    final reason = _rejectionReason;
+    if (reason == null) {
+      return;
+    }
+    FocusManager.instance.primaryFocus?.unfocus();
+    await showDialog<void>(
+      context: context,
+      builder: (dialogContext) => _RejectionReasonDialog(
+        reason: reason,
+        onDismiss: () => Navigator.of(dialogContext).pop(),
+      ),
+    );
+  }
+
   @override
   Widget build(BuildContext context) {
+    return ListenableBuilder(
+      listenable: _mediaController,
+      builder: (context, _) => _buildSheet(context),
+    );
+  }
+
+  Widget _buildSheet(BuildContext context) {
+    final uploadContent = Column(
+      crossAxisAlignment: CrossAxisAlignment.stretch,
+      mainAxisSize: MainAxisSize.min,
+      children: [
+        const SizedBox(height: 16),
+        if (_hasRejectionReason) ...[
+          const AppTextView.title1(
+            AppStrings.rejectionReasonTitle,
+            color: AppColors.textPrimary,
+            fontWeight: FontWeight.w500,
+            fontSize: 16,
+          ),
+          const SizedBox(height: 8),
+          _RejectionReasonCard(reason: _rejectionReason!, onShowMore: _showRejectionReasonDialog),
+          const SizedBox(height: 16),
+        ],
+        if (_showExpiryField) const Spacer(),
+        SizedBox(
+          height: _resolvedUploadPanelHeight,
+          child: _hasSelectedFile
+              ? _isUploadingToStorage
+                    ? _UploadProgressPanel(
+                        fileName: CustomFunctions.fileNameFromPath(_selectedFile!.path),
+                        fileSizeLabel: CustomFunctions.formatFileSize(_selectedFile!.lengthSync()),
+                        progress: _uploadProgress,
+                      )
+                    : _SelectedDocumentPreview(
+                        file: _selectedFile!,
+                        isImage: _isSelectedFileImage,
+                        onTap: _isSelectedFileImage ? _openFullScreenImage : null,
+                      )
+              : _UploadDropZone(
+                  enabled: _canUploadDocument,
+                  isPickingMedia: _isPickingMedia,
+                  onTap: _showUploadOptions,
+                ),
+        ),
+        if (_hasSelectedFile) ...[
+          if (_showExpiryField) const Spacer(),
+          const SizedBox(height: 16),
+          const AppDotDivider(),
+        ],
+      ],
+    );
     return SafeArea(
       top: false,
       bottom: false,
+      minimum: EdgeInsets.only(bottom: MediaQuery.viewInsetsOf(context).bottom),
       child: Container(
-        height: MediaQuery.of(context).size.height * 0.72,
+        height: _showExpiryField ? MediaQuery.sizeOf(context).height * 0.80 : null,
+        constraints: BoxConstraints(maxHeight: MediaQuery.sizeOf(context).height * 0.80),
         decoration: const BoxDecoration(
           color: AppColors.mainBg,
           borderRadius: BorderRadius.vertical(top: Radius.circular(24)),
@@ -327,76 +427,37 @@ class _ComplianceDocumentUploadSheetState extends State<ComplianceDocumentUpload
           padding: const EdgeInsets.fromLTRB(22, 10, 22, 24),
           child: Column(
             crossAxisAlignment: CrossAxisAlignment.stretch,
+            mainAxisSize: _showExpiryField ? MainAxisSize.max : MainAxisSize.min,
             children: [
               const SizedBox(height: 12),
               const _SheetHeader(),
-              const SizedBox(height: 14),
+              const SizedBox(height: 16),
               const AppDotDivider(),
-              Expanded(
-                child: Column(
-                  crossAxisAlignment: CrossAxisAlignment.stretch,
-                  children: [
-                    const SizedBox(height: 12),
-                    if (_hasRejectionReason) ...[
-                      const AppTextView.title1(
-                        AppStrings.rejectionReasonTitle,
-                        color: AppColors.textPrimary,
-                        fontWeight: FontWeight.w500,
-                        fontSize: 16,
-                      ),
-                      const SizedBox(height: 12),
-                      Container(
-                        height: 90,
-                        padding: const EdgeInsets.all(12),
-                        decoration: BoxDecoration(
-                          color: AppColors.surfaceDark,
-                          borderRadius: BorderRadius.circular(12),
-                        ),
-                        child: AppTextView.body(
-                          _rejectionReason!,
-                          color: AppColors.textPrimary,
-                          height: 1.45,
-                          fontSize: 14,
-                        ),
-                      ),
-                      const SizedBox(height: 3),
-                    ],
-                    const Spacer(),
-                    SizedBox(
-                      height: _resolvedUploadPanelHeight,
-                      child: _hasSelectedFile
-                          ? _isUploadingToStorage
-                                ? _UploadProgressPanel(
-                                    fileName: CustomFunctions.fileNameFromPath(_selectedFile!.path),
-                                    fileSizeLabel: CustomFunctions.formatFileSize(
-                                      _selectedFile!.lengthSync(),
-                                    ),
-                                    progress: _uploadProgress,
-                                  )
-                                : _SelectedDocumentPreview(
-                                    file: _selectedFile!,
-                                    isImage: _isSelectedFileImage,
-                                    onTap: _isSelectedFileImage ? _openFullScreenImage : null,
-                                  )
-                          : _UploadDropZone(
-                              enabled: _canUploadDocument,
-                              isOpeningGallery: _isOpeningGallery,
-                              onTap: _showUploadOptions,
-                            ),
-                    ),
-                    const Spacer(),
-                    const AppDotDivider(),
-                    if (_showExpiryField) ...[
-                      const SizedBox(height: 24),
-                      _ExpiryDateField(controller: _expiryDateController),
-                    ],
+              Flexible(
+                fit: _showExpiryField ? FlexFit.tight : FlexFit.loose,
+                child: CustomScrollView(
+                  shrinkWrap: !_showExpiryField,
+                  slivers: [
+                    if (_showExpiryField)
+                      SliverFillRemaining(hasScrollBody: false, child: uploadContent)
+                    else
+                      SliverToBoxAdapter(child: uploadContent),
                   ],
                 ),
               ),
-              const SizedBox(height: 16),
+              if (_showExpiryField) ...[
+                const SizedBox(height: 24),
+                _ExpiryDateField(
+                  controller: _expiryController,
+                  enabled: !_isUploading && _canUploadDocument,
+                  onPickDate: _pickExpiryDate,
+                ),
+              ],
+              const SizedBox(height: 20),
               AppButton(
                 text: _hasSelectedFile ? AppStrings.submit : AppStrings.cancelUpload,
-                onPressed: _hasSelectedFile && !_isUploading && _canUploadDocument
+                onPressed:
+                    _hasSelectedFile && !_isUploading && !_isPickingMedia && _canUploadDocument
                     ? _submitUpload
                     : null,
                 isLoading: _isSubmittingRecord,
@@ -422,11 +483,8 @@ class _SheetHeader extends StatelessWidget {
       alignment: Alignment.center,
       children: [
         Align(
-          alignment: Alignment.centerLeft,
-          child: GestureDetector(
-            onTap: () => Navigator.of(context).pop(),
-            child: SvgPicture.asset('${AppStrings.imagePath}back.svg', width: 24, height: 24),
-          ),
+          alignment: Alignment.centerRight,
+          child: AppOverlayCloseButton(onTap: () => Navigator.of(context).pop()),
         ),
         const AppTextView.title1(
           AppStrings.uploadDocumentTitle,
@@ -439,15 +497,186 @@ class _SheetHeader extends StatelessWidget {
   }
 }
 
+class _RejectionReasonCard extends StatelessWidget {
+  const _RejectionReasonCard({required this.reason, required this.onShowMore});
+
+  final String reason;
+  final VoidCallback onShowMore;
+
+  @override
+  Widget build(BuildContext context) {
+    final textScaler = MediaQuery.textScalerOf(context);
+    // Scale once so the inline action and measured preview use the same sizes.
+    final reasonStyle = DefaultTextStyle.of(context).style.copyWith(
+      color: AppColors.textPrimary,
+      fontSize: textScaler.scale(14),
+      fontWeight: FontWeight.w400,
+      height: 1.45,
+    );
+    final linkStyle = reasonStyle.copyWith(
+      color: AppColors.secondaryColor,
+      fontSize: textScaler.scale(12),
+      fontWeight: FontWeight.w500,
+    );
+    return Container(
+      height: (textScaler.scale(14) * 1.45 * 2 + 24).clamp(72, double.infinity).toDouble(),
+      padding: const EdgeInsets.all(12),
+      decoration: BoxDecoration(
+        color: AppColors.surfaceDark,
+        borderRadius: BorderRadius.circular(12),
+      ),
+      child: LayoutBuilder(
+        builder: (context, constraints) => _buildPreview(
+          context,
+          width: constraints.maxWidth,
+          reasonStyle: reasonStyle,
+          linkStyle: linkStyle,
+        ),
+      ),
+    );
+  }
+
+  // Reserve the inline action before truncating, so it stays on the last line.
+  Widget _buildPreview(
+    BuildContext context, {
+    required double width,
+    required TextStyle reasonStyle,
+    required TextStyle linkStyle,
+  }) {
+    final direction = Directionality.of(context);
+    final locale = Localizations.maybeLocaleOf(context);
+    final previewPainter = TextPainter(
+      text: TextSpan(text: reason, style: reasonStyle),
+      textDirection: direction,
+      locale: locale,
+      maxLines: 2,
+    )..layout(maxWidth: width);
+    if (!previewPainter.didExceedMaxLines) {
+      previewPainter.dispose();
+      return Text(reason, style: reasonStyle, maxLines: 2, textScaler: TextScaler.noScaling);
+    }
+    const suffix = AppStrings.complianceRejectionPreviewEllipsis;
+    final suffixPainter = TextPainter(
+      text: TextSpan(
+        style: reasonStyle,
+        text: suffix,
+        children: [TextSpan(text: AppStrings.complianceShowMore, style: linkStyle)],
+      ),
+      textDirection: direction,
+      locale: locale,
+    )..layout();
+    final inlineAction = Row(
+      mainAxisSize: MainAxisSize.min,
+      crossAxisAlignment: CrossAxisAlignment.baseline,
+      textBaseline: TextBaseline.alphabetic,
+      children: [
+        Text(suffix, style: reasonStyle, textScaler: TextScaler.noScaling),
+        Semantics(
+          button: true,
+          child: GestureDetector(
+            onTap: onShowMore,
+            child: Text(
+              AppStrings.complianceShowMore,
+              style: linkStyle,
+              textScaler: TextScaler.noScaling,
+            ),
+          ),
+        ),
+      ],
+    );
+
+    TextSpan span(String text) => TextSpan(
+      style: reasonStyle,
+      text: text,
+      children: [
+        WidgetSpan(
+          alignment: PlaceholderAlignment.baseline,
+          baseline: TextBaseline.alphabetic,
+          child: inlineAction,
+        ),
+      ],
+    );
+
+    bool fits(String text) {
+      previewPainter.text = span(text);
+      previewPainter.setPlaceholderDimensions([
+        PlaceholderDimensions(
+          size: suffixPainter.size,
+          alignment: PlaceholderAlignment.baseline,
+          baseline: TextBaseline.alphabetic,
+          baselineOffset: suffixPainter.computeDistanceToActualBaseline(TextBaseline.alphabetic),
+        ),
+      ]);
+      previewPainter.layout(maxWidth: width);
+      return !previewPainter.didExceedMaxLines;
+    }
+
+    final characters = reason.characters.toList();
+    var low = 0;
+    var high = characters.length;
+    while (low < high) {
+      final middle = (low + high + 1) ~/ 2;
+      if (fits(characters.take(middle).join().trimRight())) {
+        low = middle;
+      } else {
+        high = middle - 1;
+      }
+    }
+    final preview = characters.take(low).join().trimRight();
+    suffixPainter.dispose();
+    previewPainter.dispose();
+    return Text.rich(span(preview), maxLines: 2, textScaler: TextScaler.noScaling);
+  }
+}
+
+class _RejectionReasonDialog extends StatelessWidget {
+  const _RejectionReasonDialog({required this.reason, required this.onDismiss});
+
+  final String reason;
+  final VoidCallback onDismiss;
+
+  @override
+  Widget build(BuildContext context) {
+    return AlertDialog(
+      backgroundColor: AppColors.surfaceDark,
+      shape: AppDialogStyle.shape(radius: 16),
+      title: Row(
+        children: [
+          const Expanded(
+            child: AppTextView.body1(
+              AppStrings.rejectionReasonTitle,
+              color: AppColors.textPrimary,
+              fontWeight: FontWeight.w600,
+            ),
+          ),
+          const SizedBox(width: 12),
+          AppOverlayCloseButton(onTap: onDismiss),
+        ],
+      ),
+      content: ConstrainedBox(
+        constraints: BoxConstraints(maxHeight: MediaQuery.sizeOf(context).height * 0.5),
+        child: SingleChildScrollView(
+          child: AppTextView.body(reason, color: AppColors.textPrimary, fontSize: 14, height: 1.45),
+        ),
+      ),
+      actions: [
+        AppButton(
+          text: AppStrings.complianceRejectionReasonOk,
+          onPressed: onDismiss,
+          minimumHeight: (MediaQuery.textScalerOf(context).scale(16) * 1.5)
+              .clamp(40, double.infinity)
+              .toDouble(),
+        ),
+      ],
+    );
+  }
+}
+
 class _UploadDropZone extends StatelessWidget {
-  const _UploadDropZone({
-    required this.enabled,
-    required this.isOpeningGallery,
-    required this.onTap,
-  });
+  const _UploadDropZone({required this.enabled, required this.isPickingMedia, required this.onTap});
 
   final bool enabled;
-  final bool isOpeningGallery;
+  final bool isPickingMedia;
   final VoidCallback onTap;
 
   @override
@@ -455,7 +684,7 @@ class _UploadDropZone extends StatelessWidget {
     return Material(
       color: Colors.transparent,
       child: GestureDetector(
-        onTap: enabled && !isOpeningGallery ? onTap : null,
+        onTap: enabled && !isPickingMedia ? onTap : null,
         child: CustomPaint(
           painter: _DashedBorderPainter(
             color: AppColors.fieldBorder.withValues(alpha: enabled ? 0.4 : 0.18),
@@ -465,47 +694,49 @@ class _UploadDropZone extends StatelessWidget {
             padding: const EdgeInsets.symmetric(horizontal: 24, vertical: 12),
             decoration: BoxDecoration(borderRadius: BorderRadius.circular(12)),
             child: Center(
-              child: Column(
-                mainAxisSize: MainAxisSize.min,
-                children: [
-                  Container(
-                    width: 64,
-                    height: 64,
-                    decoration: BoxDecoration(
-                      color: enabled ? AppColors.secondaryColor : AppColors.grey2,
-                      shape: BoxShape.circle,
+              child: SingleChildScrollView(
+                child: Column(
+                  mainAxisSize: MainAxisSize.min,
+                  children: [
+                    Container(
+                      width: 64,
+                      height: 64,
+                      decoration: BoxDecoration(
+                        color: enabled ? AppColors.secondaryColor : AppColors.grey2,
+                        shape: BoxShape.circle,
+                      ),
+                      alignment: Alignment.center,
+                      child: isPickingMedia
+                          ? FastCircularProgressIndicator(width: 24, height: 24)
+                          : SvgPicture.asset(
+                              '${AppStrings.imagePath}upload.svg',
+                              width: 24,
+                              height: 24,
+                            ),
                     ),
-                    alignment: Alignment.center,
-                    child: isOpeningGallery
-                        ? FastCircularProgressIndicator(width: 24, height: 24)
-                        : SvgPicture.asset(
-                            '${AppStrings.imagePath}upload.svg',
-                            width: 24,
-                            height: 24,
-                          ),
-                  ),
-                  const SizedBox(height: 24),
-                  AppTextView.title1(
-                    AppStrings.clickToUploadDocument,
-                    color: enabled ? AppColors.textPrimary : AppColors.grey1,
-                    textAlign: TextAlign.center,
-                    fontWeight: FontWeight.w500,
-                    fontSize: 18,
-                  ),
-                  const SizedBox(height: 6),
-                  const AppTextView.body2(
-                    AppStrings.uploadFileFormat,
-                    color: AppColors.grey1,
-                    textAlign: TextAlign.center,
-                  ),
-                  const SizedBox(height: 2),
-                  const AppTextView.body2(
-                    AppStrings.uploadMaxFileSize,
-                    color: AppColors.grey1,
-                    textAlign: TextAlign.center,
-                    fontWeight: FontWeight.w400,
-                  ),
-                ],
+                    const SizedBox(height: 24),
+                    AppTextView.title1(
+                      AppStrings.clickToUploadDocument,
+                      color: enabled ? AppColors.textPrimary : AppColors.grey1,
+                      textAlign: TextAlign.center,
+                      fontWeight: FontWeight.w500,
+                      fontSize: 18,
+                    ),
+                    const SizedBox(height: 6),
+                    const AppTextView.body2(
+                      AppStrings.uploadFileFormat,
+                      color: AppColors.grey1,
+                      textAlign: TextAlign.center,
+                    ),
+                    const SizedBox(height: 2),
+                    const AppTextView.body2(
+                      AppStrings.uploadMaxFileSize,
+                      color: AppColors.grey1,
+                      textAlign: TextAlign.center,
+                      fontWeight: FontWeight.w400,
+                    ),
+                  ],
+                ),
               ),
             ),
           ),
@@ -594,7 +825,7 @@ class _SelectedDocumentPreview extends StatelessWidget {
         onTap: onTap,
         child: ClipRRect(
           borderRadius: BorderRadius.circular(12),
-          child: Image.file(file, width: double.infinity, fit: BoxFit.cover),
+          child: Image.file(file, width: double.infinity, fit: BoxFit.contain),
         ),
       );
     }
@@ -729,31 +960,60 @@ class _UploadProgressPanel extends StatelessWidget {
 }
 
 class _ExpiryDateField extends StatelessWidget {
-  const _ExpiryDateField({required this.controller});
+  const _ExpiryDateField({
+    required this.controller,
+    required this.enabled,
+    required this.onPickDate,
+  });
 
-  final TextEditingController controller;
+  final ComplianceDocumentExpiryController controller;
+  final bool enabled;
+  final VoidCallback onPickDate;
 
   @override
   Widget build(BuildContext context) {
-    return TextField(
-      controller: controller,
-      cursorHeight: 16,
-      style: const TextStyle(color: AppColors.textPrimary, fontSize: 15),
-      decoration: InputDecoration(
-        hintText: AppStrings.enterExpiryDate,
-        hintStyle: const TextStyle(color: AppColors.grey1, fontSize: 15),
-        contentPadding: const EdgeInsets.symmetric(horizontal: 16, vertical: 14),
-        border: OutlineInputBorder(
-          borderRadius: BorderRadius.circular(12),
-          borderSide: const BorderSide(color: AppColors.grey1),
-        ),
-        enabledBorder: OutlineInputBorder(
-          borderRadius: BorderRadius.circular(12),
-          borderSide: const BorderSide(color: AppColors.grey1),
-        ),
-        focusedBorder: OutlineInputBorder(
-          borderRadius: BorderRadius.circular(12),
-          borderSide: const BorderSide(color: AppColors.grey1),
+    return ListenableBuilder(
+      listenable: Listenable.merge([controller, controller.focusNode]),
+      builder: (context, _) => TextField(
+        controller: controller.textController,
+        focusNode: controller.focusNode,
+        enabled: enabled,
+        keyboardType: TextInputType.datetime,
+        textInputAction: TextInputAction.done,
+        autocorrect: false,
+        enableSuggestions: false,
+        inputFormatters: [TextInputFormatter.withFunction(controller.formatEditUpdate)],
+        onTap: controller.selectSegmentAtCursor,
+        onSubmitted: (_) => controller.validate(),
+        cursorHeight: 16,
+        style: const TextStyle(color: AppColors.textPrimary, fontSize: 15),
+        decoration: InputDecoration(
+          hintText: AppStrings.enterExpiryDate,
+          labelText: controller.focusNode.hasFocus || controller.textController.text.isNotEmpty
+              ? AppStrings.enterExpirationDate
+              : AppStrings.expirationDateWithFormat,
+          floatingLabelStyle: const TextStyle(color: AppColors.secondaryColor),
+          errorText: controller.errorText,
+          errorMaxLines: 2,
+          suffixIcon: IconButton(
+            tooltip: AppStrings.selectExpiryDate,
+            onPressed: enabled ? onPickDate : null,
+            icon: const Icon(Icons.calendar_month_outlined, color: AppColors.secondaryColor),
+          ),
+          hintStyle: const TextStyle(color: AppColors.grey1, fontSize: 15),
+          contentPadding: const EdgeInsets.symmetric(horizontal: 16, vertical: 14),
+          border: OutlineInputBorder(
+            borderRadius: BorderRadius.circular(12),
+            borderSide: const BorderSide(color: AppColors.grey1),
+          ),
+          enabledBorder: OutlineInputBorder(
+            borderRadius: BorderRadius.circular(12),
+            borderSide: const BorderSide(color: AppColors.grey1),
+          ),
+          focusedBorder: OutlineInputBorder(
+            borderRadius: BorderRadius.circular(12),
+            borderSide: const BorderSide(color: AppColors.secondaryColor, width: 2),
+          ),
         ),
       ),
     );

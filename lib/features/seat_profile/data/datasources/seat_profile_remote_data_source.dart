@@ -69,10 +69,12 @@ class SeatProfileRemoteDataSource {
     int pageSize = 10,
     String? departmentId,
     String title = '',
+    bool forceRefresh = false,
   }) {
     return _apiCallExecutor.processApi<SeatProfilePageModel>(
       apiCallType: ApiCallType.get,
       endpoint: ApiEndPoints.jobs,
+      invalidateCacheBeforeRequest: forceRefresh,
       parameters: {
         if (title.trim().isNotEmpty) 'title': title.trim(),
         'page': page,

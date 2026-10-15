@@ -118,7 +118,13 @@ class _CheckInScreenViewState extends State<_CheckInScreenView> {
       child: SafeArea(
         top: false,
         bottom: false,
-        child: _buildContent(controller, state),
+        child: Builder(
+          builder: (bodyContext) => _buildContent(
+            controller,
+            state,
+            bottomInset: MediaQuery.paddingOf(bodyContext).bottom,
+          ),
+        ),
       ),
     );
   }
@@ -134,7 +140,11 @@ class _CheckInScreenViewState extends State<_CheckInScreenView> {
     );
   }
 
-  Widget _buildContent(CheckInController controller, CheckInState state) {
+  Widget _buildContent(
+    CheckInController controller,
+    CheckInState state, {
+    required double bottomInset,
+  }) {
     final members = controller.visibleMembers;
     final showSearchAndFilter = state.isOwner;
     final showSelectionTabs = state.isOwner && !state.isActualOwner;
@@ -146,18 +156,17 @@ class _CheckInScreenViewState extends State<_CheckInScreenView> {
 
     final content = ListView(
       controller: _scrollController,
-      padding: const EdgeInsets.fromLTRB(16, 8, 16, 24),
+      physics: const AlwaysScrollableScrollPhysics(
+        parent: ClampingScrollPhysics(),
+      ),
+      padding: EdgeInsets.fromLTRB(
+        8,
+        showSelectionTabs ? 0 : 8,
+        8,
+        bottomInset + 24,
+      ),
       children: [
         if (showSearchAndFilter) ...[
-          if (showSelectionTabs) ...[
-            CheckInStatusSwitcher(
-              selectedStatus: state.selectedStatus,
-              activeTitle: AppStrings.auditTeamMembersTab,
-              deactivatedTitle: AppStrings.auditMyCheckInsTab,
-              onStatusSelected: controller.selectStatus,
-            ),
-            const SizedBox(height: 22),
-          ],
           CheckInSearchBar(
             controller: _searchController,
             onChanged: controller.updateSearchQuery,
@@ -218,12 +227,32 @@ class _CheckInScreenViewState extends State<_CheckInScreenView> {
       ],
     );
 
-    return Stack(
-      fit: StackFit.expand,
+    return Column(
       children: [
-        content,
-        if (isInitialLoading)
-          const Center(child: FastCircularProgressIndicator()),
+        if (showSelectionTabs)
+          Padding(
+            padding: const EdgeInsets.fromLTRB(8, 8, 8, 22),
+            child: CheckInStatusSwitcher(
+              selectedStatus: state.selectedStatus,
+              activeTitle: AppStrings.auditTeamMembersTab,
+              deactivatedTitle: AppStrings.auditMyCheckInsTab,
+              onStatusSelected: controller.selectStatus,
+            ),
+          ),
+        Expanded(
+          child: Stack(
+            fit: StackFit.expand,
+            children: [
+              RefreshIndicator(
+                color: AppColors.purple2,
+                onRefresh: controller.refresh,
+                child: content,
+              ),
+              if (isInitialLoading)
+                const Center(child: FastCircularProgressIndicator()),
+            ],
+          ),
+        ),
       ],
     );
   }

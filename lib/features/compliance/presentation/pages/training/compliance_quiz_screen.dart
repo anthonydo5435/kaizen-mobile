@@ -88,7 +88,7 @@ class _ComplianceQuizScreenState extends State<ComplianceQuizScreen> {
     }
 
     return Padding(
-      padding: const EdgeInsets.only(left: 1, top: 12, right: 1),
+      padding: const EdgeInsets.only(top: 12),
       child: Column(
         crossAxisAlignment: CrossAxisAlignment.stretch,
         children: [
@@ -202,11 +202,11 @@ class _QuizOption extends StatelessWidget {
     required this.onTap,
   });
 
-  static const double _singleLineTopSpacing = 4;
+  static const double _singleLineTopSpacing = 10;
   static const double _multiLineTopSpacing = 12;
   static const double _singleLineTextHeight = 1.2;
   static const double _multiLineTextHeight = 1.4;
-  static const double _indicatorSize = 18;
+  static const double _indicatorSize = 14;
   static const double _indicatorLeftPadding = 6;
   static const double _indicatorRightPadding = 10;
 
@@ -249,14 +249,14 @@ class _QuizOption extends StatelessWidget {
                         color: isSelected
                             ? AppColors.secondaryColor
                             : AppColors.textPrimary,
-                        width: 2,
+                        width: 1.5,
                       ),
                     ),
                     child: isSelected
                         ? Center(
                             child: Container(
-                              width: 8,
-                              height: 8,
+                              width: 6,
+                              height: 6,
                               decoration: const BoxDecoration(
                                 color: AppColors.secondaryColor,
                                 shape: BoxShape.circle,

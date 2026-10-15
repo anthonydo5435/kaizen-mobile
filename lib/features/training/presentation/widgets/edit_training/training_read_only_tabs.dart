@@ -2,9 +2,14 @@ part of 'package:sparrowkaizen/features/training/presentation/pages/edit_trainin
 
 /// Uses the same player and summary layout without exposing media or editing actions.
 class TrainingReadOnlyVideoTab extends StatelessWidget {
-  const TrainingReadOnlyVideoTab({super.key, required this.controller});
+  const TrainingReadOnlyVideoTab({
+    super.key,
+    required this.controller,
+    this.contentHorizontalPadding = 0,
+  });
 
   final TrainingModuleController controller;
+  final double contentHorizontalPadding;
 
   @override
   Widget build(BuildContext context) {
@@ -22,6 +27,7 @@ class TrainingReadOnlyVideoTab extends StatelessWidget {
       isEditingSummary: false,
       isSavingSummary: false,
       summaryController: controller.summaryController,
+      contentHorizontalPadding: contentHorizontalPadding,
     );
   }
 }

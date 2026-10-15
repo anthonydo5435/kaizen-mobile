@@ -29,7 +29,7 @@ class CertificateScreen extends StatelessWidget {
       body: SafeArea(
         top: true,
         child: Padding(
-          padding: const EdgeInsets.fromLTRB(28, 32, 28, 24),
+          padding: const EdgeInsets.fromLTRB(8, 32, 8, 24),
           child: Column(
             children: [
               const SizedBox(height: 30),

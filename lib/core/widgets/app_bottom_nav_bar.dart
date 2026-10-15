@@ -10,13 +10,11 @@ class AppBottomNavBar extends StatelessWidget {
     super.key,
     required this.selectedMenu,
     required this.onSelected,
-    this.isSandboxMode = false,
     this.isVisible = true,
   });
 
   final AppMenuType? selectedMenu;
   final ValueChanged<AppMenuType> onSelected;
-  final bool isSandboxMode;
   final bool isVisible;
 
   static const _destinations = [
@@ -66,13 +64,14 @@ class AppBottomNavBar extends StatelessWidget {
   }
 
   List<AppBottomNavItem> get _items => _destinations.map((destination) {
-    final enabled = !isSandboxMode || destination.menu == AppMenuType.library;
     return AppBottomNavItem(
       label: destination.label,
       icon: destination.icon,
       selectedIcon: destination.selectedIcon,
       isSelected: selectedMenu == destination.menu,
-      onTap: enabled ? () => onSelected(destination.menu) : null,
+      selectionHorizontalPadding:
+          destination.menu == AppMenuType.performanceSnapshot ? 8 : 0,
+      onTap: () => onSelected(destination.menu),
     );
   }).toList();
 }

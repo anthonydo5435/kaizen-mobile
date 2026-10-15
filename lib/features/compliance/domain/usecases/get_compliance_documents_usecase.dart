@@ -6,7 +6,13 @@ class GetComplianceDocumentsUseCase {
 
   final ComplianceRepository _repository;
 
-  Future<List<ComplianceDocument>> call({bool forceRefresh = false}) {
-    return _repository.getComplianceDocuments(forceRefresh: forceRefresh);
+  Future<List<ComplianceDocument>> call({
+    bool forceRefresh = false,
+    String? name,
+  }) {
+    return _repository.getComplianceDocuments(
+      forceRefresh: forceRefresh,
+      name: name,
+    );
   }
 }

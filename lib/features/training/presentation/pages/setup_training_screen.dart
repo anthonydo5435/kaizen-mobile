@@ -77,6 +77,7 @@ class _TrainingSetupAccessDeniedView extends StatelessWidget {
         backgroundColor: AppColors.mainBg,
         foregroundColor: AppColors.textPrimary,
         elevation: 0,
+        leadingWidth: 40,
         leading: IconButton(
           onPressed: () => Navigator.of(context).pop(false),
           icon: const Icon(Icons.arrow_back_ios_new_rounded),
@@ -85,7 +86,7 @@ class _TrainingSetupAccessDeniedView extends StatelessWidget {
       body: SafeArea(
         child: Center(
           child: Padding(
-            padding: const EdgeInsets.symmetric(horizontal: 24),
+            padding: const EdgeInsets.symmetric(horizontal: 12),
             child: AppTextView.body(
               AppStrings.trainingCreateAccessDenied,
               color: AppColors.textSecondary,
@@ -115,7 +116,7 @@ class _SetupTrainingScreenView extends StatelessWidget {
         bottom: false,
         child: Column(
           children: <Widget>[
-            Padding(padding: const EdgeInsets.fromLTRB(24, 8, 24, 0), child: _buildHeader(context)),
+            Padding(padding: const EdgeInsets.fromLTRB(8, 8, 8, 0), child: _buildHeader(context)),
             Expanded(child: _buildContent(context, controller)),
             if (showSetupAction)
               _TrainingSetupNextAction(
@@ -140,7 +141,7 @@ class _SetupTrainingScreenView extends StatelessWidget {
               borderRadius: BorderRadius.circular(20),
               onTap: () => Navigator.of(context).pop(),
               child: Padding(
-                padding: const EdgeInsets.all(4),
+                padding: const EdgeInsets.fromLTRB(0, 4, 8, 4),
                 child: SvgPicture.asset(
                   '${AppStrings.imagePath}back.svg',
                   width: 24,
@@ -177,7 +178,7 @@ class _SetupTrainingScreenView extends StatelessWidget {
     return LayoutBuilder(
       builder: (context, constraints) {
         return SingleChildScrollView(
-          padding: const EdgeInsets.fromLTRB(24, 24, 24, 28),
+          padding: const EdgeInsets.fromLTRB(8, 24, 8, 28),
           child: ConstrainedBox(
             constraints: BoxConstraints(minHeight: constraints.maxHeight),
             child: Column(
@@ -388,7 +389,7 @@ class _TrainingSetupNextAction extends StatelessWidget {
           ),
         ],
       ),
-      padding: const EdgeInsets.fromLTRB(28, 18, 28, 0),
+      padding: const EdgeInsets.fromLTRB(8, 18, 8, 0),
       child: Align(
         alignment: Alignment.topCenter,
         child: AppButton(

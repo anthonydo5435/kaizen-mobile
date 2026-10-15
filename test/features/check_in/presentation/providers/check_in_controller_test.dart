@@ -274,6 +274,7 @@ class _FakeAuditRepository extends Fake implements AuditRepository {
     required int quarter,
     String? search,
     String? jobUuid,
+    bool forceRefresh = false,
   }) {
     return getAuditMainListHandler(
       page: page,

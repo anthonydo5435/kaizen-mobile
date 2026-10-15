@@ -1,15 +1,19 @@
 import 'dart:async';
 
 import 'package:flutter/material.dart';
+import 'package:flutter/scheduler.dart';
 import 'package:flutter/services.dart';
+import 'package:provider/provider.dart';
 import 'package:video_player/video_player.dart';
 
 import '../../../../../core/constants/app_colors.dart';
+import '../../../../../core/constants/app_strings.dart';
 import '../../../../../core/services/video_playback_service.dart';
 import '../../../../../core/utils/custom_functions.dart';
-import '../../../../../core/widgets/app_back_button.dart';
 import '../../../../../core/widgets/app_text_view.dart';
 import '../../../../../core/widgets/fast_circular_progress.dart';
+import '../../providers/compliance_video_controller.dart';
+import '../../widgets/compliance_video_transcript_sheet.dart';
 
 class ComplianceFullScreenVideoView extends StatefulWidget {
   const ComplianceFullScreenVideoView({
@@ -17,11 +21,19 @@ class ComplianceFullScreenVideoView extends StatefulWidget {
     required this.controller,
     required this.title,
     this.initialPosition = Duration.zero,
+    this.exitOnPortrait = false,
+    this.isEmbedded = false,
+    this.video,
+    this.onExit,
   });
 
   final VideoPlayerController controller;
   final String title;
   final Duration initialPosition;
+  final bool exitOnPortrait;
+  final bool isEmbedded;
+  final Widget? video;
+  final VoidCallback? onExit;
 
   @override
   State<ComplianceFullScreenVideoView> createState() =>
@@ -29,7 +41,8 @@ class ComplianceFullScreenVideoView extends StatefulWidget {
 }
 
 class _ComplianceFullScreenVideoViewState
-    extends State<ComplianceFullScreenVideoView> {
+    extends State<ComplianceFullScreenVideoView>
+    with WidgetsBindingObserver {
   static const Duration _entryBufferingSuppressionDuration = Duration(
     milliseconds: 900,
   );
@@ -39,17 +52,38 @@ class _ComplianceFullScreenVideoViewState
   final ValueNotifier<bool> _showBufferingIndicator = ValueNotifier<bool>(
     false,
   );
+  final ValueNotifier<bool> _showPlaybackControls = ValueNotifier<bool>(true);
   Timer? _entryBufferingSuppressionTimer;
   Timer? _pendingBufferingIndicatorTimer;
+  Timer? _hidePlaybackControlsTimer;
   Duration _lastObservedPosition = Duration.zero;
+  bool _wasPlaybackActive = false;
   bool _isEntryBufferingSuppressed = false;
+  bool _hasRestoredDisplay = false;
+  bool _animateTranscript = true;
+  bool _hasBeenLandscape = false;
+  bool _portraitExitScheduled = false;
+  late final ComplianceVideoController? _transcriptController;
 
   @override
   void initState() {
     super.initState();
+    WidgetsBinding.instance.addObserver(this);
+    _transcriptController = context.read<ComplianceVideoController?>();
     _enterFullscreen();
     _attachController(widget.controller);
     _syncInitialPosition();
+  }
+
+  @override
+  void didChangeDependencies() {
+    super.didChangeDependencies();
+    _checkPortraitExit();
+    final animateTranscript = !MediaQuery.disableAnimationsOf(context);
+    if (_animateTranscript != animateTranscript) {
+      _animateTranscript = animateTranscript;
+      _handleControllerChanged();
+    }
   }
 
   @override
@@ -65,22 +99,63 @@ class _ComplianceFullScreenVideoViewState
 
   @override
   void dispose() {
+    WidgetsBinding.instance.removeObserver(this);
     _detachController(widget.controller);
     _showBufferingIndicator.dispose();
+    _showPlaybackControls.dispose();
     _scrubPositionMillis.dispose();
+    _restoreDisplay();
+    super.dispose();
+  }
+
+  @override
+  void didChangeMetrics() => _checkPortraitExit();
+
+  void _checkPortraitExit() {
+    if (!mounted || !widget.exitOnPortrait || _hasRestoredDisplay) return;
+    final size = View.of(context).physicalSize;
+    if (size.width > size.height) {
+      _hasBeenLandscape = true;
+      return;
+    }
+    if (!_hasBeenLandscape || _portraitExitScheduled) return;
+    _portraitExitScheduled = true;
+    WidgetsBinding.instance.addPostFrameCallback((_) {
+      _portraitExitScheduled = false;
+      if (!mounted || _hasRestoredDisplay) return;
+      final size = View.of(context).physicalSize;
+      if (size.width > size.height) return;
+      final route = ModalRoute.of(context);
+      if (route == null || !route.isActive) return;
+      final navigator = Navigator.of(context);
+      // Close a transcript sheet too when rotating back to the Video tab.
+      navigator.popUntil((candidate) => identical(candidate, route));
+      navigator.pop();
+    });
+  }
+
+  void _restoreDisplay() {
+    if (widget.isEmbedded) return;
+    if (_hasRestoredDisplay) {
+      return;
+    }
+
+    _hasRestoredDisplay = true;
     unawaited(
       SystemChrome.setPreferredOrientations(const [
         DeviceOrientation.portraitUp,
       ]),
     );
     unawaited(VideoPlaybackService.setFullscreen(false));
-    super.dispose();
   }
 
   void _enterFullscreen() {
+    if (widget.isEmbedded) return;
     unawaited(
       SystemChrome.setPreferredOrientations(const [
         DeviceOrientation.portraitUp,
+        DeviceOrientation.landscapeLeft,
+        DeviceOrientation.landscapeRight,
       ]),
     );
     unawaited(VideoPlaybackService.setFullscreen(true));
@@ -99,6 +174,9 @@ class _ComplianceFullScreenVideoViewState
     _entryBufferingSuppressionTimer = null;
     _pendingBufferingIndicatorTimer?.cancel();
     _pendingBufferingIndicatorTimer = null;
+    _hidePlaybackControlsTimer?.cancel();
+    _hidePlaybackControlsTimer = null;
+    _wasPlaybackActive = false;
     _isEntryBufferingSuppressed = false;
   }
 
@@ -131,8 +209,25 @@ class _ComplianceFullScreenVideoViewState
   }
 
   void _handleControllerChanged() {
+    _syncPlaybackControls();
     final value = widget.controller.value;
     final position = value.position;
+    if (SchedulerBinding.instance.schedulerPhase ==
+        SchedulerPhase.persistentCallbacks) {
+      WidgetsBinding.instance.addPostFrameCallback((_) {
+        if (mounted) {
+          _transcriptController?.updatePlaybackPosition(
+            widget.controller.value.position,
+            animate: _animateTranscript,
+          );
+        }
+      });
+    } else {
+      _transcriptController?.updatePlaybackPosition(
+        position,
+        animate: _animateTranscript,
+      );
+    }
     final hasPositionChanged = position != _lastObservedPosition;
     _lastObservedPosition = position;
 
@@ -184,7 +279,41 @@ class _ComplianceFullScreenVideoViewState
     return duration <= Duration.zero || value.position < duration;
   }
 
+  bool get _isPlaybackActive {
+    final value = widget.controller.value;
+    return value.isInitialized &&
+        value.isPlaying &&
+        !value.isCompleted &&
+        !value.hasError &&
+        (value.duration <= Duration.zero || value.position < value.duration);
+  }
+
+  void _syncPlaybackControls() {
+    final isPlaying = _isPlaybackActive;
+    if (_scrubPositionMillis.value != null) {
+      _hidePlaybackControlsTimer?.cancel();
+      _showPlaybackControls.value = true;
+    } else if (!isPlaying || !_wasPlaybackActive) {
+      _hidePlaybackControlsTimer?.cancel();
+      _showPlaybackControls.value = !isPlaying;
+    }
+    _wasPlaybackActive = isPlaying;
+  }
+
+  void _revealPlaybackControls() {
+    _hidePlaybackControlsTimer?.cancel();
+    _hidePlaybackControlsTimer = null;
+    _showPlaybackControls.value = true;
+    if (_isPlaybackActive && _scrubPositionMillis.value == null) {
+      _hidePlaybackControlsTimer = Timer(const Duration(seconds: 3), () {
+        _hidePlaybackControlsTimer = null;
+        _showPlaybackControls.value = !_isPlaybackActive;
+      });
+    }
+  }
+
   Future<void> _syncInitialPosition() async {
+    if (widget.isEmbedded) return;
     final controller = widget.controller;
     if (!controller.value.isInitialized) {
       return;
@@ -221,98 +350,261 @@ class _ComplianceFullScreenVideoViewState
     await controller.play();
   }
 
+  Future<void> _handleSurfaceTap() async {
+    await _togglePlayback();
+    if (mounted) {
+      _revealPlaybackControls();
+    }
+  }
+
   @override
   Widget build(BuildContext context) {
-    return Scaffold(
-      backgroundColor: Colors.black,
-      body: ValueListenableBuilder<VideoPlayerValue>(
-        valueListenable: widget.controller,
-        child: VideoPlayer(widget.controller),
-        builder: (context, controllerValue, child) {
-          final controller = widget.controller;
-          final isReady = controllerValue.isInitialized;
+    return PopScope<void>(
+      onPopInvokedWithResult: (didPop, _) {
+        if (didPop) {
+          _restoreDisplay();
+        }
+      },
+      child: Scaffold(
+        backgroundColor: Colors.black,
+        body: ValueListenableBuilder<VideoPlayerValue>(
+          valueListenable: widget.controller,
+          child: widget.video ?? VideoPlayer(widget.controller),
+          builder: (context, controllerValue, child) {
+            final controller = widget.controller;
+            final isReady = controllerValue.isInitialized;
 
-          return ValueListenableBuilder<bool>(
-            valueListenable: _showBufferingIndicator,
-            builder: (context, showBufferingIndicator, _) {
-              return Stack(
-                fit: StackFit.expand,
-                children: [
-                  Center(
-                    child: isReady
-                        ? AspectRatio(
-                            aspectRatio: controllerValue.aspectRatio,
-                            child: child ?? VideoPlayer(controller),
-                          )
-                        : FastCircularProgressIndicator(width: 32, height: 32),
-                  ),
-                  if (isReady &&
-                      controllerValue.isBuffering &&
-                      showBufferingIndicator)
-                    Center(
-                      child: SizedBox(
-                        width: 30,
-                        height: 30,
-                        child: FastCircularProgressIndicator(),
+            return ValueListenableBuilder<bool>(
+              valueListenable: _showBufferingIndicator,
+              builder: (context, showBufferingIndicator, _) {
+                return GestureDetector(
+                  behavior: HitTestBehavior.opaque,
+                  onTap: _handleSurfaceTap,
+                  child: Stack(
+                    fit: StackFit.expand,
+                    children: [
+                      Center(
+                        child: isReady
+                            ? AspectRatio(
+                                aspectRatio: controllerValue.aspectRatio,
+                                child: child ?? VideoPlayer(controller),
+                              )
+                            : FastCircularProgressIndicator(
+                                width: 32,
+                                height: 32,
+                              ),
                       ),
-                    ),
-                  _buildControlsOverlay(controllerValue),
-                ],
-              );
-            },
-          );
-        },
+                      if (isReady &&
+                          controllerValue.isBuffering &&
+                          showBufferingIndicator)
+                        Center(
+                          child: SizedBox(
+                            width: 30,
+                            height: 30,
+                            child: FastCircularProgressIndicator(),
+                          ),
+                        ),
+                      _buildControlsOverlay(controllerValue),
+                    ],
+                  ),
+                );
+              },
+            );
+          },
+        ),
       ),
     );
   }
 
   Widget _buildControlsOverlay(VideoPlayerValue controllerValue) {
-    return SafeArea(
-      child: Stack(
-        children: [
-          Positioned(
-            left: 12,
-            top: 12,
-            child: AppBackButton(onPressed: () => Navigator.of(context).pop()),
+    final isLandscape =
+        MediaQuery.orientationOf(context) == Orientation.landscape;
+    return ValueListenableBuilder<bool>(
+      valueListenable: _showPlaybackControls,
+      builder: (context, showControls, _) => SafeArea(
+        bottom: !isLandscape,
+        child: LayoutBuilder(
+          builder: (context, constraints) => Stack(
+            children: [
+              Positioned(
+                left: 8,
+                right: 8,
+                bottom: (isLandscape ? 0.0 : 24.0) + (showControls ? 0 : 8),
+                child: _FullScreenVideoFooter(
+                  title: widget.title,
+                  showControls: showControls,
+                  maxHeight: (constraints.maxHeight - 100).clamp(
+                    0,
+                    double.infinity,
+                  ),
+                  controls: ValueListenableBuilder<double?>(
+                    valueListenable: _scrubPositionMillis,
+                    builder: (context, scrubPosition, _) =>
+                        _FullScreenVideoControls(
+                          controllerValue: controllerValue,
+                          isReady: controllerValue.isInitialized,
+                          isScrubbing: scrubPosition != null,
+                          scrubPositionMillis: scrubPosition,
+                          onTogglePlayback: _togglePlayback,
+                          onExitFullscreen:
+                              widget.onExit ??
+                              () => Navigator.of(context).pop(),
+                          onScrubStart: (value) {
+                            _scrubPositionMillis.value = value;
+                            _revealPlaybackControls();
+                          },
+                          onScrubChanged: (value) =>
+                              _scrubPositionMillis.value = value,
+                          onScrubEnd: (value) async {
+                            _scrubPositionMillis.value = null;
+                            _revealPlaybackControls();
+                            await widget.controller.seekTo(
+                              Duration(milliseconds: value.round()),
+                            );
+                          },
+                        ),
+                  ),
+                ),
+              ),
+            ],
           ),
-          Positioned(
-            left: 24,
-            right: 24,
-            bottom: 24,
-            child: Column(
-              crossAxisAlignment: CrossAxisAlignment.stretch,
-              children: [
-                AppTextView.body1(
-                  widget.title,
-                  color: AppColors.textPrimary,
-                  fontSize: 13,
-                  fontWeight: FontWeight.w700,
-                  maxLines: 2,
-                  overflow: TextOverflow.ellipsis,
+        ),
+      ),
+    );
+  }
+}
+
+class _FullScreenControlsVisibility extends StatelessWidget {
+  const _FullScreenControlsVisibility({
+    required this.visible,
+    required this.child,
+  });
+
+  final bool visible;
+  final Widget child;
+
+  @override
+  Widget build(BuildContext context) => Visibility(
+    visible: visible,
+    // Keep layout and state so the footer can move captions into this space.
+    maintainSize: true,
+    maintainState: true,
+    maintainAnimation: true,
+    maintainFocusability: false,
+    child: child,
+  );
+}
+
+class _FullScreenVideoFooter extends StatelessWidget {
+  const _FullScreenVideoFooter({
+    required this.title,
+    required this.showControls,
+    required this.maxHeight,
+    required this.controls,
+  });
+
+  final String title;
+  final bool showControls;
+  final double maxHeight;
+  final Widget controls;
+
+  @override
+  Widget build(BuildContext context) {
+    final disableAnimations = MediaQuery.disableAnimationsOf(context);
+    final (caption, activeCueIndex) = context
+        .select<ComplianceVideoController?, (String?, int?)>(
+          (controller) => (
+            controller?.hasVisibleActiveTranscript == true
+                ? disableAnimations
+                      ? controller!.activeTranscriptLine!.text
+                      : controller!.activeTranscriptText
+                : null,
+            controller?.activeTranscriptIndex,
+          ),
+        );
+    return ConstrainedBox(
+      constraints: BoxConstraints(maxHeight: maxHeight),
+      child: Padding(
+        key: const ValueKey('fullscreen-video-footer'),
+        padding: const EdgeInsets.symmetric(horizontal: 8),
+        child: Column(
+          mainAxisSize: MainAxisSize.min,
+          crossAxisAlignment: CrossAxisAlignment.stretch,
+          // Hidden controls reserve space above the caption, leaving it in the
+          // seek row's place while preserving its viewport and scroll position.
+          verticalDirection: showControls
+              ? VerticalDirection.down
+              : VerticalDirection.up,
+          children: [
+            if (caption != null) ...[
+              Flexible(
+                child: Container(
+                  key: const ValueKey('fullscreen-active-transcript'),
+                  margin: const EdgeInsets.symmetric(horizontal: 8),
+                  padding: const EdgeInsets.symmetric(
+                    horizontal: 8,
+                    vertical: 12,
+                  ),
+                  decoration: BoxDecoration(
+                    color: Colors.black,
+                    borderRadius: BorderRadius.circular(12),
+                  ),
+                  child: SingleChildScrollView(
+                    key: ValueKey(activeCueIndex),
+                    primary: false,
+                    child: AppTextView.body3(
+                      caption,
+                      color: AppColors.textPrimary,
+                      height: 1.4,
+                      textAlign: TextAlign.left,
+                    ),
+                  ),
                 ),
-                const SizedBox(height: 8),
-                ValueListenableBuilder<double?>(
-                  valueListenable: _scrubPositionMillis,
-                  builder: (context, scrubPosition, _) =>
-                      _FullScreenVideoControls(
-                        controllerValue: controllerValue,
-                        isReady: controllerValue.isInitialized,
-                        isScrubbing: scrubPosition != null,
-                        scrubPositionMillis: scrubPosition,
-                        onTogglePlayback: _togglePlayback,
-                        onScrubStart: (value) =>
-                            _scrubPositionMillis.value = value,
-                        onScrubChanged: (value) =>
-                            _scrubPositionMillis.value = value,
-                        onScrubEnd: (value) async {
-                          _scrubPositionMillis.value = null;
-                          await widget.controller.seekTo(
-                            Duration(milliseconds: value.round()),
-                          );
-                        },
-                      ),
-                ),
-              ],
+              ),
+              const SizedBox(height: 6),
+            ],
+            _FullScreenControlsVisibility(
+              visible: showControls,
+              child: _FullScreenVideoTitleRow(title: title),
+            ),
+            const SizedBox(height: 8),
+            _FullScreenControlsVisibility(
+              visible: showControls,
+              child: controls,
+            ),
+          ],
+        ),
+      ),
+    );
+  }
+}
+
+class _FullScreenVideoTitleRow extends StatelessWidget {
+  const _FullScreenVideoTitleRow({required this.title});
+
+  final String title;
+
+  @override
+  Widget build(BuildContext context) {
+    return LayoutBuilder(
+      builder: (context, constraints) => Row(
+        children: [
+          Expanded(
+            child: AppTextView.body1(
+              title,
+              color: AppColors.textPrimary,
+              fontSize: 13,
+              fontWeight: FontWeight.w700,
+              maxLines: 2,
+              overflow: TextOverflow.ellipsis,
+            ),
+          ),
+          const SizedBox(width: 8),
+          ConstrainedBox(
+            constraints: BoxConstraints(maxWidth: constraints.maxWidth * 0.6),
+            child: ComplianceVideoTranscriptButton(
+              onPressed: () => showComplianceVideoTranscriptSheet(context),
+              padding: const EdgeInsets.fromLTRB(12, 4, 0, 6),
             ),
           ),
         ],
@@ -328,6 +620,7 @@ class _FullScreenVideoControls extends StatelessWidget {
     required this.isScrubbing,
     required this.scrubPositionMillis,
     required this.onTogglePlayback,
+    required this.onExitFullscreen,
     required this.onScrubStart,
     required this.onScrubChanged,
     required this.onScrubEnd,
@@ -338,6 +631,7 @@ class _FullScreenVideoControls extends StatelessWidget {
   final bool isScrubbing;
   final double? scrubPositionMillis;
   final VoidCallback onTogglePlayback;
+  final VoidCallback onExitFullscreen;
   final ValueChanged<double> onScrubStart;
   final ValueChanged<double> onScrubChanged;
   final ValueChanged<double> onScrubEnd;
@@ -360,48 +654,69 @@ class _FullScreenVideoControls extends StatelessWidget {
       currentMillis: currentMillis,
     );
 
-    return Row(
-      children: [
-        IconButton(
-          onPressed: isReady ? onTogglePlayback : null,
-          icon: Icon(
-            controllerValue.isPlaying
-                ? Icons.pause_rounded
-                : Icons.play_arrow_rounded,
-            color: AppColors.textPrimary,
-            size: 34,
+    return LayoutBuilder(
+      builder: (context, constraints) => Row(
+        children: [
+          IconButton(
+            onPressed: isReady ? onTogglePlayback : null,
+            alignment: Alignment.centerLeft,
+            padding: const EdgeInsets.fromLTRB(0, 8, 16, 8),
+            icon: Icon(
+              controllerValue.isPlaying
+                  ? Icons.pause_rounded
+                  : Icons.play_arrow_rounded,
+              color: AppColors.textPrimary,
+              size: 34,
+            ),
           ),
-        ),
-        Expanded(
-          child: SliderTheme(
-            data: SliderTheme.of(context).copyWith(
-              activeTrackColor: AppColors.secondaryColor,
-              secondaryActiveTrackColor: AppColors.textPrimary.withValues(
-                alpha: 0.55,
+          Expanded(
+            child: SliderTheme(
+              data: SliderTheme.of(context).copyWith(
+                activeTrackColor: AppColors.secondaryColor,
+                secondaryActiveTrackColor: AppColors.textPrimary.withValues(
+                  alpha: 0.55,
+                ),
+                inactiveTrackColor: AppColors.textPrimary.withValues(
+                  alpha: 0.35,
+                ),
+                thumbColor: AppColors.textPrimary,
+                overlayColor: AppColors.secondaryColor.withValues(alpha: 0.18),
+                trackHeight: 3,
+                thumbShape: const RoundSliderThumbShape(enabledThumbRadius: 4),
               ),
-              inactiveTrackColor: AppColors.textPrimary.withValues(alpha: 0.35),
-              thumbColor: AppColors.textPrimary,
-              overlayColor: AppColors.secondaryColor.withValues(alpha: 0.18),
-              trackHeight: 3,
-              thumbShape: const RoundSliderThumbShape(enabledThumbRadius: 4),
-            ),
-            child: Slider(
-              value: currentMillis,
-              secondaryTrackValue: bufferedMillis,
-              min: 0,
-              max: maxMillis,
-              onChangeStart: !isReady ? null : onScrubStart,
-              onChanged: !isReady ? null : onScrubChanged,
-              onChangeEnd: !isReady ? null : onScrubEnd,
+              child: Slider(
+                padding: const EdgeInsets.symmetric(horizontal: 8),
+                value: currentMillis,
+                secondaryTrackValue: bufferedMillis,
+                min: 0,
+                max: maxMillis,
+                onChangeStart: !isReady ? null : onScrubStart,
+                onChanged: !isReady ? null : onScrubChanged,
+                onChangeEnd: !isReady ? null : onScrubEnd,
+              ),
             ),
           ),
-        ),
-        AppTextView.body4(
-          '${CustomFunctions.formatDuration(position.inSeconds)}/${CustomFunctions.formatDuration(duration.inSeconds)}',
-          color: AppColors.textPrimary,
-          fontWeight: FontWeight.w700,
-        ),
-      ],
+          ConstrainedBox(
+            constraints: BoxConstraints(maxWidth: constraints.maxWidth * 0.45),
+            child: AppTextView.body4(
+              '${CustomFunctions.formatDuration(position.inSeconds)}/${CustomFunctions.formatDuration(duration.inSeconds)}',
+              color: AppColors.textPrimary,
+              fontWeight: FontWeight.w700,
+              textAlign: TextAlign.right,
+            ),
+          ),
+          IconButton(
+            key: const ValueKey('video-exit-fullscreen-button'),
+            tooltip: AppStrings.trainingExitFullscreen,
+            onPressed: onExitFullscreen,
+            icon: const Icon(
+              Icons.fullscreen_exit_rounded,
+              color: Colors.white,
+              size: 24,
+            ),
+          ),
+        ],
+      ),
     );
   }
 

@@ -16,11 +16,42 @@ import 'package:sparrowkaizen/features/training/domain/repositories/training_lib
 import 'package:sparrowkaizen/features/training/domain/usecases/get_training_library_modules_usecase.dart';
 import 'package:sparrowkaizen/features/training/presentation/controllers/training_library_controller.dart';
 import 'package:sparrowkaizen/features/training/presentation/widgets/training_library_content.dart';
+import 'package:sparrowkaizen/features/training/presentation/widgets/training_library_module_card.dart';
 import 'package:sparrowkaizen/features/training/presentation/widgets/training_library_search_bar.dart';
 
 void main() {
   for (final inShell in [true, false]) {
     for (final mode in TrainingLibraryViewMode.values) {
+      for (final textScale in [1.0, 2.0]) {
+        testWidgets(
+          '${mode.name} last card clears the home bar (shell: $inShell, text: $textScale)',
+          (tester) async {
+            final harness = _Harness();
+            await harness.pump(
+              tester,
+              inShell: inShell,
+              mode: mode,
+              textScale: textScale,
+            );
+            final position = harness.library.scrollController.position;
+            position.jumpTo(position.maxScrollExtent);
+            await tester.pumpAndSettle();
+
+            final lastCard = find.byType(TrainingLibraryModuleCard).last;
+            final cardBounds = tester.getRect(lastCard);
+            final barBounds = tester.getRect(find.byType(AppBottomNavBar));
+            expect(cardBounds.bottom, lessThanOrEqualTo(barBounds.top - 12));
+            expect(
+              cardBounds.top,
+              greaterThanOrEqualTo(tester.getRect(_listingScroll).top),
+            );
+            expect(_bottomTab.hitTestable(), findsOneWidget);
+            expect(tester.takeException(), isNull);
+            await harness.dispose(tester);
+          },
+        );
+      }
+
       testWidgets(
         '${mode.name} hides both bars down and restores them up (shell: $inShell)',
         (tester) async {
@@ -195,6 +226,7 @@ class _Harness {
     WidgetTester tester, {
     bool inShell = true,
     TrainingLibraryViewMode mode = TrainingLibraryViewMode.list,
+    double textScale = 1,
   }) async {
     tester.view.physicalSize = const Size(390, 844);
     tester.view.devicePixelRatio = 1;
@@ -212,6 +244,7 @@ class _Harness {
             data: MediaQuery.of(context).copyWith(
               padding: const EdgeInsets.only(top: 44, bottom: 34),
               viewPadding: const EdgeInsets.only(top: 44, bottom: 34),
+              textScaler: TextScaler.linear(textScale),
             ),
             child: child!,
           ),
@@ -247,6 +280,7 @@ class _LibraryRepository extends Fake implements TrainingLibraryRepository {
     String? jobId,
     String? jobCategoryId,
     String? jobCategoryDescriptionId,
+    bool forceRefresh = false,
   }) async => TrainingLibraryPage(
     items: List.generate(
       itemCount,

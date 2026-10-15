@@ -200,12 +200,24 @@ class PaygradeDetailController extends ChangeNotifier {
     required String title,
     required String description,
     required String promotionRequirement,
+    String? payRate,
   }) async {
     if (_isShared ||
         _isGeneratingPaygrades ||
         _isUpdatingPaygrade ||
         _deletingPaygradeId != null) {
       return;
+    }
+
+    if (!AppManager.instance.currentUserCanManagePaygrades) {
+      throw StateError(AppStrings.paygradesPayRateSaveFailed);
+    }
+    final trimmedRate = payRate?.trim();
+    final rate = trimmedRate == null || trimmedRate.isEmpty
+        ? null
+        : trimmedRate;
+    if (rate != null && !PaygradeEntry.isValidPayRate(rate)) {
+      throw ArgumentError(AppStrings.paygradesPayRateInvalid);
     }
 
     final currentDetail = detail;
@@ -232,6 +244,7 @@ class PaygradeDetailController extends ChangeNotifier {
         promotionRequirement: promotionRequirement,
         position: nextPosition,
         fromSandbox: AppManager.instance.usesParentApiEndpoints,
+        payRate: rate,
       );
       if (createdEntry.id.trim().isEmpty) {
         await _loadSelectedTab(forceReload: true);
@@ -246,7 +259,9 @@ class PaygradeDetailController extends ChangeNotifier {
           title: createdEntry.title.trim().isNotEmpty
               ? createdEntry.title
               : title,
-          payRate: createdEntry.payRate,
+          payRate: createdEntry.payRate.trim().isNotEmpty
+              ? createdEntry.payRate
+              : rate ?? createdEntry.payRate,
           level: createdEntry.level > 0 ? createdEntry.level : nextLevel,
           description: createdEntry.description.trim().isNotEmpty
               ? createdEntry.description
@@ -271,14 +286,22 @@ class PaygradeDetailController extends ChangeNotifier {
     required String title,
     required String description,
     required String promotionRequirement,
+    String? payRate,
   }) async {
-    if (_isShared ||
-        _isGeneratingPaygrades ||
-        _isUpdatingPaygrade ||
-        _deletingPaygradeId != null) {
+    if (_isShared) {
       return;
     }
+    if (!canEditPayRate(entry)) {
+      throw StateError(AppStrings.paygradesPayRateSaveFailed);
+    }
+    final rate = payRate?.trim();
+    if (rate != null && !PaygradeEntry.isValidPayRate(rate)) {
+      throw ArgumentError(AppStrings.paygradesPayRateInvalid);
+    }
 
+    final tab = _selectedTab;
+    final detailVersion = _detailVersion;
+    final organizationId = AppManager.instance.currentOrganizationId;
     _isUpdatingPaygrade = true;
     _errorMessage = null;
     notifyListeners();
@@ -289,24 +312,30 @@ class PaygradeDetailController extends ChangeNotifier {
         title: title,
         description: description,
         promotionRequirement: promotionRequirement,
+        payRate: rate,
       );
+      if (_isDisposed ||
+          detailVersion != _detailVersion ||
+          organizationId != AppManager.instance.currentOrganizationId) {
+        return;
+      }
       _replaceEntry(
         PaygradeEntry(
           id: entry.id,
           type: entry.type,
           title: title,
-          payRate: entry.payRate,
+          payRate: rate ?? entry.payRate,
           level: entry.level,
           description: description,
           promotionRequirement: promotionRequirement,
         ),
+        tab: tab,
       );
-    } catch (error) {
-      _errorMessage = error.toString();
-      rethrow;
     } finally {
-      _isUpdatingPaygrade = false;
-      notifyListeners();
+      if (!_isDisposed && detailVersion == _detailVersion) {
+        _isUpdatingPaygrade = false;
+        notifyListeners();
+      }
     }
   }
 

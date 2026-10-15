@@ -75,7 +75,7 @@ class _SingleCheckInReportCategoryDetailsScreenState
       body: SafeArea(
         bottom: false,
         child: Padding(
-          padding: const EdgeInsets.fromLTRB(16, 4, 16, 20),
+          padding: const EdgeInsets.fromLTRB(8, 4, 8, 20),
           child: Column(
             children: [
               _buildHeader(context),
@@ -104,7 +104,7 @@ class _SingleCheckInReportCategoryDetailsScreenState
               borderRadius: BorderRadius.circular(20),
               onTap: () => Navigator.of(context).pop(),
               child: Padding(
-                padding: const EdgeInsets.all(4),
+                padding: const EdgeInsets.fromLTRB(0, 4, 8, 4),
                 child: SvgPicture.asset(
                   '${AppStrings.imagePath}back.svg',
                   height: 24,

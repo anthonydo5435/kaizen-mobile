@@ -24,6 +24,7 @@ class PaygradesController extends ChangeNotifier {
   bool _isLoadingMore = false;
   bool _hasNextPage = true;
   int _currentPage = 0;
+  int _listRequestVersion = 0;
   bool _hasGlobalDepartmentAccess = true;
   String? _errorMessage;
   String _searchQuery = '';
@@ -78,7 +79,7 @@ class PaygradesController extends ChangeNotifier {
   }
 
   Future<void> refresh() {
-    return _refreshPaygrades(showLoader: false);
+    return _refreshPaygrades(showLoader: false, forceRefresh: true);
   }
 
   Future<void> loadNextPage() async {
@@ -110,7 +111,10 @@ class PaygradesController extends ChangeNotifier {
     );
   }
 
-  Future<void> _refreshPaygrades({required bool showLoader}) async {
+  Future<void> _refreshPaygrades({
+    required bool showLoader,
+    bool forceRefresh = false,
+  }) async {
     if (_isInitialLoading || _isListLoading || _isRefreshing) {
       return;
     }
@@ -124,7 +128,7 @@ class PaygradesController extends ChangeNotifier {
     notifyListeners();
 
     try {
-      await _reloadPaygrades();
+      await _reloadPaygrades(forceRefresh: forceRefresh);
     } catch (error) {
       _errorMessage = error.toString();
     }
@@ -138,14 +142,18 @@ class PaygradesController extends ChangeNotifier {
     _flushPendingRefreshes();
   }
 
-  Future<void> _reloadPaygrades() async {
-    _currentPage = 0;
-    _hasNextPage = true;
-    _items = const <Paygrade>[];
-    await _loadPage(1, replace: true);
+  Future<void> _reloadPaygrades({bool forceRefresh = false}) async {
+    // Retain the current cards until a successful replacement arrives.
+    _listRequestVersion++;
+    await _loadPage(1, replace: true, forceRefresh: forceRefresh);
   }
 
-  Future<void> _loadPage(int page, {bool replace = false}) async {
+  Future<void> _loadPage(
+    int page, {
+    bool replace = false,
+    bool forceRefresh = false,
+  }) async {
+    final requestVersion = _listRequestVersion;
     final response = await _getPaygradesUseCase(
       page: page,
       pageSize: _pageSize,
@@ -153,7 +161,11 @@ class PaygradesController extends ChangeNotifier {
           ? null
           : _selectedDepartmentId,
       title: _searchQuery.trim().isEmpty ? null : _searchQuery.trim(),
+      forceRefresh: forceRefresh,
     );
+    if (requestVersion != _listRequestVersion) {
+      return;
+    }
     _currentPage = page;
     _hasNextPage = response.hasNextPage && response.items.isNotEmpty;
     _items = replace

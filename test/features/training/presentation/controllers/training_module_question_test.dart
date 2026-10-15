@@ -138,6 +138,7 @@ class _QuestionRepository extends Fake implements AuditRepository {
   @override
   Future<SeatDescriptionTrainingModuleDetail> getSeatDescriptionTrainingModuleDetail({
     required String moduleId,
+    bool forceRefresh = false,
   }) async => const SeatDescriptionTrainingModuleDetail(
     uuid: 'module',
     actualId: 'module',

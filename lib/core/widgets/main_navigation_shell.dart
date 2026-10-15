@@ -1,7 +1,6 @@
 import 'package:flutter/material.dart';
 import 'package:provider/provider.dart';
 
-import '../managers/app_manager.dart';
 import '../navigation/main_navigation_controller.dart';
 import 'app_bottom_nav_bar.dart';
 import 'app_navigation_drawer.dart';
@@ -26,9 +25,6 @@ class _MainNavigationView extends StatelessWidget {
   @override
   Widget build(BuildContext context) {
     final navigation = context.watch<MainNavigationController>();
-    final isSandboxMode = context.select<AppManager, bool>(
-      (manager) => manager.usesParentApiEndpoints,
-    );
 
     return Scaffold(
       backgroundColor: Colors.transparent,
@@ -41,7 +37,6 @@ class _MainNavigationView extends StatelessWidget {
           : AppBottomNavBar(
               isVisible: navigation.isBottomNavigationVisible,
               selectedMenu: navigation.selectedMenu,
-              isSandboxMode: isSandboxMode,
               onSelected: navigation.selectMenu,
             ),
     );

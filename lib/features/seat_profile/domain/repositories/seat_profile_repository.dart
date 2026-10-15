@@ -14,6 +14,7 @@ abstract class SeatProfileRepository {
     int pageSize = 10,
     String? departmentId,
     String title = '',
+    bool forceRefresh = false,
   });
   Future<SeatProfileDetail> getSeatProfileDetail(String seatId);
   Future<SeatProfileDetail> getSharedSeatProfileDetail(String publicId);

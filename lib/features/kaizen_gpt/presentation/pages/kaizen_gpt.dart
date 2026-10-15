@@ -100,7 +100,7 @@ class _KaizenGptViewState extends State<_KaizenGptView>
         return LayoutBuilder(
           builder: (context, constraints) {
             return SingleChildScrollView(
-              padding: const EdgeInsets.fromLTRB(24, 60, 24, 28),
+              padding: const EdgeInsets.fromLTRB(12, 60, 12, 28),
               child: ConstrainedBox(
                 constraints: BoxConstraints(minHeight: constraints.maxHeight),
                 child: Column(

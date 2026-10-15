@@ -63,7 +63,6 @@ class SeatProfileDetailController extends ChangeNotifier {
   bool _isDisposed = false;
   SeatProfileShareController? _shareController;
   String? _seatContentGenerationErrorMessage;
-  final Set<String> _expandedCategoryIds = <String>{};
   final Set<String> _deletingDescriptionIds = <String>{};
   SeatProfileDetailContentSpecificity _selectedSpecificity =
       SeatProfileDetailContentSpecificity.medium;
@@ -224,26 +223,6 @@ class SeatProfileDetailController extends ChangeNotifier {
     }
   }
 
-  bool isCategoryExpanded(String categoryId) {
-    return _expandedCategoryIds.contains(categoryId.trim());
-  }
-
-  void setCategoryExpanded(String categoryId, bool isExpanded) {
-    final resolvedCategoryId = categoryId.trim();
-    if (resolvedCategoryId.isEmpty) {
-      return;
-    }
-
-    final didChange = isExpanded
-        ? _expandedCategoryIds.add(resolvedCategoryId)
-        : _expandedCategoryIds.remove(resolvedCategoryId);
-    if (!didChange) {
-      return;
-    }
-
-    notifyListeners();
-  }
-
   void selectSpecificity(SeatProfileDetailContentSpecificity value) {
     if (_selectedSpecificity == value) {
       return;
@@ -337,7 +316,6 @@ class SeatProfileDetailController extends ChangeNotifier {
           ? loadedDetail
           : _normalizeDetail(loadedDetail, fallbackSeatId: seatId);
       _loadPublicLink();
-      _syncExpandedCategories();
       _errorMessage = null;
     } catch (error) {
       if (_isDisposed) return;
@@ -386,17 +364,6 @@ class SeatProfileDetailController extends ChangeNotifier {
     if (_isShared) {
       throw StateError(AppStrings.loginSomethingWentWrong);
     }
-  }
-
-  void _syncExpandedCategories() {
-    final availableCategoryIds =
-        (_detail?.categories ?? const <SeatProfileCategory>[])
-            .map((category) => category.id.trim())
-            .where((categoryId) => categoryId.isNotEmpty)
-            .toSet();
-    _expandedCategoryIds.removeWhere(
-      (categoryId) => !availableCategoryIds.contains(categoryId),
-    );
   }
 
   SeatProfileDetail _normalizeDetail(

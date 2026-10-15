@@ -6,11 +6,7 @@ import '../../../../core/widgets/app_text_view.dart';
 import '../../domain/entities/paygrade.dart';
 
 class PaygradeListingCard extends StatefulWidget {
-  const PaygradeListingCard({
-    super.key,
-    required this.paygrade,
-    required this.onDetailsTap,
-  });
+  const PaygradeListingCard({super.key, required this.paygrade, required this.onDetailsTap});
 
   final Paygrade paygrade;
   final VoidCallback onDetailsTap;
@@ -70,10 +66,7 @@ class _PaygradeListingCardState extends State<PaygradeListingCard> {
               ),
               if (isExpanded) ...[
                 const SizedBox(height: 14),
-                _buildDepartmentRow(
-                  AppStrings.paygradesDepartment,
-                  paygrade.department,
-                ),
+                _buildDepartmentRow(AppStrings.paygradesDepartment, paygrade.department),
                 const SizedBox(height: 10),
                 _buildStatRow(
                   AppStrings.paygradesPrimaryPaygrade,
@@ -124,9 +117,7 @@ class _PaygradeListingCardState extends State<PaygradeListingCard> {
   Widget _buildDepartmentRow(String label, String value) {
     return Row(
       children: [
-        Expanded(
-          child: AppTextView.body2(label, color: AppColors.textSecondary),
-        ),
+        Expanded(child: AppTextView.body2(label, color: AppColors.textSecondary)),
         const SizedBox(width: 12),
         Flexible(
           child: AppTextView.body2(
@@ -145,19 +136,14 @@ class _PaygradeListingCardState extends State<PaygradeListingCard> {
 
     return Row(
       children: [
-        Expanded(
-          child: AppTextView.body2(label, color: AppColors.textSecondary),
-        ),
+        Expanded(child: AppTextView.body2(label, color: AppColors.textSecondary)),
         if (isStatus)
           Container(
             padding: const EdgeInsets.symmetric(horizontal: 10, vertical: 6),
             decoration: BoxDecoration(
-              color: (isPositive ? AppColors.lightGreen1 : AppColors.red1)
-                  .withValues(alpha: 0.14),
+              color: (isPositive ? AppColors.lightGreen1 : AppColors.red1).withValues(alpha: 0.14),
               borderRadius: BorderRadius.circular(999),
-              border: Border.all(
-                color: isPositive ? AppColors.lightGreen1 : AppColors.red1,
-              ),
+              border: Border.all(color: isPositive ? AppColors.lightGreen1 : AppColors.red1),
             ),
             child: AppTextView.body3(
               value,
@@ -195,9 +181,7 @@ class _CardForwardArrow extends StatelessWidget {
         decoration: BoxDecoration(
           color: AppColors.mainBg,
           borderRadius: BorderRadius.circular(999),
-          border: Border.all(
-            color: AppColors.fieldBorder.withValues(alpha: 0.28),
-          ),
+          border: Border.all(color: AppColors.fieldBorder.withValues(alpha: 0.28)),
         ),
         child: const Icon(
           Icons.keyboard_arrow_down_rounded,

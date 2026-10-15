@@ -77,6 +77,7 @@ class _SeatProfileCreateAccessDeniedView extends StatelessWidget {
         backgroundColor: AppColors.mainBg,
         foregroundColor: AppColors.textPrimary,
         elevation: 0,
+        leadingWidth: 40,
         leading: IconButton(
           onPressed: () => Navigator.of(context).pop(false),
           icon: const Icon(Icons.arrow_back_ios_new_rounded),
@@ -120,6 +121,7 @@ class _SeatProfileCreateScreenView extends StatelessWidget {
           backgroundColor: AppColors.mainBg,
           foregroundColor: AppColors.textPrimary,
           elevation: 0,
+          leadingWidth: 40,
           leading: IconButton(
             onPressed: () => _handleBackTap(context, controller),
             icon: const Icon(Icons.arrow_back_ios_new_rounded),
@@ -179,7 +181,7 @@ class _SeatProfileCreateContent extends StatelessWidget {
     final hasDepartments = controller.departments.isNotEmpty;
 
     return ListView(
-      padding: const EdgeInsets.fromLTRB(16, 8, 16, 24),
+      padding: const EdgeInsets.fromLTRB(8, 8, 8, 24),
       children: [
         if (controller.errorMessage != null) ...[
           _CreateMessageCard(message: controller.errorMessage!),

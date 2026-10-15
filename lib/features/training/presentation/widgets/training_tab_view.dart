@@ -13,6 +13,7 @@ class TrainingTabView extends StatefulWidget {
     required this.pageBuilder,
     this.pagePaddingBuilder,
     this.onPageApproaching,
+    this.isSwipeEnabled = true,
   }) : assert(maxTabIndex >= 0),
        assert(maxTabIndex < TrainingTabNavigationController.tabCount);
 
@@ -21,6 +22,7 @@ class TrainingTabView extends StatefulWidget {
   final IndexedWidgetBuilder pageBuilder;
   final EdgeInsetsGeometry Function(int index)? pagePaddingBuilder;
   final ValueChanged<int>? onPageApproaching;
+  final bool isSwipeEnabled;
 
   @override
   State<TrainingTabView> createState() => _TrainingTabViewState();
@@ -44,6 +46,16 @@ class _TrainingTabViewState extends State<TrainingTabView> {
   @override
   void didUpdateWidget(covariant TrainingTabView oldWidget) {
     super.didUpdateWidget(oldWidget);
+    if (oldWidget.isSwipeEnabled && !widget.isSwipeEnabled) {
+      WidgetsBinding.instance.addPostFrameCallback((_) {
+        if (mounted && !widget.isSwipeEnabled && _pageController.hasClients) {
+          // Cancel a drag that started before fullscreen was entered.
+          _pageController.jumpToPage(
+            widget.navigation.selectedIndex.clamp(0, widget.maxTabIndex),
+          );
+        }
+      });
+    }
     if (oldWidget.navigation != widget.navigation) {
       oldWidget.navigation.removeListener(_handleTabSelection);
       widget.navigation.addListener(_handleTabSelection);
@@ -77,6 +89,7 @@ class _TrainingTabViewState extends State<TrainingTabView> {
   }
 
   void _handlePageMovement() {
+    if (!widget.isSwipeEnabled) return;
     final page = _pageController.page;
     if (page == null || page == widget.navigation.selectedIndex) {
       return;
@@ -91,14 +104,15 @@ class _TrainingTabViewState extends State<TrainingTabView> {
     _lastApproachingIndex = index;
     // Scroll positions may change during layout; fetch before the next frame.
     scheduleMicrotask(() {
-      if (mounted && index <= widget.maxTabIndex) {
+      if (mounted && widget.isSwipeEnabled && index <= widget.maxTabIndex) {
         widget.onPageApproaching?.call(index);
       }
     });
   }
 
   bool _handleScrollEnd(ScrollEndNotification notification) {
-    if (notification.depth != 0 ||
+    if (!widget.isSwipeEnabled ||
+        notification.depth != 0 ||
         notification.metrics.axis != Axis.horizontal ||
         !_pageController.hasClients) {
       return false;
@@ -130,7 +144,9 @@ class _TrainingTabViewState extends State<TrainingTabView> {
       onNotification: _handleScrollEnd,
       child: PageView.custom(
         controller: _pageController,
-        physics: const PageScrollPhysics(parent: ClampingScrollPhysics()),
+        physics: widget.isSwipeEnabled
+            ? const PageScrollPhysics(parent: ClampingScrollPhysics())
+            : const NeverScrollableScrollPhysics(),
         childrenDelegate: SliverChildBuilderDelegate(
           (context, index) => Padding(
             key: ValueKey<int>(index),

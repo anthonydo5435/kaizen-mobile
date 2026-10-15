@@ -28,6 +28,10 @@ class AppStrings {
   static const String loginFailedTitle = 'Login Failed';
   static const String loginGoogleUnavailable =
       'Google sign-in is unavailable right now. Please use your email and password.';
+  static const String loginGoogleBrowserUnavailable =
+      'Google sign-in requires an up-to-date browser. Please update Chrome and try again, or use your email and password.';
+  static const String loginGoogleAppNotVerified =
+      'Google sign-in could not verify this app. Please try again later or use your email and password.';
   static const String loginGoogleFailed = 'Unable to sign in with Google. Please try again.';
   static const String loginGoogleTimedOut = 'Google sign-in timed out. Please try again.';
   static const String loginGoogleCodeRejected =
@@ -302,6 +306,8 @@ class AppStrings {
   static const String paygradesEditSheetDescription =
       'Review and update the selected paygrade details.';
   static const String paygradesEditAction = 'Edit';
+  static const String paygradesShowMoreAction = 'Show More';
+  static const String paygradesShowLessAction = 'Show Less';
   static const String paygradesNameLabel = 'Name';
   static const String paygradesNameHint = 'Enter paygrade name';
   static const String paygradesDescriptionHint = 'Enter paygrade specifics';
@@ -351,7 +357,11 @@ class AppStrings {
       'Your organization\'s trial or subscription has ended. Upgrade your plan to create, edit, or delete content.';
   static const String upgradePlanButton = 'OK';
   static const String seatProfileDetailsTitle = 'Seat Profile Details';
-  static const String seatProfileDescriptionsTitle = 'Descriptions';
+  static const String seatProfileDescriptionsTitle = 'Descriptions List';
+  static const String seatProfileExpandDescriptionAction = 'Expand Description';
+  static const String seatProfileCollapseDescriptionAction = 'Collapse Description';
+  static const String seatProfileShowMoreAction = 'Show More';
+  static const String seatProfileShowLessAction = 'Show Less';
   static const String seatProfileSearchHint = 'Search Seat Profile';
   static const String seatProfileNameLabel = 'Seat Profile Name';
   static const String seatProfileNameHint = 'Enter seat profile name';
@@ -397,6 +407,7 @@ class AppStrings {
   static const String seatProfilePercentageHold = 'Percentage Hold';
   static const String seatProfileMilestoneDays = 'Milestone Days';
   static const String seatProfileAuditSpecifics = 'Audit Specifics';
+  static const String seatProfileDescriptionEllipsis = '... ';
   static const String training = 'Training';
   static const String seatProfileViewTrainings = 'View Training';
   static const String seatProfileSetupTrainingTitle = 'Create Training';
@@ -516,7 +527,11 @@ class AppStrings {
   static const String done = 'Done';
   static const String complianceMasteredBasics = "--- You've Mastered The Basics ---";
   static const String complianceNoTracksFound = 'No Learning Tracks Found';
+  static const String complianceTrackSearchFailed =
+      'Unable to search learning tracks. Please try again.';
   static const String complianceNoDocumentsFound = 'No Documents Found';
+  static const String complianceDocumentSearchFailed =
+      'Unable to search documents. Please try again.';
   static const String trainingVideoTab = 'Video';
   static const String trainingDocumentTab = 'Document';
   static const String trainingSopTab = 'SOP';
@@ -797,6 +812,14 @@ class AppStrings {
   static const String trainingQuestionOptionsRequired =
       'Please fill in every option before saving.';
   static const String trainingQuestionCorrectOptionRequired = 'Please select the correct option.';
+  static const String trainingViewTranscript = 'View Transcript';
+  static const String trainingCc = 'CC';
+  static const String trainingExitFullscreen = 'Exit fullscreen';
+  static const String trainingHideActiveTranscript = 'Hide active transcript';
+  static const String trainingShowActiveTranscript = 'Show active transcript';
+  static const String trainingTranscriptTitle = 'Transcript';
+  static const String trainingTranscriptSeekFailed =
+      'Unable to jump to this part of the video. Please try again.';
   static const String trainingNoTranscriptAvailable = 'No transcript available.';
   static const String trainingNoSummaryAvailable = 'No summary available.';
   static const String trainingNoSummaryAvailableSnackBar = 'No Summary Available';
@@ -804,6 +827,7 @@ class AppStrings {
   static const String trainingEditTextSheetDescription =
       'Update the text below and save your changes.';
   static const String trainingSummaryLabel = 'Summary';
+  static const String trainingGenerateSummaryAction = 'Generate';
   static const String trainingSummaryHint = noContentAvailable;
   static const String trainingSummarySavedSuccess = 'Summary updated successfully.';
   static const String trainingSaveAction = 'Save';
@@ -817,6 +841,7 @@ class AppStrings {
       'Learning module access to only seat functions with this seat profile and their upline leaders (good for protecting sensitive company protocols)';
   static const String trainingSopLabel = 'SOP';
   static const String trainingSopHint = 'Write SOP content for this lesson.';
+  static const String trainingSopEditorError = 'Unable to open the SOP editor. Please try again.';
   static const String trainingSopSavedSuccess = 'SOP updated successfully.';
   static const String trainingAssignmentDescriptionLabel = 'Description';
   static const String trainingAssignmentTitleHint = 'Enter assignment title';
@@ -868,12 +893,67 @@ class AppStrings {
   static const String trainingPauseQuizCancel = 'Continue Quiz';
   static const String uploadDoc = 'Upload Document';
   static const String uploadDocumentTitle = 'Upload Document';
+  static const String complianceCamera = 'Camera';
+  static const String complianceCameraDescription = 'Take a photo of your document';
+  static const String complianceMediaSelectionFailedTitle = 'Unable to select document';
+  static const String complianceSelectImage = 'Select Image';
+  static const String complianceSelectImageDescription = 'Choose a PNG, JPG, or JPEG from gallery';
+  static const String complianceSelectPdf = 'Select PDF';
+  static const String complianceSelectPdfDescription = 'Choose a PDF document from files';
+  static const String complianceCameraPermissionRequired =
+      'Camera permission is required to photograph your document.';
+  static const String complianceCameraOpenError =
+      'Unable to open the camera right now. Please try again.';
+  static const String compliancePickImageError =
+      'Unable to select an image right now. Please try again.';
+  static const String compliancePickPdfError =
+      'Unable to select a PDF right now. Please try again.';
   static const String rejectionReasonTitle = 'Rejection Reason';
+  static const String complianceShowMore = 'Show More';
+  static const String complianceRejectionPreviewEllipsis = '… ';
+  static const String complianceRejectionReasonOk = 'OK';
   static const String rejectionReasonBody = 'Lorem Ipsum Lorem ipsum Lorem Ipsum Lorem ipsum';
   static const String clickToUploadDocument = 'Click to upload\nDocument';
   static const String uploadFileFormat = 'File Format: JPEG, PNG, JPG, PDF';
   static const String uploadMaxFileSize = 'Max file size is 20 MB';
-  static const String enterExpiryDate = 'Enter Expiry Date (yyyy-dd-mm)';
+  static const String enterExpiryDate = 'MMMM DD, YYYY';
+  static const String enterExpirationDate = 'Expiration Date';
+  static const String expirationDateWithFormat = '$enterExpirationDate ($enterExpiryDate)';
+  static const String expiryDateMonthPlaceholder = 'MMMM';
+  static const String expiryDateDayPlaceholder = 'DD';
+  static const String expiryDateYearPlaceholder = 'YYYY';
+  static const String selectExpiryDate = 'Select expiration date';
+  static const String expiryDateRequired = 'Please enter an expiration date.';
+  static const String expiryDateInvalid = 'Enter a valid date, for example Apr 05, 2027.';
+  static const String expiryDateInPast = 'Expiration date must be today or later.';
+  static const List<String> expiryDateMonths = [
+    'Jan',
+    'Feb',
+    'Mar',
+    'Apr',
+    'May',
+    'Jun',
+    'Jul',
+    'Aug',
+    'Sep',
+    'Oct',
+    'Nov',
+    'Dec',
+  ];
+  static const List<String> expiryDateFullMonths = [
+    'January',
+    'February',
+    'March',
+    'April',
+    'May',
+    'June',
+    'July',
+    'August',
+    'September',
+    'October',
+    'November',
+    'December',
+  ];
   static const String cancelUpload = 'Cancel Upload';
   static const String submit = 'Submit';
   static const String reUpload = 'Re-Upload';

@@ -99,7 +99,7 @@ class _CheckInDetailsScreenView extends StatelessWidget {
           children: [
             Expanded(
               child: Padding(
-                padding: EdgeInsets.only(left: 14, right: 14),
+                padding: const EdgeInsets.symmetric(horizontal: 8),
                 child: Column(
                   children: [
                     _buildTitle(context),
@@ -161,7 +161,7 @@ class _CheckInDetailsScreenView extends StatelessWidget {
 
   Widget _buildTitle(BuildContext context) {
     return Padding(
-      padding: const EdgeInsets.symmetric(horizontal: 16, vertical: 0),
+      padding: EdgeInsets.zero,
       child: Stack(
         alignment: Alignment.center,
         children: [
@@ -575,6 +575,9 @@ class _CheckInDetailsScreenView extends StatelessWidget {
   }) {
     final hasDetails = details != null;
     final shouldStartNewAudit = hasDetails && _shouldStartNewAuditForBottomAction(details);
+    if (shouldStartNewAudit && !context.read<CheckInController>().isSelectedAuditPeriodCurrent) {
+      return const SizedBox.shrink();
+    }
 
     return Container(
       height: 100,
@@ -592,7 +595,7 @@ class _CheckInDetailsScreenView extends StatelessWidget {
       child: Stack(
         children: [
           Padding(
-            padding: EdgeInsets.only(left: 14, right: 14, top: 12),
+            padding: const EdgeInsets.fromLTRB(8, 12, 8, 0),
             child: hasDetails
                 ? AppButton(
                     text: shouldStartNewAudit ? AppStrings.newCheckIn : AppStrings.continueCheckIn,
@@ -614,6 +617,11 @@ class _CheckInDetailsScreenView extends StatelessWidget {
     AuditDetails details,
     bool shouldStartNewAudit,
   ) async {
+    final controller = context.read<CheckInController>();
+    if (shouldStartNewAudit && !controller.isSelectedAuditPeriodCurrent) {
+      return;
+    }
+
     if (context.read<AppManager>().showBillingBanner) {
       await showDialog<void>(
         context: context,
@@ -624,7 +632,6 @@ class _CheckInDetailsScreenView extends StatelessWidget {
     }
 
     final todayDate = CustomFunctions.apiDateString();
-    final controller = context.read<CheckInController>();
     if (controller.state.isAuditActionLoading || controller.state.isSelfAudit) {
       return;
     }

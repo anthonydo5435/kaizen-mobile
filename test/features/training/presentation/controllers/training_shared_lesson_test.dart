@@ -120,7 +120,10 @@ class _SharedLessonRepository extends Fake implements AuditRepository {
 
   @override
   Future<SeatDescriptionTrainingModuleDetail>
-  getSeatDescriptionTrainingModuleDetail({required String moduleId}) {
+  getSeatDescriptionTrainingModuleDetail({
+    required String moduleId,
+    bool forceRefresh = false,
+  }) {
     throw StateError('Private lesson endpoint must not be called');
   }
 

@@ -27,6 +27,7 @@ import '../controllers/training_share_controller.dart';
 import '../controllers/training_tab_navigation_controller.dart';
 import '../models/view_training_tab_access.dart';
 import '../widgets/training_assignment_layout.dart';
+import '../widgets/training_sop_document_view.dart';
 import '../widgets/training_tab_view.dart';
 import '../widgets/training_share_action.dart';
 import 'edit_training_screen.dart';
@@ -275,16 +276,11 @@ class _LessonViewerViewState extends State<_LessonViewerView> {
           child: Column(
             children: [
               Padding(
-                padding: const EdgeInsets.fromLTRB(16, 2, 16, 0),
+                padding: const EdgeInsets.fromLTRB(8, 2, 8, 0),
                 child: _buildHeader(context),
               ),
               const SizedBox(height: 18),
-              Expanded(
-                child: Padding(
-                  padding: const EdgeInsets.symmetric(horizontal: 16),
-                  child: _buildBody(controller),
-                ),
-              ),
+              Expanded(child: _buildBody(controller)),
             ],
           ),
         ),
@@ -293,7 +289,7 @@ class _LessonViewerViewState extends State<_LessonViewerView> {
             : SafeArea(
                 top: false,
                 bottom: false,
-                minimum: const EdgeInsets.fromLTRB(16, 10, 16, 14),
+                minimum: const EdgeInsets.fromLTRB(12, 10, 12, 14),
                 child: TrainingTabs(
                   navigation: _navigation,
                   maxTabIndex: _maxTabIndex,
@@ -322,7 +318,7 @@ class _LessonViewerViewState extends State<_LessonViewerView> {
           unawaited(_syncSelectedTabData(index));
         }
       },
-      pagePaddingBuilder: (index) => index == 2
+      pagePaddingBuilder: (index) => index == 0
           ? EdgeInsets.zero
           : const EdgeInsets.symmetric(horizontal: 8),
       pageBuilder: (context, index) => _buildTabPage(controller, index),
@@ -343,10 +339,13 @@ class _LessonViewerViewState extends State<_LessonViewerView> {
       crossAxisAlignment: CrossAxisAlignment.stretch,
       children: [
         if (index == 0 && controller.selectedModuleTitle.isNotEmpty) ...[
-          TrainingLessonTitleField(
-            valueText: controller.selectedModuleTitle,
-            hintText: AppStrings.trainingLessonTitleHint,
-            isReadOnly: true,
+          Padding(
+            padding: const EdgeInsets.symmetric(horizontal: 8),
+            child: TrainingLessonTitleField(
+              valueText: controller.selectedModuleTitle,
+              hintText: AppStrings.trainingLessonTitleHint,
+              isReadOnly: true,
+            ),
           ),
           const SizedBox(height: 16),
         ],
@@ -389,7 +388,10 @@ class _LessonViewerViewState extends State<_LessonViewerView> {
 
     switch (index) {
       case 0:
-        return TrainingReadOnlyVideoTab(controller: controller);
+        return TrainingReadOnlyVideoTab(
+          controller: controller,
+          contentHorizontalPadding: 8,
+        );
       case 2:
         if (controller.questionsErrorMessage != null) {
           return _ContentMessage(message: controller.questionsErrorMessage!);
@@ -425,7 +427,7 @@ class _LessonViewerViewState extends State<_LessonViewerView> {
                 }
               },
               child: Padding(
-                padding: const EdgeInsets.all(4),
+                padding: const EdgeInsets.fromLTRB(0, 4, 8, 4),
                 child: SvgPicture.asset(
                   '${AppStrings.imagePath}back.svg',
                   height: 24,

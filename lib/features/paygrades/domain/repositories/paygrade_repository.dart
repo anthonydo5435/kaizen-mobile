@@ -14,6 +14,7 @@ abstract class PaygradeRepository {
     String? departmentId,
     String name = '',
     String? title,
+    bool forceRefresh = false,
   });
 
   Future<List<Department>> getDepartments({required bool isOwner});
@@ -38,6 +39,7 @@ abstract class PaygradeRepository {
     required String promotionRequirement,
     required int position,
     required bool fromSandbox,
+    String? payRate,
   });
 
   Future<void> updatePaygrade({
@@ -45,6 +47,7 @@ abstract class PaygradeRepository {
     required String title,
     required String description,
     required String promotionRequirement,
+    String? payRate,
   });
 
   Future<void> updatePayRate({

@@ -85,10 +85,12 @@ class TrainingLibraryRemoteDataSource {
     String? jobId,
     String? jobCategoryId,
     String? jobCategoryDescriptionId,
+    bool forceRefresh = false,
   }) {
     return _apiCallExecutor.processApi<TrainingLibraryPageModel>(
       apiCallType: ApiCallType.get,
       endpoint: ApiEndPoints.trainingModulesAll,
+      invalidateCacheBeforeRequest: forceRefresh,
       parameters: <String, dynamic>{
         if (jobId?.trim().isNotEmpty ?? false) 'job': jobId!.trim(),
         if (jobCategoryId?.trim().isNotEmpty ?? false)

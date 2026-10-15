@@ -27,6 +27,7 @@ class GetPaygradesUseCase {
     String? departmentId,
     String name = '',
     String? title,
+    bool forceRefresh = false,
   }) {
     return _repository.getPaygrades(
       page: page,
@@ -34,6 +35,7 @@ class GetPaygradesUseCase {
       departmentId: departmentId,
       name: name,
       title: title,
+      forceRefresh: forceRefresh,
     );
   }
 
@@ -71,6 +73,7 @@ class GetPaygradesUseCase {
     required String promotionRequirement,
     required int position,
     required bool fromSandbox,
+    String? payRate,
   }) {
     return _repository.createPaygrade(
       jobId: jobId,
@@ -81,6 +84,7 @@ class GetPaygradesUseCase {
       promotionRequirement: promotionRequirement,
       position: position,
       fromSandbox: fromSandbox,
+      payRate: payRate,
     );
   }
 
@@ -89,12 +93,14 @@ class GetPaygradesUseCase {
     required String title,
     required String description,
     required String promotionRequirement,
+    String? payRate,
   }) {
     return _repository.updatePaygrade(
       paygradeId: paygradeId,
       title: title,
       description: description,
       promotionRequirement: promotionRequirement,
+      payRate: payRate,
     );
   }
 

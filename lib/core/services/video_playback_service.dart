@@ -76,6 +76,34 @@ class VideoPlaybackService {
     );
   }
 
+  /// Watches the physical device while the interface is temporarily locked.
+  static Future<bool> waitForDevicePortrait() async {
+    if (kIsWeb ||
+        (defaultTargetPlatform != TargetPlatform.android &&
+            defaultTargetPlatform != TargetPlatform.iOS)) {
+      return false;
+    }
+    try {
+      return await _fullscreenChannel.invokeMethod<bool>('waitForPortrait') ??
+          false;
+    } on MissingPluginException {
+      return false;
+    }
+  }
+
+  static Future<void> cancelDevicePortraitWait() async {
+    if (kIsWeb ||
+        (defaultTargetPlatform != TargetPlatform.android &&
+            defaultTargetPlatform != TargetPlatform.iOS)) {
+      return;
+    }
+    try {
+      await _fullscreenChannel.invokeMethod<void>('cancelWaitForPortrait');
+    } on MissingPluginException {
+      // A native build without this bridge has no sensor subscription to stop.
+    }
+  }
+
   static Future<VideoPlayerController?> createInitializedController(
     String? videoUrl, {
     String? localFilePath,

@@ -15,6 +15,13 @@ import '../../domain/entities/seat_description_training.dart';
 import '../../domain/entities/shared_lesson_content.dart';
 import '../../../check_in/domain/repositories/audit_repository.dart';
 import '../models/view_training_tab_access.dart';
+import 'training_sop_editor_controller.dart';
+
+typedef TrainingSopEditorFactory =
+    TrainingSopEditorController Function(
+      String html,
+      ValueChanged<String> onHtmlChanged,
+    );
 
 enum QuizGenerationDifficulty {
   easy('easy'),
@@ -886,9 +893,11 @@ class TrainingModuleController extends ChangeNotifier {
     FileUploader? fileUploader,
     bool canManageTraining = false,
     bool canViewQuizAndAssignment = false,
+    TrainingSopEditorFactory? sopEditorFactory,
     Future<SharedLessonContent> Function(String publicId)?
     sharedLessonDetailLoader,
-  }) : _fileUploader = fileUploader ?? const FileUploader(),
+  }) : _sopEditorFactory = sopEditorFactory,
+       _fileUploader = fileUploader ?? const FileUploader(),
        _canManageTraining = canManageTraining,
        _canViewQuizAndAssignment =
            canManageTraining || canViewQuizAndAssignment,
@@ -911,6 +920,7 @@ class TrainingModuleController extends ChangeNotifier {
   static String generateClientUuid() => _uuidGenerator.v1();
 
   final AuditRepository _auditRepository;
+  final TrainingSopEditorFactory? _sopEditorFactory;
   final Future<SharedLessonContent> Function(String publicId)?
   _sharedLessonDetailLoader;
   final FileUploader _fileUploader;
@@ -964,6 +974,7 @@ class TrainingModuleController extends ChangeNotifier {
   bool _isGeneratingQuiz = false;
   bool _isGeneratingSop = false;
   bool _isGeneratingAssignment = false;
+  bool _isGeneratingSummary = false;
   bool _isAddingQuestion = false;
   bool _isEditingSummary = false;
   bool _isSavingModuleTitle = false;
@@ -973,6 +984,7 @@ class TrainingModuleController extends ChangeNotifier {
   bool _isSavingAssignment = false;
   bool _isSyncingModuleTitleController = false;
   bool _isSyncingSummaryController = false;
+  bool _lastSummaryDraftHasContent = false;
   bool _isSyncingDocumentController = false;
   bool _isSyncingAssignmentController = false;
   String? _savingQuestionId;
@@ -987,6 +999,9 @@ class TrainingModuleController extends ChangeNotifier {
   String _lastSavedSummaryText = '';
   int _summaryEditorVersion = 0;
   String _lastSavedDocumentHtml = '';
+  String _documentDraftHtml = '';
+  int _documentEditorVersion = 0;
+  TrainingSopEditorController? _sopEditorController;
   String _lastSavedAssignmentTitle = '';
   String _lastSavedAssignmentHtml = '';
   String _lastObservedAssignmentTitle = '';
@@ -995,6 +1010,8 @@ class TrainingModuleController extends ChangeNotifier {
   int _assignmentEditorVersion = 0;
   Timer? _moduleTitleAutoSaveDebounce;
   Timer? _summaryAutoSaveDebounce;
+  Timer? _summaryWritingTimer;
+  Completer<bool>? _summaryWritingCompletion;
   Timer? _documentAutoSaveDebounce;
   Timer? _assignmentAutoSaveDebounce;
 
@@ -1048,6 +1065,8 @@ class TrainingModuleController extends ChangeNotifier {
   bool get replaceExistingQuestions => _replaceExistingQuestions;
   bool get isGeneratingQuiz => _isGeneratingQuiz;
   bool get isGeneratingSop => _isGeneratingSop;
+  bool get isGeneratingSummary => _isGeneratingSummary;
+  bool get isWritingSummary => _summaryWritingTimer?.isActive ?? false;
   bool get isAddingQuestion => _isAddingQuestion;
   bool get isEditingSummary => _isEditingSummary;
   bool get isSavingModuleTitle => _isSavingModuleTitle;
@@ -1057,6 +1076,30 @@ class TrainingModuleController extends ChangeNotifier {
       _selectedModuleDetail?.isPubliclyAvailable ??
       false;
   bool get isSavingDocument => _isSavingDocument;
+  String get documentHtml => _documentDraftHtml;
+  int get documentEditorVersion => _documentEditorVersion;
+  TrainingSopEditorController get sopEditorController {
+    final existingEditor = _sopEditorController;
+    if (existingEditor != null) return existingEditor;
+    final moduleId = _selectedModuleId;
+    final editorVersion = _documentEditorVersion;
+    // Keep the engine and pending HTML reads alive when its pager page unmounts.
+    void onHtmlChanged(String html) => updateDocumentHtml(
+      moduleId: moduleId,
+      editorVersion: editorVersion,
+      html: html,
+    );
+    final editor =
+        _sopEditorFactory?.call(_documentDraftHtml, onHtmlChanged) ??
+        TrainingSopEditorController(
+          initialHtml: _documentDraftHtml,
+          onHtmlChanged: onHtmlChanged,
+        );
+    _sopEditorController = editor;
+    unawaited(editor.initialize());
+    return editor;
+  }
+
   bool get isSavingAssignment => _isSavingAssignment;
   String? get savingQuestionId => _savingQuestionId;
   String? get deletingQuestionId => _deletingQuestionId;
@@ -1108,6 +1151,18 @@ class TrainingModuleController extends ChangeNotifier {
       hasSelectedModuleVideo &&
       (hasSelectedModuleVideoTranscript || hasSelectedModuleSummary) &&
       !_isGeneratingSop;
+  bool get canGenerateSummaryForSelectedModule =>
+      canEditSelectedModuleSummary &&
+      hasSelectedModuleVideo &&
+      hasSelectedModuleSummary &&
+      summaryController.text.trim().isNotEmpty &&
+      !_isDisposed &&
+      !_isLoading &&
+      !_isUploadingVideo &&
+      !_isDeletingVideo &&
+      !_isUploadingThumbnail &&
+      !_isSavingSummary &&
+      !_isGeneratingSummary;
   bool get canGenerateQuizForSelectedModule =>
       _canManageTraining &&
       hasSelectedModule &&
@@ -1790,6 +1845,101 @@ class TrainingModuleController extends ChangeNotifier {
     }
   }
 
+  Future<bool> generateSummaryForSelectedModule({bool animate = true}) async {
+    if (!canGenerateSummaryForSelectedModule) {
+      return false;
+    }
+
+    final moduleId = _selectedModuleId;
+    final editorVersion = _summaryEditorVersion;
+    _summaryAutoSaveDebounce?.cancel();
+    _isGeneratingSummary = true;
+    notifyListeners();
+
+    try {
+      final description = await _auditRepository
+          .generateSeatDescriptionTrainingModuleSummary(moduleId: moduleId);
+      if (_isDisposed || editorVersion != _summaryEditorVersion) {
+        return false;
+      }
+
+      _isEditingSummary = false;
+      _editingSummaryVisibility = null;
+      _applySelectedModuleDescription(
+        description,
+        notifyListenersAfterUpdate: false,
+        syncEditorText: false,
+      );
+      final summaryText = CustomFunctions.stripHtmlTags(
+        description,
+        emptyText: '',
+      );
+      _lastSavedSummaryText = summaryText;
+      if (!animate || summaryText.isEmpty) {
+        _setSummaryEditorText(summaryText);
+        return true;
+      }
+      return await _writeGeneratedSummary(summaryText, editorVersion);
+    } catch (error) {
+      if (!_isDisposed && editorVersion == _summaryEditorVersion) {
+        _emitSummarySnackBar(
+          error is ApiError && error.statusCode == 404
+              ? AppStrings.trainingNoSummaryAvailableSnackBar
+              : error.toString(),
+        );
+      }
+      return false;
+    } finally {
+      if (!_isDisposed && editorVersion == _summaryEditorVersion) {
+        _isGeneratingSummary = false;
+        notifyListeners();
+        _scheduleSummaryAutoSaveIfNeeded();
+      }
+    }
+  }
+
+  Future<bool> _writeGeneratedSummary(String text, int editorVersion) {
+    // Reveal whole graphemes and cap the effect at roughly three seconds.
+    final characters = text.characters.toList(growable: false);
+    final charactersPerTick = max(1, (characters.length / 120).ceil());
+    var visibleCharacters = 0;
+    final completion = Completer<bool>();
+    _summaryWritingCompletion = completion;
+    _setSummaryEditorText('');
+    _summaryWritingTimer = Timer.periodic(const Duration(milliseconds: 24), (
+      timer,
+    ) {
+      if (_isDisposed || editorVersion != _summaryEditorVersion) {
+        _cancelSummaryWriting();
+        return;
+      }
+
+      visibleCharacters = min(
+        visibleCharacters + charactersPerTick,
+        characters.length,
+      );
+      _setSummaryEditorText(characters.take(visibleCharacters).join());
+      if (visibleCharacters == characters.length) {
+        timer.cancel();
+        _summaryWritingTimer = null;
+        _summaryWritingCompletion = null;
+        completion.complete(true);
+      }
+    });
+    notifyListeners();
+    return completion.future;
+  }
+
+  void _cancelSummaryWriting() {
+    _summaryWritingTimer?.cancel();
+    _summaryWritingTimer = null;
+    final completion = _summaryWritingCompletion;
+    _summaryWritingCompletion = null;
+    if (completion != null && !completion.isCompleted) {
+      completion.complete(false);
+    }
+  }
+
   Future<bool> generateSopForSelectedModule() async {
     if (!canGenerateSopForSelectedModule) {
       return false;
@@ -1892,6 +2042,7 @@ class TrainingModuleController extends ChangeNotifier {
     if (!canEditSelectedModuleSummary ||
         resolvedModuleId.isEmpty ||
         _isSavingSummary ||
+        _isGeneratingSummary ||
         description == _lastSavedSummaryText) {
       return false;
     }
@@ -1934,7 +2085,9 @@ class TrainingModuleController extends ChangeNotifier {
   }
 
   void startEditingSummary() {
-    if (!canEditSelectedModuleSummary || _isEditingSummary) {
+    if (!canEditSelectedModuleSummary ||
+        _isEditingSummary ||
+        _isGeneratingSummary) {
       return;
     }
 
@@ -1971,7 +2124,8 @@ class TrainingModuleController extends ChangeNotifier {
     final resolvedModuleId = _selectedModuleId.trim();
     if (!canEditSelectedModuleSummary ||
         resolvedModuleId.isEmpty ||
-        _isSavingSummary) {
+        _isSavingSummary ||
+        _isGeneratingSummary) {
       return false;
     }
 
@@ -2059,6 +2213,7 @@ class TrainingModuleController extends ChangeNotifier {
   }
 
   Future<bool> saveDocumentForSelectedModule() async {
+    if (_isDisposed) return false;
     final resolvedModuleId = _selectedModuleId.trim();
     if (!canEditSelectedModuleDocument ||
         resolvedModuleId.isEmpty ||
@@ -2066,31 +2221,54 @@ class TrainingModuleController extends ChangeNotifier {
       return false;
     }
 
+    final editorVersion = _documentEditorVersion;
+    final documentId = _selectedModuleDocument?.uuid ?? '';
+    final text = _documentDraftHtml.trim();
     _isSavingDocument = true;
     _documentErrorMessage = null;
     notifyListeners();
 
     try {
-      final text = documentController.toHtml().trim();
       await _auditRepository.updateSeatDescriptionTrainingModuleDocument(
         moduleId: resolvedModuleId,
-        documentId: _selectedModuleDocument?.uuid ?? '',
+        documentId: documentId,
         text: text,
       );
+      if (_isDisposed || editorVersion != _documentEditorVersion) return false;
       _selectedModuleDocument = SeatDescriptionTrainingDocument(
-        uuid: _selectedModuleDocument?.uuid ?? '',
+        uuid: documentId,
         text: text.isEmpty ? null : text,
       );
       _lastSavedDocumentHtml = text;
       return true;
     } catch (error) {
+      if (_isDisposed || editorVersion != _documentEditorVersion) return false;
       _documentErrorMessage = error.toString();
       return false;
     } finally {
-      _isSavingDocument = false;
-      notifyListeners();
-      _scheduleDocumentAutoSaveIfNeeded();
+      if (!_isDisposed && editorVersion == _documentEditorVersion) {
+        _isSavingDocument = false;
+        notifyListeners();
+        _scheduleDocumentAutoSaveIfNeeded();
+      }
     }
+  }
+
+  void updateDocumentHtml({
+    required String moduleId,
+    required int editorVersion,
+    required String html,
+  }) {
+    if (_isDisposed ||
+        !canEditSelectedModuleDocument ||
+        _isDocumentLoading ||
+        moduleId != _selectedModuleId ||
+        editorVersion != _documentEditorVersion ||
+        html == _documentDraftHtml) {
+      return;
+    }
+    _documentDraftHtml = html;
+    _scheduleDocumentAutoSaveIfNeeded();
   }
 
   Future<bool> saveAssignmentForSelectedModule() async {
@@ -2285,6 +2463,7 @@ class TrainingModuleController extends ChangeNotifier {
       _moduleLocalVideoPaths[resolvedModuleId] = videoFile.path;
       _applySelectedModuleVideo(uploadedVideo);
       _applySelectedModuleDescription(null);
+      unawaited(_refreshUploadedVideoTranscript(resolvedModuleId));
       _generateSelectedModuleSummaryInBackground(resolvedModuleId);
       return true;
     } catch (error) {
@@ -2319,6 +2498,7 @@ class TrainingModuleController extends ChangeNotifier {
     if (_selectedModuleDetail != null) {
       _applySelectedModuleVideo(video);
       _applySelectedModuleDescription(null);
+      unawaited(_refreshUploadedVideoTranscript(resolvedModuleId));
       return;
     }
 
@@ -3003,6 +3183,50 @@ class TrainingModuleController extends ChangeNotifier {
     }
 
     _applySelectedModuleDescription(description);
+    unawaited(_refreshUploadedVideoTranscript(resolvedModuleId));
+  }
+
+  Future<void> _refreshUploadedVideoTranscript(String moduleId) async {
+    final video = _selectedModuleDetail?.trainingVideo;
+    if (_isDisposed ||
+        _selectedModuleId != moduleId ||
+        video == null ||
+        (video.transcript?.trim().isNotEmpty ?? false)) {
+      return;
+    }
+
+    try {
+      final detail = await _auditRepository
+          .getSeatDescriptionTrainingModuleDetail(
+            moduleId: moduleId,
+            forceRefresh: true,
+          );
+      final refreshedVideo = detail.trainingVideo;
+      if (_isDisposed ||
+          _selectedModuleId != moduleId ||
+          !identical(_selectedModuleDetail?.trainingVideo, video) ||
+          refreshedVideo?.uuid != video.uuid ||
+          !(refreshedVideo?.transcript?.trim().isNotEmpty ?? false)) {
+        return;
+      }
+
+      // Only merge the transcript; preserve local video previews and editor drafts.
+      _applySelectedModuleVideo(
+        SeatDescriptionTrainingVideo(
+          uuid: video.uuid,
+          title: video.title,
+          url: video.url,
+          duration: video.duration,
+          transcript: refreshedVideo!.transcript,
+        ),
+      );
+    } catch (error) {
+      if (!_isDisposed) {
+        debugPrint(
+          'Unable to refresh the uploaded training transcript: $error',
+        );
+      }
+    }
   }
 
   void _applySelectedModuleVideo(SeatDescriptionTrainingVideo video) {
@@ -3167,9 +3391,18 @@ class TrainingModuleController extends ChangeNotifier {
 
   void _handleSummaryChanged() {
     _scheduleSummaryAutoSaveIfNeeded();
+    final hasContent = summaryController.text.trim().isNotEmpty;
+    if (_isSyncingSummaryController ||
+        hasContent == _lastSummaryDraftHasContent) {
+      return;
+    }
+    _lastSummaryDraftHasContent = hasContent;
+    notifyListeners();
   }
 
   void _handleDocumentChanged() {
+    if (_isSyncingDocumentController) return;
+    _documentDraftHtml = documentController.toHtml();
     _scheduleDocumentAutoSaveIfNeeded();
   }
 
@@ -3211,7 +3444,10 @@ class TrainingModuleController extends ChangeNotifier {
   }
 
   void _resetEditors() {
+    _disposeSopEditor();
+    _documentEditorVersion += 1;
     _summaryEditorVersion += 1;
+    _cancelSummaryWriting();
     _assignmentEditorVersion += 1;
     _moduleTitleAutoSaveDebounce?.cancel();
     _summaryAutoSaveDebounce?.cancel();
@@ -3220,12 +3456,14 @@ class TrainingModuleController extends ChangeNotifier {
     _isEditingSummary = false;
     _isSavingModuleTitle = false;
     _isSavingSummary = false;
+    _isGeneratingSummary = false;
     _editingSummaryVisibility = null;
     _isSavingDocument = false;
     _isSavingAssignment = false;
     _lastSavedModuleTitle = '';
     _lastSavedSummaryText = '';
     _lastSavedDocumentHtml = '';
+    _documentDraftHtml = '';
     _lastSavedAssignmentTitle = '';
     _lastSavedAssignmentHtml = '';
     _isSyncingModuleTitleController = true;
@@ -3233,6 +3471,7 @@ class TrainingModuleController extends ChangeNotifier {
     _isSyncingModuleTitleController = false;
     _isSyncingSummaryController = true;
     summaryController.clear();
+    _lastSummaryDraftHasContent = false;
     _isSyncingSummaryController = false;
     _isSyncingAssignmentController = true;
     assignmentTitleController.clear();
@@ -3283,14 +3522,19 @@ class TrainingModuleController extends ChangeNotifier {
       emptyText: '',
     );
     _lastSavedSummaryText = summaryText;
-    if (summaryController.text == summaryText) {
+    _setSummaryEditorText(summaryText);
+  }
+
+  void _setSummaryEditorText(String text) {
+    _lastSummaryDraftHasContent = text.trim().isNotEmpty;
+    if (summaryController.text == text) {
       return;
     }
 
     _isSyncingSummaryController = true;
     summaryController.value = summaryController.value.copyWith(
-      text: summaryText,
-      selection: TextSelection.collapsed(offset: summaryText.length),
+      text: text,
+      selection: TextSelection.collapsed(offset: text.length),
       composing: TextRange.empty,
     );
     _isSyncingSummaryController = false;
@@ -3314,10 +3558,20 @@ class TrainingModuleController extends ChangeNotifier {
 
   void _documentTextToController() {
     final documentText = _selectedModuleDocument?.text?.trim() ?? '';
+    _disposeSopEditor();
+    _documentEditorVersion += 1;
+    _documentAutoSaveDebounce?.cancel();
+    _isSavingDocument = false;
+    _documentDraftHtml = documentText;
     _isSyncingDocumentController = true;
     documentController.loadFromHtml(documentText);
-    _lastSavedDocumentHtml = documentController.toHtml().trim();
+    _lastSavedDocumentHtml = documentText;
     _isSyncingDocumentController = false;
+  }
+
+  void _disposeSopEditor() {
+    _sopEditorController?.dispose();
+    _sopEditorController = null;
   }
 
   void _assignmentTextToController() {
@@ -3358,7 +3612,9 @@ class TrainingModuleController extends ChangeNotifier {
   }
 
   void _scheduleSummaryAutoSaveIfNeeded() {
-    if (_isSyncingSummaryController || !canEditSelectedModuleSummary) {
+    if (_isSyncingSummaryController ||
+        _isGeneratingSummary ||
+        !canEditSelectedModuleSummary) {
       return;
     }
 
@@ -3375,11 +3631,15 @@ class TrainingModuleController extends ChangeNotifier {
   }
 
   void _scheduleDocumentAutoSaveIfNeeded() {
-    if (_isSyncingDocumentController || !canEditSelectedModuleDocument) {
+    if (_isDisposed ||
+        _isSyncingDocumentController ||
+        _isDocumentLoading ||
+        _isSavingDocument ||
+        !canEditSelectedModuleDocument) {
       return;
     }
 
-    final currentText = documentController.toHtml().trim();
+    final currentText = _documentDraftHtml.trim();
     final savedText = _lastSavedDocumentHtml;
     if (currentText == savedText) {
       _documentAutoSaveDebounce?.cancel();
@@ -3387,7 +3647,7 @@ class TrainingModuleController extends ChangeNotifier {
     }
 
     _documentAutoSaveDebounce?.cancel();
-    _documentAutoSaveDebounce = Timer(const Duration(milliseconds: 700), () {
+    _documentAutoSaveDebounce = Timer(const Duration(milliseconds: 350), () {
       unawaited(saveDocumentForSelectedModule());
     });
   }
@@ -3416,6 +3676,8 @@ class TrainingModuleController extends ChangeNotifier {
   @override
   void dispose() {
     _isDisposed = true;
+    _disposeSopEditor();
+    _cancelSummaryWriting();
     _documentRequestVersion += 1;
     _summaryEditorVersion += 1;
     _assignmentEditorVersion += 1;
@@ -3445,16 +3707,19 @@ class TrainingModuleController extends ChangeNotifier {
       _auditRepository
           .generateSeatDescriptionTrainingModuleSummary(moduleId: moduleId)
           .then((generatedDescription) {
-            if (_selectedModuleId != moduleId) {
+            if (_isDisposed || _selectedModuleId != moduleId) {
               return;
             }
 
             _applySelectedModuleDescription(generatedDescription);
+            unawaited(_refreshUploadedVideoTranscript(moduleId));
           })
           .catchError((Object error) {
+            if (_isDisposed) return;
             if (error is ApiError && error.statusCode == 404) {
               if (_selectedModuleId == moduleId) {
                 _applySelectedModuleDescription(null);
+                unawaited(_refreshUploadedVideoTranscript(moduleId));
               }
               _emitSummarySnackBar(
                 AppStrings.trainingNoSummaryAvailableSnackBar,

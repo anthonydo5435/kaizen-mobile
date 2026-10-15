@@ -103,7 +103,7 @@ class _DepartmentsScreenViewState extends State<_DepartmentsScreenView> {
     bool canManageContent,
   ) {
     return Padding(
-      padding: const EdgeInsets.fromLTRB(16, 0, 16, 24),
+      padding: const EdgeInsets.fromLTRB(8, 0, 8, 24),
       child: Column(
         children: [
           SeatProfileSearchBar(

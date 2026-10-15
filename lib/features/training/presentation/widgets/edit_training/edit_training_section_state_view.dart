@@ -32,7 +32,7 @@ extension _EditTrainingSectionViewStateView on _EditTrainingSectionViewState {
         (isEditingSopWithKeyboard || availableHeight < 440);
     final contentCard = _buildTabContent(
       controller,
-      showLessonHeader: !collapseLessonHeader,
+      showLessonHeader: !collapseLessonHeader && !_isLandscapeVideo,
     );
     final contentChildren = <Widget>[
       if (fillAvailableSpace) Expanded(child: contentCard) else contentCard,
@@ -60,13 +60,16 @@ extension _EditTrainingSectionViewStateView on _EditTrainingSectionViewState {
         crossAxisAlignment: CrossAxisAlignment.stretch,
         children: contentChildren,
       ),
-      bottomNavigationBar: SafeArea(
-        top: false,
-        bottom: false,
-        minimum: const EdgeInsets.only(top: 10, bottom: 14),
-        child: TrainingTabs(
-          navigation: _tabNavigation,
-          maxTabIndex: controller.maxAccessibleTabIndex,
+      bottomNavigationBar: Offstage(
+        offstage: _isLandscapeVideo,
+        child: SafeArea(
+          top: false,
+          bottom: false,
+          minimum: const EdgeInsets.fromLTRB(12, 10, 12, 14),
+          child: TrainingTabs(
+            navigation: _tabNavigation,
+            maxTabIndex: controller.maxAccessibleTabIndex,
+          ),
         ),
       ),
     );
@@ -120,6 +123,7 @@ extension _EditTrainingSectionViewStateView on _EditTrainingSectionViewState {
     return TrainingTabView(
       navigation: _tabNavigation,
       maxTabIndex: controller.maxAccessibleTabIndex,
+      isSwipeEnabled: !_isLandscapeVideo,
       onPageApproaching: (index) {
         if (index == 1) {
           unawaited(controller.loadDocumentForSelectedModule());
@@ -127,10 +131,14 @@ extension _EditTrainingSectionViewStateView on _EditTrainingSectionViewState {
           unawaited(controller.loadAssignmentForSelectedModule());
         }
       },
-      // Quiz keeps the screen's 16px inset, reducing its former 24px margin by a third.
-      pagePaddingBuilder: (index) => index == 2
+      // Keep the video surface full width; inset the other pages separately.
+      pagePaddingBuilder: (index) => index == 0
           ? EdgeInsets.zero
-          : const EdgeInsets.symmetric(horizontal: 8),
+          : EdgeInsets.symmetric(
+              horizontal:
+                  widget.horizontalContentPadding +
+                  (widget.isEmbedded && index != 2 ? 4 : 0),
+            ),
       pageBuilder: (context, index) {
         final showsLoading =
             (controller.isLoading && controller.selectedModuleDetail == null) ||
@@ -154,7 +162,15 @@ extension _EditTrainingSectionViewStateView on _EditTrainingSectionViewState {
           children: [
             Offstage(
               offstage: !showLessonHeader,
-              child: _buildLessonHeader(controller, tabIndex: index),
+              child: Padding(
+                padding: EdgeInsets.symmetric(
+                  horizontal: index == 0
+                      ? widget.horizontalContentPadding +
+                            (widget.isEmbedded ? 4 : 0)
+                      : 0,
+                ),
+                child: _buildLessonHeader(controller, tabIndex: index),
+              ),
             ),
             if (fillsPage) Expanded(child: tabContent) else tabContent,
           ],
@@ -180,6 +196,8 @@ extension _EditTrainingSectionViewStateView on _EditTrainingSectionViewState {
     required int tabIndex,
     required bool isBackgroundVideoUploadActive,
   }) {
+    final contentHorizontalPadding =
+        widget.horizontalContentPadding + (widget.isEmbedded ? 4 : 0);
     if (controller.isCreatingNewLessonDraft) {
       return _VideoTabContent(
         detail: null,
@@ -195,6 +213,7 @@ extension _EditTrainingSectionViewStateView on _EditTrainingSectionViewState {
         isEditingSummary: false,
         isSavingSummary: false,
         summaryController: controller.summaryController,
+        contentHorizontalPadding: contentHorizontalPadding,
       );
     }
 
@@ -216,6 +235,11 @@ extension _EditTrainingSectionViewStateView on _EditTrainingSectionViewState {
 
     if (tabIndex == 0) {
       return _VideoTabContent(
+        fullscreenInLandscape:
+            widget.allowDeviceRotation && _selectedTabIndex == 0,
+        onExitLandscapeFullscreen: widget.allowDeviceRotation
+            ? _resetVideoToPortrait
+            : null,
         detail: controller.selectedModuleDetail,
         localVideoPath: controller.selectedModuleLocalVideoPath,
         isReadOnly: !controller.canManageTraining,
@@ -232,16 +256,32 @@ extension _EditTrainingSectionViewStateView on _EditTrainingSectionViewState {
         isEditingSummary: controller.isEditingSummary,
         isSavingSummary: controller.isSavingSummary,
         summaryController: controller.summaryController,
+        contentHorizontalPadding: contentHorizontalPadding,
+        canGenerateSummary:
+            controller.canGenerateSummaryForSelectedModule &&
+            !isBackgroundVideoUploadActive,
+        isGeneratingSummary: controller.isGeneratingSummary,
+        isWritingSummary: controller.isWritingSummary,
         onUploadVideoTap: () => _selectVideoSourceAndUpload(controller),
         onReUploadVideoTap: () => _reUploadVideo(controller),
         onUpdateThumbnailTap: () => _pickAndUploadThumbnail(controller),
         onEditSummaryTap: controller.startEditingSummary,
         onCancelSummaryTap: controller.cancelEditingSummary,
         onSaveSummaryTap: () => controller.saveSummaryForSelectedModule(),
+        onGenerateSummaryTap: () {
+          FocusScope.of(context).unfocus();
+          unawaited(
+            controller.generateSummaryForSelectedModule(
+              animate: !MediaQuery.disableAnimationsOf(context),
+            ),
+          );
+        },
       );
     }
 
     if (tabIndex == 1) {
+      final moduleId = controller.selectedModuleId;
+      final editorVersion = controller.documentEditorVersion;
       return _SopTabContent(
         isLoading:
             controller.isDocumentLoading ||
@@ -251,20 +291,16 @@ extension _EditTrainingSectionViewStateView on _EditTrainingSectionViewState {
         isGeneratingSop: controller.isGeneratingSop,
         canEditDocument: controller.canEditSelectedModuleDocument,
         isSavingDocument: controller.isSavingDocument,
-        documentController: controller.documentController,
+        documentHtml: controller.documentHtml,
+        editorKey: ValueKey((moduleId, editorVersion)),
+        errorMessage: controller.documentErrorMessage,
+        editorControllerBuilder: () => controller.sopEditorController,
         onGenerateSopTap: () => _handleGenerateSopTap(controller),
         onDoneTap: () {
           if (MediaQuery.viewInsetsOf(context).bottom > 0) {
             FocusScope.of(context).unfocus();
           }
         },
-        onBoldTap: controller.applyDocumentBoldFormatting,
-        onItalicTap: controller.applyDocumentItalicFormatting,
-        onUnderlineTap: controller.applyDocumentUnderlineFormatting,
-        onBulletListTap: controller.applyDocumentBulletListFormatting,
-        onNumberedListTap: controller.applyDocumentNumberedListFormatting,
-        onQuoteTap: controller.applyDocumentQuoteFormatting,
-        onHeadingTap: controller.applyDocumentHeadingFormatting,
       );
     }
 

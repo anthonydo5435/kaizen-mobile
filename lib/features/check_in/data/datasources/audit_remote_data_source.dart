@@ -49,10 +49,12 @@ class AuditRemoteDataSource {
     required int quarter,
     String? search,
     String? jobUuid,
+    bool forceRefresh = false,
   }) {
     return _apiCallExecutor.processApi<AuditMainListModel>(
       apiCallType: ApiCallType.get,
       endpoint: ApiEndPoints.quarterlyAudit,
+      invalidateCacheBeforeRequest: forceRefresh,
       authToken: AppPreference.getAuthToken(),
       parameters: {
         'page': page,
@@ -114,10 +116,12 @@ class AuditRemoteDataSource {
     int? year,
     int? quarter,
     String? search,
+    bool forceRefresh = false,
   }) {
     return _apiCallExecutor.processApi<AuditMainListModel>(
       apiCallType: ApiCallType.get,
       endpoint: ApiEndPoints.quarterlyAuditMyAudits,
+      invalidateCacheBeforeRequest: forceRefresh,
       authToken: AppPreference.getAuthToken(),
       parameters: {
         'page': page,
@@ -144,10 +148,12 @@ class AuditRemoteDataSource {
     required int page,
     required int pageSize,
     String? search,
+    bool forceRefresh = false,
   }) {
     var result = _apiCallExecutor.processApi<dynamic>(
       apiCallType: ApiCallType.get,
       endpoint: ApiEndPoints.quarterlyAuditMyPerformanceSnapshot,
+      invalidateCacheBeforeRequest: forceRefresh,
       authToken: AppPreference.getAuthToken(),
       parameters: {
         'page': page,
@@ -163,10 +169,12 @@ class AuditRemoteDataSource {
     required int page,
     required int pageSize,
     String? search,
+    bool forceRefresh = false,
   }) {
     var result = _apiCallExecutor.processApi<dynamic>(
       apiCallType: ApiCallType.get,
       endpoint: ApiEndPoints.quarterlyAuditPerformanceSnapshot,
+      invalidateCacheBeforeRequest: forceRefresh,
       authToken: AppPreference.getAuthToken(),
       parameters: {
         'page': page,
@@ -738,11 +746,15 @@ class AuditRemoteDataSource {
   }
 
   Future<SeatDescriptionTrainingModuleDetail>
-  getSeatDescriptionTrainingModuleDetail({required String moduleId}) {
+  getSeatDescriptionTrainingModuleDetail({
+    required String moduleId,
+    bool forceRefresh = false,
+  }) {
     return _apiCallExecutor.processApi<SeatDescriptionTrainingModuleDetail>(
       apiCallType: ApiCallType.get,
       endpoint: ApiEndPoints.trainingModuleDetail(moduleId),
       authToken: AppPreference.getAuthToken(),
+      invalidateCacheBeforeRequest: forceRefresh,
       decoder: (json) {
         if (json is! Map<String, dynamic>) {
           throw const ApiError.invalidResponse();

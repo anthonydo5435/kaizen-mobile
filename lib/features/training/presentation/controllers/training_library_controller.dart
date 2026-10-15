@@ -623,12 +623,12 @@ class TrainingLibraryController extends ChangeNotifier {
   }
 
   Future<void> refresh({bool preservePosition = false}) async {
-    if (_isInitialLoading || _isRefreshing) {
+    if (_isDisposed || _isInitialLoading || _isRefreshing) {
       return;
     }
 
     final loadedPages = _currentPage;
-    _isPreservingListDuringRefresh = preservePosition && _items.isNotEmpty;
+    _isPreservingListDuringRefresh = preservePosition;
     final previousItems = _items;
     final previousDepartments = _departments;
     final previousHasNextPage = _hasNextPage;
@@ -643,8 +643,10 @@ class TrainingLibraryController extends ChangeNotifier {
       await _reloadModules(
         keepExistingItems: _isPreservingListDuringRefresh,
         minimumPageCount: _isPreservingListDuringRefresh ? loadedPages : 1,
+        forceRefresh: true,
       );
     } catch (error) {
+      if (_isDisposed) return;
       _errorMessage = error.toString();
       if (_isPreservingListDuringRefresh) {
         _items = previousItems;
@@ -654,6 +656,7 @@ class TrainingLibraryController extends ChangeNotifier {
       }
     }
 
+    if (_isDisposed) return;
     _isRefreshing = false;
     _isPreservingListDuringRefresh = false;
     _itemsDuringPositionPreservingRefresh = null;
@@ -772,6 +775,7 @@ class TrainingLibraryController extends ChangeNotifier {
   Future<void> _reloadModules({
     bool keepExistingItems = false,
     int minimumPageCount = 1,
+    bool forceRefresh = false,
   }) async {
     _listingVersion++;
     _isLoadingMore = false;
@@ -786,14 +790,18 @@ class TrainingLibraryController extends ChangeNotifier {
       _items = const <TrainingLibraryModule>[];
     }
     // Keep department choices visible until the replacement page arrives.
-    await _loadPage(1, replace: true);
+    await _loadPage(1, replace: true, forceRefresh: forceRefresh);
     while (_currentPage < minimumPageCount && _hasNextPage && !_isDisposed) {
-      await _loadPage(_currentPage + 1);
+      await _loadPage(_currentPage + 1, forceRefresh: forceRefresh);
     }
-    await _loadUntilFiltersHaveVisibleItems();
+    await _loadUntilFiltersHaveVisibleItems(forceRefresh: forceRefresh);
   }
 
-  Future<void> _loadPage(int page, {bool replace = false}) async {
+  Future<void> _loadPage(
+    int page, {
+    bool replace = false,
+    bool forceRefresh = false,
+  }) async {
     final version = _listingVersion;
     final response = await _getTrainingLibraryModulesUseCase(
       view: _viewMode.name,
@@ -805,6 +813,7 @@ class TrainingLibraryController extends ChangeNotifier {
       jobId: _selectedSeatId,
       jobCategoryId: _selectedCategory?.id,
       jobCategoryDescriptionId: _selectedDescription?.id,
+      forceRefresh: forceRefresh,
     );
 
     if (_isDisposed || version != _listingVersion) return;
@@ -828,12 +837,14 @@ class TrainingLibraryController extends ChangeNotifier {
     _syncSelectedDepartment();
   }
 
-  Future<void> _loadUntilFiltersHaveVisibleItems() async {
+  Future<void> _loadUntilFiltersHaveVisibleItems({
+    bool forceRefresh = false,
+  }) async {
     while ((_hasActiveDepartmentFilter || _selectedSeatId != null) &&
         _filteredItems.isEmpty &&
         _hasNextPage &&
         !_isDisposed) {
-      await _loadPage(_currentPage + 1);
+      await _loadPage(_currentPage + 1, forceRefresh: forceRefresh);
     }
   }
 

@@ -1,5 +1,6 @@
 import 'package:flutter/material.dart';
 
+import '../../../../core/constants/app_colors.dart';
 import '../../../../core/constants/app_strings.dart';
 import '../../../../core/navigation/app_menu_type.dart';
 import '../../../../core/widgets/drawer_main_screen.dart';
@@ -79,7 +80,7 @@ class _TrainingLibraryFiltersAndResults extends StatelessWidget {
     final items = controller.visibleItems;
 
     return Padding(
-      padding: const EdgeInsets.fromLTRB(16, 8, 16, 0),
+      padding: const EdgeInsets.fromLTRB(8, 8, 8, 0),
       child: Column(
         crossAxisAlignment: CrossAxisAlignment.stretch,
         children: [
@@ -93,8 +94,9 @@ class _TrainingLibraryFiltersAndResults extends StatelessWidget {
           ],
           const SizedBox(height: 24),
           Expanded(
-            child: RefreshIndicator.noSpinner(
-              onRefresh: controller.refresh,
+            child: RefreshIndicator(
+              color: AppColors.purple2,
+              onRefresh: () => controller.refresh(preservePosition: true),
               child: TrainingLibraryResultArea(
                 controller: controller,
                 items: items,

@@ -103,29 +103,32 @@ class CheckInMemberCard extends StatelessWidget {
                 ],
               ),
               const SizedBox(height: 18),
-              Row(
-                children: [
-                  Expanded(
-                    child: _MetricTile(
-                      value: member.overallScore.toStringAsFixed(1),
-                      label: AppStrings.auditOverallScore,
+              IntrinsicHeight(
+                child: Row(
+                  crossAxisAlignment: CrossAxisAlignment.stretch,
+                  children: [
+                    Expanded(
+                      child: _MetricTile(
+                        value: member.overallScore.toStringAsFixed(1),
+                        label: AppStrings.auditOverallScore,
+                      ),
                     ),
-                  ),
-                  const SizedBox(width: 10),
-                  Expanded(
-                    child: _MetricTile(
-                      value: '${member.confidenceLevel}%',
-                      label: AppStrings.auditConfidenceLevel,
+                    const SizedBox(width: 10),
+                    Expanded(
+                      child: _MetricTile(
+                        value: '${member.confidenceLevel}%',
+                        label: AppStrings.auditConfidenceLevel,
+                      ),
                     ),
-                  ),
-                  const SizedBox(width: 10),
-                  Expanded(
-                    child: _CheckInActionButton(
-                      onTap: onCheckInTap,
-                      label: actionLabel,
+                    const SizedBox(width: 10),
+                    Expanded(
+                      child: _CheckInActionButton(
+                        onTap: onCheckInTap,
+                        label: actionLabel,
+                      ),
                     ),
-                  ),
-                ],
+                  ],
+                ),
               ),
             ],
           ),
@@ -242,7 +245,8 @@ class _MetricTile extends StatelessWidget {
   @override
   Widget build(BuildContext context) {
     return Container(
-      height: 78,
+      constraints: const BoxConstraints(minHeight: 78),
+      padding: const EdgeInsets.symmetric(vertical: 8),
       decoration: BoxDecoration(
         color: AppColors.surfaceDark2,
         borderRadius: BorderRadius.circular(12),
@@ -250,6 +254,7 @@ class _MetricTile extends StatelessWidget {
       alignment: Alignment.center,
       child: Column(
         mainAxisAlignment: MainAxisAlignment.center,
+        mainAxisSize: MainAxisSize.min,
         children: [
           AppTextView.title1(value, color: AppColors.textPrimary, fontSize: 22),
           const SizedBox(height: 3),
@@ -279,24 +284,29 @@ class _CheckInActionButton extends StatelessWidget {
       child: InkWell(
         borderRadius: BorderRadius.circular(12),
         onTap: onTap,
-        child: SizedBox(
-          height: 78,
-          child: Column(
-            mainAxisAlignment: MainAxisAlignment.center,
-            children: [
-              const Icon(
-                Icons.arrow_outward_rounded,
-                color: AppColors.textPrimary,
-                size: 28,
-              ),
-              const SizedBox(height: 6),
-              AppTextView.body1(
-                label,
-                color: AppColors.textPrimary,
-                fontWeight: FontWeight.w500,
-                fontSize: 16,
-              ),
-            ],
+        child: ConstrainedBox(
+          constraints: const BoxConstraints(minHeight: 78),
+          child: Padding(
+            padding: const EdgeInsets.symmetric(vertical: 8, horizontal: 4),
+            child: Column(
+              mainAxisAlignment: MainAxisAlignment.center,
+              mainAxisSize: MainAxisSize.min,
+              children: [
+                const Icon(
+                  Icons.arrow_outward_rounded,
+                  color: AppColors.textPrimary,
+                  size: 28,
+                ),
+                const SizedBox(height: 6),
+                AppTextView.body1(
+                  label,
+                  color: AppColors.textPrimary,
+                  fontWeight: FontWeight.w500,
+                  fontSize: 16,
+                  textAlign: TextAlign.center,
+                ),
+              ],
+            ),
           ),
         ),
       ),

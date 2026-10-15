@@ -331,8 +331,38 @@ void main() {
     }
   });
 
+  testWidgets('all four tabs switch pages in Sandbox and retain the bar', (
+    tester,
+  ) async {
+    AppManager.instance.updateCurrentUser(User(uuid: 'owner', isOwner: true));
+    expect(AppManager.instance.usesParentApiEndpoints, isTrue);
+    final harness = _NavigationHarness();
+    await tester.pumpWidget(harness.build());
+    await tester.pumpAndSettle();
+    final bar = tester.element(find.byType(AppBottomNavBar));
+    for (final destination in [
+      (AppStrings.checkInTitle, AppMenuType.audits),
+      (AppStrings.bottomNavPerformance, AppMenuType.performanceSnapshot),
+      (AppStrings.bottomNavLtc, AppMenuType.learningTracks),
+      (AppStrings.trainingLibraryTitle, AppMenuType.library),
+    ]) {
+      await tester.tap(_tab(destination.$1));
+      await tester.pumpAndSettle();
+      expect(
+        harness.routes.single.navigationController.selectedMenu,
+        destination.$2,
+      );
+      expect(find.text('${destination.$2.name} row 0'), findsOneWidget);
+      expect(AppManager.instance.currentRouteName, _menus[destination.$2]);
+      expect(tester.element(find.byType(AppBottomNavBar)), same(bar));
+    }
+    expect(harness.loads.values, everyElement(1));
+    expect(harness.loads, hasLength(4));
+    await harness.dispose(tester);
+  });
+
   test(
-    'the shell rejects disabled sandbox destinations and unsupported menus',
+    'the shell allows all four Sandbox tabs and rejects unsupported menus',
     () {
       AppManager.instance.updateCurrentUser(User(uuid: 'owner', isOwner: true));
       expect(AppManager.instance.usesParentApiEndpoints, isTrue);
@@ -344,8 +374,16 @@ void main() {
       final navigation = route.navigationController;
       for (final menu in [
         AppMenuType.audits,
-        AppMenuType.learningTracks,
         AppMenuType.performanceSnapshot,
+        AppMenuType.learningTracks,
+        AppMenuType.library,
+      ]) {
+        navigation.selectMenu(menu);
+        expect(navigation.selectedMenu, menu);
+        expect(navigation.hasVisited(menu), isTrue);
+        expect(route.settings.name, _menus[menu]);
+      }
+      for (final menu in [
         AppMenuType.compliance,
         AppMenuType.profile,
         AppMenuType.seatProfiles,

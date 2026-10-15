@@ -55,6 +55,8 @@ void main() {
           response = {'uuid': 'document', 'text': '<p>Procedure</p>'};
         } else if (endpoint == ApiEndPoints.trainingModuleQuestions('lesson')) {
           response = [];
+        } else if (endpoint == ApiEndPoints.lmsPublicLink('description')) {
+          response = {'active': false};
         } else {
           throw StateError('Unexpected API request: $endpoint');
         }
@@ -71,19 +73,35 @@ void main() {
           ChangeNotifierProvider<AppManager>.value(
             value: AppManager.instance,
             child: const MaterialApp(
-              home: Scaffold(
-                body: EditTrainingSection(
-                  trainingRoute: SeatDescriptionTrainingRoute(
-                    job: 'seat',
-                    category: 'category',
-                    description: 'description',
-                  ),
-                  canManageTraining: true,
+              home: EditTrainingScreen(
+                trainingRoute: SeatDescriptionTrainingRoute(
+                  job: 'seat',
+                  category: 'category',
+                  description: 'description',
                 ),
+                canManageTraining: true,
               ),
             ),
           ),
         );
+        await tester.pumpAndSettle();
+        final navigationSurface = find.descendant(
+          of: find.byType(TrainingTabs),
+          matching: find.byType(ClipRRect),
+        );
+        for (final width in [390.0, 320.0]) {
+          tester.view.physicalSize = Size(width, 844);
+          await tester.pumpAndSettle();
+          final bounds = tester.getRect(navigationSurface);
+          expect(bounds.left, 12);
+          expect(bounds.right, width - 12);
+          final titleBounds = tester.getRect(
+            find.byType(TrainingLessonTitleField),
+          );
+          expect(titleBounds.left, 8);
+          expect(titleBounds.right, width - 8);
+        }
+        tester.view.physicalSize = const Size(390, 844);
         await tester.pumpAndSettle();
         await tester.tap(
           find.descendant(

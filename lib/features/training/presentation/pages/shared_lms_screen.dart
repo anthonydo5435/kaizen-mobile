@@ -76,6 +76,7 @@ class _SharedLmsView extends StatelessWidget {
         backgroundColor: AppColors.mainBg,
         foregroundColor: AppColors.textPrimary,
         elevation: 0,
+        leadingWidth: 40,
         leading: AppBackButton(onPressed: () => _goBack(context)),
         title: const AppTextView.title1(
           AppStrings.trainingLibraryTitle,
@@ -90,7 +91,7 @@ class _SharedLmsView extends StatelessWidget {
             ? const Center(child: FastCircularProgressIndicator())
             : controller.errorMessage != null
             ? ListView(
-                padding: const EdgeInsets.symmetric(horizontal: 16),
+                padding: const EdgeInsets.symmetric(horizontal: 8),
                 children: [
                   TrainingLibraryStatusState(
                     message: controller.errorMessage!,
@@ -124,7 +125,7 @@ class _SharedLmsContentView extends StatelessWidget {
     return CustomScrollView(
       slivers: [
         SliverPadding(
-          padding: const EdgeInsets.fromLTRB(16, 8, 16, 24),
+          padding: const EdgeInsets.fromLTRB(8, 8, 8, 24),
           sliver: SliverToBoxAdapter(
             child: Column(
               crossAxisAlignment: CrossAxisAlignment.stretch,
@@ -146,7 +147,10 @@ class _SharedLmsContentView extends StatelessWidget {
             hasScrollBody: false,
             child: Center(
               child: Padding(
-                padding: const EdgeInsets.all(16),
+                padding: const EdgeInsets.symmetric(
+                  horizontal: 8,
+                  vertical: 16,
+                ),
                 child: AppTextView.body(
                   content.lessons.isEmpty
                       ? AppStrings.sharedLmsNoLessons
@@ -159,7 +163,7 @@ class _SharedLmsContentView extends StatelessWidget {
           )
         else
           SliverPadding(
-            padding: const EdgeInsets.fromLTRB(16, 0, 16, 16),
+            padding: const EdgeInsets.fromLTRB(8, 0, 8, 16),
             sliver: _SharedLmsLessonGrid(
               sharedContentId: controller.publicId,
               lessons: lessons,

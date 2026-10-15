@@ -6,7 +6,10 @@ class GetComplianceOverviewUseCase {
 
   final ComplianceRepository _repository;
 
-  Future<ComplianceOverview> call({bool forceRefresh = false}) {
-    return _repository.getComplianceOverview(forceRefresh: forceRefresh);
+  Future<ComplianceOverview> call({bool forceRefresh = false, String? name}) {
+    return _repository.getComplianceOverview(
+      forceRefresh: forceRefresh,
+      name: name,
+    );
   }
 }

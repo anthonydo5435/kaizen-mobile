@@ -16,6 +16,9 @@ import 'package:sparrowkaizen/features/login/domain/entities/user_hierarchy_memb
 import 'package:sparrowkaizen/features/training/domain/entities/seat_description_training_route.dart';
 import 'package:sparrowkaizen/features/training/presentation/pages/edit_training_screen.dart';
 import 'package:sparrowkaizen/features/training/presentation/pages/shared_lesson_details_screen.dart';
+import 'package:sparrowkaizen/features/training/presentation/controllers/training_module_controller.dart';
+
+import '../../fixtures/tiptap_sop_fixture.dart';
 
 void main() {
   final writes = <http.Request>[];
@@ -86,14 +89,19 @@ void main() {
                   await tester.pumpWidget(
                     ChangeNotifierProvider<AppManager>.value(
                       value: AppManager.instance,
-                      child: MaterialApp(
-                        home: isViewer
-                            ? const TrainingLessonViewerScreen(
-                                trainingRoute: route,
-                              )
-                            : const Scaffold(
-                                body: EditTrainingSection(trainingRoute: route),
-                              ),
+                      child: Provider<TrainingSopEditorFactory>.value(
+                        value: TiptapSopFixture().create,
+                        child: MaterialApp(
+                          home: isViewer
+                              ? const TrainingLessonViewerScreen(
+                                  trainingRoute: route,
+                                )
+                              : const Scaffold(
+                                  body: EditTrainingSection(
+                                    trainingRoute: route,
+                                  ),
+                                ),
+                        ),
                       ),
                     ),
                   );
@@ -104,7 +112,14 @@ void main() {
                   );
                   expect(tabs.maxTabIndex, canAccessExtras ? 3 : 1);
                   await tester.tap(_tab(AppStrings.trainingSopTab));
-                  await tester.pumpAndSettle();
+                  // Tiptap's caret animation keeps scheduling frames while mounted.
+                  if (canEdit) {
+                    await tester.pump();
+                    await tester.pump(const Duration(milliseconds: 300));
+                    await tester.pump();
+                  } else {
+                    await tester.pumpAndSettle();
+                  }
                   expect(tabs.navigation.selectedIndex, 1);
                   if (!canEdit) {
                     expect(find.text('Procedure'), findsOneWidget);
@@ -114,13 +129,7 @@ void main() {
                           widget.decoration?.hintText ==
                               AppStrings.trainingSopHint,
                     );
-                    expect(sopField, isViewer ? findsNothing : findsOneWidget);
-                    if (!isViewer) {
-                      expect(
-                        tester.widget<TextField>(sopField).readOnly,
-                        isTrue,
-                      );
-                    }
+                    expect(sopField, findsNothing);
                     expect(
                       find.text(AppStrings.trainingCreateWithAi),
                       findsNothing,

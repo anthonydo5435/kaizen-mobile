@@ -27,6 +27,7 @@ class AuditRepositoryImpl implements AuditRepository {
     required int quarter,
     String? search,
     String? jobUuid,
+    bool forceRefresh = false,
   }) {
     return _remoteDataSource.getAuditMainList(
       page: page,
@@ -35,6 +36,7 @@ class AuditRepositoryImpl implements AuditRepository {
       quarter: quarter,
       search: search,
       jobUuid: jobUuid,
+      forceRefresh: forceRefresh,
     );
   }
 
@@ -62,6 +64,7 @@ class AuditRepositoryImpl implements AuditRepository {
     int? year,
     int? quarter,
     String? search,
+    bool forceRefresh = false,
   }) {
     return _remoteDataSource.getMyAudits(
       page: page,
@@ -69,6 +72,7 @@ class AuditRepositoryImpl implements AuditRepository {
       year: year,
       quarter: quarter,
       search: search,
+      forceRefresh: forceRefresh,
     );
   }
 
@@ -77,11 +81,13 @@ class AuditRepositoryImpl implements AuditRepository {
     required int page,
     required int pageSize,
     String? search,
+    bool forceRefresh = false,
   }) {
     return _remoteDataSource.getMyPerformanceSnapshot(
       page: page,
       pageSize: pageSize,
       search: search,
+      forceRefresh: forceRefresh,
     );
   }
 
@@ -90,11 +96,13 @@ class AuditRepositoryImpl implements AuditRepository {
     required int page,
     required int pageSize,
     String? search,
+    bool forceRefresh = false,
   }) {
     return _remoteDataSource.getPerformanceSnapshot(
       page: page,
       pageSize: pageSize,
       search: search,
+      forceRefresh: forceRefresh,
     );
   }
 
@@ -328,9 +336,13 @@ class AuditRepositoryImpl implements AuditRepository {
 
   @override
   Future<SeatDescriptionTrainingModuleDetail>
-  getSeatDescriptionTrainingModuleDetail({required String moduleId}) {
+  getSeatDescriptionTrainingModuleDetail({
+    required String moduleId,
+    bool forceRefresh = false,
+  }) {
     return _remoteDataSource.getSeatDescriptionTrainingModuleDetail(
       moduleId: moduleId,
+      forceRefresh: forceRefresh,
     );
   }
 

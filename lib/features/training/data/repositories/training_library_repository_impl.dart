@@ -36,6 +36,7 @@ class TrainingLibraryRepositoryImpl implements TrainingLibraryRepository {
     String? jobId,
     String? jobCategoryId,
     String? jobCategoryDescriptionId,
+    bool forceRefresh = false,
   }) {
     return _remoteDataSource.getTrainingLibraryModules(
       view: view,
@@ -47,6 +48,7 @@ class TrainingLibraryRepositoryImpl implements TrainingLibraryRepository {
       jobId: jobId,
       jobCategoryId: jobCategoryId,
       jobCategoryDescriptionId: jobCategoryDescriptionId,
+      forceRefresh: forceRefresh,
     );
   }
 }

@@ -282,6 +282,12 @@ class CheckInController extends ChangeNotifier {
       _state.selectedAuditQuarter ??
       CustomFunctions.currentYearQuarter().quarter;
 
+  bool get isSelectedAuditPeriodCurrent {
+    final currentPeriod = CustomFunctions.currentYearQuarter();
+    return selectedAuditYear == currentPeriod.year &&
+        selectedAuditQuarter == currentPeriod.quarter;
+  }
+
   PerformanceReportCoreValueVisualSpec
   resolvePerformanceReportCoreValueVisualSpec(
     PerformanceReportCoreValue coreValue,
@@ -475,6 +481,14 @@ class CheckInController extends ChangeNotifier {
       notifyListeners();
       _logRecoverableError('initialize', error);
     }
+  }
+
+  Future<void> refresh() async {
+    if (_isDisposed || _state.isLoading || _state.isLoadingMore) {
+      return;
+    }
+    _cancelPendingMainListSearchRefresh();
+    await _refreshMainListSearchResults(showLoader: true, forceRefresh: true);
   }
 
   Future<void> loadNextPage() async {
@@ -2227,7 +2241,10 @@ class CheckInController extends ChangeNotifier {
     await _refreshMainListSearchResults(showLoader: true);
   }
 
-  Future<void> _refreshMainListSearchResults({required bool showLoader}) async {
+  Future<void> _refreshMainListSearchResults({
+    required bool showLoader,
+    bool forceRefresh = false,
+  }) async {
     final requestKey = _mainListRequestKey;
     _clearMainListCaches();
 
@@ -2235,7 +2252,14 @@ class CheckInController extends ChangeNotifier {
     notifyListeners();
 
     try {
-      final mainList = await _loadListForSelectedStatus(page: 1, pageSize: 12);
+      final mainList = await _loadListForSelectedStatus(
+        page: 1,
+        pageSize: 12,
+        forceRefresh: forceRefresh,
+      );
+      if (_isDisposed) {
+        return;
+      }
       if (requestKey != _mainListRequestKey) {
         _state = _state.copyWith(isLoading: false, isLoadingMore: false);
         notifyListeners();
@@ -2254,6 +2278,9 @@ class CheckInController extends ChangeNotifier {
       );
       notifyListeners();
     } catch (error) {
+      if (_isDisposed) {
+        return;
+      }
       if (requestKey != _mainListRequestKey) {
         _state = _state.copyWith(isLoading: false, isLoadingMore: false);
         notifyListeners();
@@ -2264,7 +2291,9 @@ class CheckInController extends ChangeNotifier {
       notifyListeners();
       _logRecoverableError('refreshMainListSearchResults', error);
     } finally {
-      _flushPendingMainListSearchRefresh();
+      if (!_isDisposed) {
+        _flushPendingMainListSearchRefresh();
+      }
     }
   }
 
@@ -2487,6 +2516,7 @@ class CheckInController extends ChangeNotifier {
     required int page,
     required int pageSize,
     String? search,
+    bool forceRefresh = false,
   }) {
     final resolvedSearch = search ?? _state.searchQuery;
     if (!_state.isActualOwner &&
@@ -2495,6 +2525,7 @@ class CheckInController extends ChangeNotifier {
         page: page,
         pageSize: pageSize,
         search: resolvedSearch,
+        forceRefresh: forceRefresh,
       );
     }
 
@@ -2502,6 +2533,7 @@ class CheckInController extends ChangeNotifier {
       page: page,
       pageSize: pageSize,
       search: resolvedSearch,
+      forceRefresh: forceRefresh,
     );
   }
 
@@ -2542,6 +2574,7 @@ class CheckInController extends ChangeNotifier {
     required int page,
     required int pageSize,
     String? search,
+    bool forceRefresh = false,
   }) {
     final trimmedSearch = search?.trim();
     return _getAuditOverviewUseCase(
@@ -2553,6 +2586,7 @@ class CheckInController extends ChangeNotifier {
           ? null
           : trimmedSearch,
       jobUuid: _selectedSeatProfileJobUuid,
+      forceRefresh: forceRefresh,
     );
   }
 
@@ -2560,10 +2594,16 @@ class CheckInController extends ChangeNotifier {
     required int page,
     required int pageSize,
     String? search,
+    bool forceRefresh = false,
   }) {
     final auditRepository = _auditRepository;
     if (auditRepository == null) {
-      return _loadTeamMembers(page: page, pageSize: pageSize, search: search);
+      return _loadTeamMembers(
+        page: page,
+        pageSize: pageSize,
+        search: search,
+        forceRefresh: forceRefresh,
+      );
     }
 
     return auditRepository.getMyAudits(
@@ -2572,6 +2612,7 @@ class CheckInController extends ChangeNotifier {
       year: selectedAuditYear,
       quarter: selectedAuditQuarter,
       search: search,
+      forceRefresh: forceRefresh,
     );
   }
 

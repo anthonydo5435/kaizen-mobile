@@ -56,7 +56,9 @@ class _TrainingLibraryResultAreaState extends State<TrainingLibraryResultArea> {
     if (controller.isInlineLoading) {
       return CustomScrollView(
         controller: scrollController,
-        physics: const AlwaysScrollableScrollPhysics(),
+        physics: const AlwaysScrollableScrollPhysics(
+          parent: ClampingScrollPhysics(),
+        ),
         slivers: const [
           SliverFillRemaining(
             hasScrollBody: false,
@@ -71,7 +73,9 @@ class _TrainingLibraryResultAreaState extends State<TrainingLibraryResultArea> {
     if (controller.errorMessage != null && controller.items.isEmpty) {
       return ListView(
         controller: scrollController,
-        physics: const AlwaysScrollableScrollPhysics(),
+        physics: const AlwaysScrollableScrollPhysics(
+          parent: ClampingScrollPhysics(),
+        ),
         children: [
           TrainingLibraryStatusState(
             message: controller.errorMessage!,
@@ -85,7 +89,9 @@ class _TrainingLibraryResultAreaState extends State<TrainingLibraryResultArea> {
     if (items.isEmpty) {
       return ListView(
         controller: scrollController,
-        physics: const AlwaysScrollableScrollPhysics(),
+        physics: const AlwaysScrollableScrollPhysics(
+          parent: ClampingScrollPhysics(),
+        ),
         children: const [
           TrainingLibraryStatusState(
             message: AppStrings.trainingLibraryNoModulesFound,
@@ -167,7 +173,9 @@ class _TrainingLibraryGrid extends StatelessWidget {
         return CustomScrollView(
           controller: scrollController,
           cacheExtent: 600,
-          physics: const AlwaysScrollableScrollPhysics(),
+          physics: const AlwaysScrollableScrollPhysics(
+            parent: ClampingScrollPhysics(),
+          ),
           slivers: [
             SliverGrid.builder(
               gridDelegate: SliverGridDelegateWithFixedCrossAxisCount(
@@ -190,7 +198,12 @@ class _TrainingLibraryGrid extends StatelessWidget {
                 );
               },
             ),
-            SliverToBoxAdapter(child: footer ?? const SizedBox(height: 16)),
+            if (footer != null) SliverToBoxAdapter(child: footer),
+            SliverToBoxAdapter(
+              child: SizedBox(
+                height: MediaQuery.paddingOf(context).bottom + 16,
+              ),
+            ),
           ],
         );
       },
@@ -220,8 +233,12 @@ class _TrainingLibraryList extends StatelessWidget {
     return ListView.separated(
       controller: scrollController,
       cacheExtent: 600,
-      padding: const EdgeInsets.only(bottom: 16),
-      physics: const AlwaysScrollableScrollPhysics(),
+      padding: EdgeInsets.only(
+        bottom: MediaQuery.paddingOf(context).bottom + 16,
+      ),
+      physics: const AlwaysScrollableScrollPhysics(
+        parent: ClampingScrollPhysics(),
+      ),
       itemCount: items.length + (footer != null ? 1 : 0),
       separatorBuilder: (_, index) => SizedBox(
         height: footer != null && index == items.length - 1 ? 18 : 16,

@@ -54,12 +54,6 @@ class _PerformanceSnapshotView extends StatelessWidget {
   @override
   Widget build(BuildContext context) {
     final controller = context.watch<PerformanceSnapshotController>();
-    final data = controller.currentData;
-    final visibleReports = controller.visibleReports;
-    final showTeamReportsControls = controller.canAccessTeamReports;
-    final showSelectionTabs =
-        showTeamReportsControls && !controller.isActualOwner;
-
     return DrawerMainScreen(
       title: AppStrings.performanceSnapshot,
       selectedMenu: AppMenuType.performanceSnapshot,
@@ -67,78 +61,116 @@ class _PerformanceSnapshotView extends StatelessWidget {
       child: SafeArea(
         top: false,
         bottom: false,
-        child: ListView(
-          controller: controller.scrollController,
-          padding: const EdgeInsets.fromLTRB(16, 8, 16, 24),
-          children: [
-            if (showTeamReportsControls) ...[
-              if (showSelectionTabs) ...[
-                _PerformanceSnapshotTabs(
-                  selectedTab: controller.selectedTab,
-                  onTabSelected: (tab) {
-                    controller.selectTab(
-                      tab == PerformanceSnapshotTab.reports
-                          ? AuditMemberStatus.active
-                          : AuditMemberStatus.deactivated,
-                    );
-                  },
-                ),
-                const SizedBox(height: 22),
-              ],
-              CheckInSearchBar(
-                controller: controller.searchController,
-                onChanged: controller.updateSearchQuery,
-                onClearTap: () {
-                  controller.resetSearch();
-                },
-                isSearchLoading: controller.isSearchLoading,
-                onFilterTap: () => _openSeatProfileFilter(context, controller),
-              ),
-              if (controller.selectedJobTitle != null) ...[
-                const SizedBox(height: 14),
-                _FilterTag(
-                  label: controller.selectedJobTitle!,
-                  onClear: controller.clearSelectedJobTitle,
-                ),
-              ],
-              const SizedBox(height: 18),
-              if (controller.isFilterLoading)
-                const Padding(
-                  padding: EdgeInsets.only(bottom: 18),
-                  child: Center(
-                    child: AppTextView.body2(
-                      AppStrings.performanceSnapshotFilterLoading,
-                      color: AppColors.textSecondary,
-                    ),
-                  ),
-                ),
-            ],
-            if (data.isLoading && data.items.isEmpty)
-              Center(child: FastCircularProgressIndicator())
-            else if (visibleReports.isEmpty)
-              _EmptyState(message: controller.emptyStateMessage)
-            else ...[
-              for (var index = 0; index < visibleReports.length; index++) ...[
-                PerformanceSnapshotCard(
-                  member: visibleReports[index],
-                  actionLabel: 'View',
-                  onCheckInTap: () => _openReport(
-                    context,
-                    visibleReports[index],
-                    controller.selectedTab == PerformanceSnapshotTab.myReports,
-                  ),
-                ),
-                if (index != visibleReports.length - 1)
-                  const SizedBox(height: 18),
-              ],
-              if (data.isLoadingMore) ...[
-                const SizedBox(height: 18),
-                Center(child: FastCircularProgressIndicator()),
-              ],
-            ],
-          ],
+        child: Builder(
+          builder: (context) => _buildContent(context, controller),
         ),
       ),
+    );
+  }
+
+  Widget _buildContent(
+    BuildContext context,
+    PerformanceSnapshotController controller,
+  ) {
+    final data = controller.currentData;
+    final visibleReports = controller.visibleReports;
+    final showTeamReportsControls = controller.canAccessTeamReports;
+    final showSelectionTabs =
+        showTeamReportsControls && !controller.isActualOwner;
+
+    return Column(
+      children: [
+        if (showSelectionTabs)
+          Padding(
+            padding: const EdgeInsets.fromLTRB(8, 8, 8, 22),
+            child: _PerformanceSnapshotTabs(
+              selectedTab: controller.selectedTab,
+              onTabSelected: (tab) => controller.selectTab(
+                tab == PerformanceSnapshotTab.reports
+                    ? AuditMemberStatus.active
+                    : AuditMemberStatus.deactivated,
+              ),
+            ),
+          ),
+        Expanded(
+          child: RefreshIndicator(
+            color: AppColors.purple2,
+            onRefresh: controller.refresh,
+            child: ListView(
+              controller: controller.scrollController,
+              physics: const AlwaysScrollableScrollPhysics(
+                parent: ClampingScrollPhysics(),
+              ),
+              padding: EdgeInsets.fromLTRB(
+                8,
+                showSelectionTabs ? 0 : 8,
+                8,
+                MediaQuery.paddingOf(context).bottom + 24,
+              ),
+              children: [
+                if (showTeamReportsControls) ...[
+                  CheckInSearchBar(
+                    controller: controller.searchController,
+                    onChanged: controller.updateSearchQuery,
+                    onClearTap: () {
+                      controller.resetSearch();
+                    },
+                    isSearchLoading: controller.isSearchLoading,
+                    onFilterTap: () =>
+                        _openSeatProfileFilter(context, controller),
+                  ),
+                  if (controller.selectedJobTitle != null) ...[
+                    const SizedBox(height: 14),
+                    _FilterTag(
+                      label: controller.selectedJobTitle!,
+                      onClear: controller.clearSelectedJobTitle,
+                    ),
+                  ],
+                  const SizedBox(height: 18),
+                  if (controller.isFilterLoading)
+                    const Padding(
+                      padding: EdgeInsets.only(bottom: 18),
+                      child: Center(
+                        child: AppTextView.body2(
+                          AppStrings.performanceSnapshotFilterLoading,
+                          color: AppColors.textSecondary,
+                        ),
+                      ),
+                    ),
+                ],
+                if (data.isLoading && data.items.isEmpty)
+                  Center(child: FastCircularProgressIndicator())
+                else if (visibleReports.isEmpty)
+                  _EmptyState(message: controller.emptyStateMessage)
+                else ...[
+                  for (
+                    var index = 0;
+                    index < visibleReports.length;
+                    index++
+                  ) ...[
+                    PerformanceSnapshotCard(
+                      member: visibleReports[index],
+                      actionLabel: 'View',
+                      onCheckInTap: () => _openReport(
+                        context,
+                        visibleReports[index],
+                        controller.selectedTab ==
+                            PerformanceSnapshotTab.myReports,
+                      ),
+                    ),
+                    if (index != visibleReports.length - 1)
+                      const SizedBox(height: 18),
+                  ],
+                  if (data.isLoadingMore) ...[
+                    const SizedBox(height: 18),
+                    Center(child: FastCircularProgressIndicator()),
+                  ],
+                ],
+              ],
+            ),
+          ),
+        ),
+      ],
     );
   }
 

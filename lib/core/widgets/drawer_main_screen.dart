@@ -3,7 +3,6 @@ import 'package:provider/provider.dart';
 
 import '../../routes/app_router.dart' show AppRouter;
 import '../constants/app_colors.dart';
-import '../managers/app_manager.dart';
 import '../navigation/app_menu_type.dart';
 import '../navigation/main_navigation_controller.dart';
 import 'app_back_button.dart';
@@ -89,6 +88,8 @@ class DrawerMainScreen extends StatelessWidget {
       scrolledUnderElevation: visibility == null ? null : 0,
       surfaceTintColor: visibility == null ? null : Colors.transparent,
       centerTitle: centerTitle,
+      // Center the 24-pixel leading icon within an 8-pixel side inset.
+      leadingWidth: 40,
       leading: _isBottomNavigationTab
           ? hasNavigationShell
                 ? DrawerButton(
@@ -134,13 +135,10 @@ class DrawerMainScreen extends StatelessWidget {
   }
 
   Widget _buildBottomNavigation(BuildContext context) {
-    return Consumer<AppManager>(
-      builder: (_, appManager, _) => AppBottomNavBar(
-        isVisible: navigationBarsVisible ?? true,
-        selectedMenu: selectedMenu,
-        isSandboxMode: appManager.usesParentApiEndpoints,
-        onSelected: (menu) => _openBottomTab(context, menu),
-      ),
+    return AppBottomNavBar(
+      isVisible: navigationBarsVisible ?? true,
+      selectedMenu: selectedMenu,
+      onSelected: (menu) => _openBottomTab(context, menu),
     );
   }
 

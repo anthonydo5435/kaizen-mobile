@@ -26,6 +26,150 @@ void main() {
   });
   tearDown(() => controller.dispose());
 
+  testWidgets(
+    'summary generation PUTs the selected lesson and updates its editor without a PATCH',
+    (tester) async {
+      controller.startEditingSummary();
+      controller.summaryController.text = 'Draft to replace';
+      final generation = controller.generateSummaryForSelectedModule();
+
+      expect(controller.isGeneratingSummary, isTrue);
+      expect(controller.canGenerateSummaryForSelectedModule, isFalse);
+      expect(api.generations.single.endpoint, 'training_modules/first/generate_summary/');
+      expect(api.generations.single.parameters, isNull);
+      expect(await controller.generateSummaryForSelectedModule(), isFalse);
+      await tester.pump(const Duration(seconds: 1));
+      expect(api.patches, isEmpty);
+
+      api.generations.single.complete({'description': 'In this video, the speaker discusses'});
+      await tester.pump();
+      expect(controller.isWritingSummary, isTrue);
+      expect(controller.summaryController.text, isEmpty);
+      await tester.pump(const Duration(milliseconds: 72));
+      expect(controller.summaryController.text, 'In ');
+      expect(controller.isGeneratingSummary, isTrue);
+      await tester.pump(const Duration(seconds: 3));
+      expect(await generation, isTrue);
+      expect(controller.selectedModuleDetail!.description, 'In this video, the speaker discusses');
+      expect(controller.summaryController.text, 'In this video, the speaker discusses');
+      expect(controller.isEditingSummary, isFalse);
+      expect(controller.isGeneratingSummary, isFalse);
+      expect(controller.canGenerateSummaryForSelectedModule, isTrue);
+      expect(controller.summarySnackBarMessage, isNull);
+      await tester.pump(const Duration(seconds: 1));
+      expect(api.patches, isEmpty);
+    },
+  );
+
+  testWidgets('generation failures preserve the summary and expose error feedback', (tester) async {
+    final generation = controller.generateSummaryForSelectedModule();
+    api.generations.single.completeError(StateError('Unable to generate'));
+
+    expect(await generation, isFalse);
+    expect(controller.summaryController.text, 'Original first');
+    expect(controller.selectedModuleDetail!.description, 'Original first');
+    expect(controller.summarySnackBarMessage, contains('Unable to generate'));
+    expect(controller.isGeneratingSummary, isFalse);
+    expect(controller.canGenerateSummaryForSelectedModule, isTrue);
+  });
+
+  testWidgets('a previous lesson generation cannot overwrite the current lesson or loading state', (
+    tester,
+  ) async {
+    final firstGeneration = controller.generateSummaryForSelectedModule();
+    await controller.selectModule('second');
+    expect(controller.isGeneratingSummary, isFalse);
+    final secondGeneration = controller.generateSummaryForSelectedModule();
+
+    api.generations.first.complete({'description': 'First generated summary'});
+    expect(await firstGeneration, isFalse);
+    expect(controller.summaryController.text, 'Original second');
+    expect(controller.isGeneratingSummary, isTrue);
+    expect(api.generations.last.endpoint, 'training_modules/second/generate_summary/');
+    api.generations.last.complete({'description': 'Second generated summary'});
+    await tester.pump();
+    await tester.pump(const Duration(seconds: 3));
+    expect(await secondGeneration, isTrue);
+    expect(controller.summaryController.text, 'Second generated summary');
+    expect(controller.isGeneratingSummary, isFalse);
+  });
+
+  testWidgets('switching lessons cancels summary writing without PATCHing partial text', (
+    tester,
+  ) async {
+    final generation = controller.generateSummaryForSelectedModule();
+    api.generations.single.complete({'description': 'A generated summary that is still writing'});
+    await tester.pump();
+    await tester.pump(const Duration(milliseconds: 72));
+    expect(controller.summaryController.text, 'A g');
+    expect(controller.isWritingSummary, isTrue);
+
+    await controller.selectModule('second');
+    expect(await generation, isFalse);
+    await tester.pump(const Duration(seconds: 3));
+    expect(controller.summaryController.text, 'Original second');
+    expect(controller.isWritingSummary, isFalse);
+    expect(controller.isGeneratingSummary, isFalse);
+    expect(api.patches, isEmpty);
+  });
+
+  testWidgets('summary writing reveals complete emoji and combined characters', (tester) async {
+    final generation = controller.generateSummaryForSelectedModule();
+    api.generations.single.complete({'description': '👩🏽‍💻 e\u0301 lesson'});
+    await tester.pump();
+    await tester.pump(const Duration(milliseconds: 24));
+    expect(controller.summaryController.text, '👩🏽‍💻');
+    await tester.pump(const Duration(milliseconds: 48));
+    expect(controller.summaryController.text, '👩🏽‍💻 e\u0301');
+    await tester.pump(const Duration(seconds: 3));
+    expect(await generation, isTrue);
+    expect(controller.summaryController.text, '👩🏽‍💻 e\u0301 lesson');
+    expect(api.patches, isEmpty);
+  });
+
+  test('reduced motion skips writing and displays the complete response', () async {
+    final generation = controller.generateSummaryForSelectedModule(animate: false);
+    api.generations.single.complete({'description': 'Generated summary'});
+    expect(await generation, isTrue);
+    expect(controller.summaryController.text, 'Generated summary');
+    expect(controller.isWritingSummary, isFalse);
+    expect(controller.isGeneratingSummary, isFalse);
+  });
+
+  test('an empty generation response disables Generate again', () async {
+    final generation = controller.generateSummaryForSelectedModule();
+    api.generations.single.complete({'description': ''});
+    expect(await generation, isTrue);
+    expect(controller.summaryController.text, isEmpty);
+    expect(controller.canGenerateSummaryForSelectedModule, isFalse);
+    expect(await controller.generateSummaryForSelectedModule(), isFalse);
+    expect(api.generations, hasLength(1));
+  });
+
+  testWidgets('generation waits for an in-flight summary save', (tester) async {
+    controller.summaryController.text = 'Updated summary';
+    await tester.pump(const Duration(milliseconds: 700));
+    expect(controller.canGenerateSummaryForSelectedModule, isFalse);
+    expect(await controller.generateSummaryForSelectedModule(), isFalse);
+    expect(api.generations, isEmpty);
+    api.patches.single.complete();
+    await tester.pump();
+    expect(controller.canGenerateSummaryForSelectedModule, isTrue);
+  });
+
+  test('read-only accounts cannot generate a summary', () async {
+    final readOnly = TrainingModuleController(
+      AuditRepositoryImpl(AuditRemoteDataSource(apiCallExecutor: api)),
+    );
+    addTearDown(readOnly.dispose);
+    await readOnly.initialize(jobId: 'seat', descriptionId: 'description');
+
+    expect(readOnly.hasSelectedModuleVideo, isTrue);
+    expect(readOnly.canGenerateSummaryForSelectedModule, isFalse);
+    expect(await readOnly.generateSummaryForSelectedModule(), isFalse);
+    expect(api.generations, isEmpty);
+  });
+
   for (final emptyDescription in <String?>[null, '', '   ', '<p><br>&nbsp;</p>']) {
     testWidgets('empty summaries stay blank without saving placeholder text: $emptyDescription', (
       tester,
@@ -34,6 +178,9 @@ void main() {
       await controller.initialize(jobId: 'seat', descriptionId: 'description');
 
       expect(controller.summaryController.text, isEmpty);
+      expect(controller.canGenerateSummaryForSelectedModule, isFalse);
+      expect(await controller.generateSummaryForSelectedModule(), isFalse);
+      expect(api.generations, isEmpty);
       expect(controller.isEditingSummary, isFalse);
       controller.startEditingSummary();
       expect(controller.isEditingSummary, isTrue);
@@ -101,6 +248,7 @@ void main() {
 
   testWidgets('clearing the description sends an empty description', (tester) async {
     controller.summaryController.clear();
+    expect(controller.canGenerateSummaryForSelectedModule, isFalse);
     await tester.pump(const Duration(milliseconds: 700));
     expect(api.patches.single.parameters, {'description': ''});
     api.patches.single.complete();
@@ -167,6 +315,7 @@ class _DescriptionPatch {
 
 class _DescriptionApi extends ApiCallExecutor {
   final patches = <_DescriptionPatch>[];
+  final generations = <_SummaryGeneration>[];
   final descriptions = <String, String?>{};
 
   @override
@@ -181,6 +330,11 @@ class _DescriptionApi extends ApiCallExecutor {
     bool allowConflictRetry = true,
     bool invalidateCacheBeforeRequest = false,
   }) async {
+    if (apiCallType == ApiCallType.put) {
+      final generation = _SummaryGeneration(endpoint, parameters);
+      generations.add(generation);
+      return decoder(await generation.future);
+    }
     if (apiCallType == ApiCallType.patch) {
       final patch = _DescriptionPatch(endpoint, parameters);
       patches.add(patch);
@@ -201,4 +355,16 @@ class _DescriptionApi extends ApiCallExecutor {
     'description': descriptions.containsKey(id) ? descriptions[id] : 'Original $id',
     'training_video': {'uuid': 'video-$id', 'url': 'https://example.com/$id.mp4'},
   };
+}
+
+class _SummaryGeneration {
+  _SummaryGeneration(this.endpoint, this.parameters);
+
+  final String endpoint;
+  final Map<String, dynamic>? parameters;
+  final Completer<Map<String, dynamic>> _response = Completer<Map<String, dynamic>>();
+
+  Future<Map<String, dynamic>> get future => _response.future;
+  void complete(Map<String, dynamic> response) => _response.complete(response);
+  void completeError(Object error) => _response.completeError(error);
 }

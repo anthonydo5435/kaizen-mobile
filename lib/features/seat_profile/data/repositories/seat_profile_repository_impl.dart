@@ -32,12 +32,14 @@ class SeatProfileRepositoryImpl implements SeatProfileRepository {
     int pageSize = 10,
     String? departmentId,
     String title = '',
+    bool forceRefresh = false,
   }) {
     return _remoteDataSource.getSeatProfiles(
       page: page,
       pageSize: pageSize,
       departmentId: departmentId,
       title: title,
+      forceRefresh: forceRefresh,
     );
   }
 

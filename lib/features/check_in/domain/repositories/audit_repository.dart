@@ -20,6 +20,7 @@ abstract class AuditRepository {
     required int quarter,
     String? search,
     String? jobUuid,
+    bool forceRefresh = false,
   });
 
   Future<AuditMainList> getAuditTeamMembers({
@@ -36,18 +37,21 @@ abstract class AuditRepository {
     int? year,
     int? quarter,
     String? search,
+    bool forceRefresh = false,
   });
 
   Future<dynamic> getMyPerformanceSnapshot({
     required int page,
     required int pageSize,
     String? search,
+    bool forceRefresh = false,
   });
 
   Future<dynamic> getPerformanceSnapshot({
     required int page,
     required int pageSize,
     String? search,
+    bool forceRefresh = false,
   });
 
   Future<List<String>> getSubordinateJobTitles();
@@ -158,7 +162,10 @@ abstract class AuditRepository {
   });
 
   Future<SeatDescriptionTrainingModuleDetail>
-  getSeatDescriptionTrainingModuleDetail({required String moduleId});
+  getSeatDescriptionTrainingModuleDetail({
+    required String moduleId,
+    bool forceRefresh = false,
+  });
 
   Future<SeatDescriptionTrainingDocument>
   getSeatDescriptionTrainingModuleDocument({required String moduleId});

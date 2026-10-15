@@ -67,7 +67,7 @@ class _ViewAllTeamMembersState extends State<ViewAllTeamMembers> {
       child: SafeArea(
         bottom: false,
         child: Padding(
-          padding: const EdgeInsets.fromLTRB(16, 0, 16, 0),
+          padding: const EdgeInsets.symmetric(horizontal: 8),
           child: Column(
             children: [
               _Header(onClose: () => Navigator.of(context).pop()),

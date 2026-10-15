@@ -1,11 +1,15 @@
 import 'package:flutter/material.dart';
 import 'package:flutter_test/flutter_test.dart';
+import 'package:provider/provider.dart';
 import 'package:sparrowkaizen/core/constants/app_strings.dart';
 import 'package:sparrowkaizen/features/training/domain/entities/seat_description_training.dart';
 import 'package:sparrowkaizen/features/training/domain/entities/shared_lesson_content.dart';
 import 'package:sparrowkaizen/features/training/domain/repositories/shared_lms_repository.dart';
 import 'package:sparrowkaizen/features/training/presentation/pages/edit_training_screen.dart';
 import 'package:sparrowkaizen/features/training/presentation/pages/shared_lesson_details_screen.dart';
+import 'package:sparrowkaizen/features/training/presentation/controllers/training_module_controller.dart';
+
+import '../../fixtures/tiptap_sop_fixture.dart';
 
 void main() {
   testWidgets('shared lesson shows all four read-only tabs', (tester) async {
@@ -16,11 +20,14 @@ void main() {
     addTearDown(tester.view.resetDevicePixelRatio);
     addTearDown(tester.view.resetPadding);
     await tester.pumpWidget(
-      MaterialApp(
-        home: SharedLessonDetailsScreen(
-          sharedContentId: 'shared-list',
-          publicId: 'lesson-public-id',
-          sharedLmsRepository: _SharedLessonRepository(),
+      Provider<TrainingSopEditorFactory>.value(
+        value: TiptapSopFixture().create,
+        child: MaterialApp(
+          home: SharedLessonDetailsScreen(
+            sharedContentId: 'shared-list',
+            publicId: 'lesson-public-id',
+            sharedLmsRepository: _SharedLessonRepository(),
+          ),
         ),
       ),
     );
@@ -28,6 +35,15 @@ void main() {
 
     expect(find.text('Shared lesson'), findsWidgets);
     expect(find.text(AppStrings.trainingNoVideoAvailable), findsOneWidget);
+    final videoBounds = tester.getRect(find.byType(TrainingReadOnlyVideoTab));
+    expect(videoBounds.left, 0);
+    expect(videoBounds.right, 390);
+    final titleBounds = tester.getRect(find.byType(TrainingLessonTitleField));
+    expect(titleBounds.left, 8);
+    expect(titleBounds.right, 390 - 8);
+    final navigationBounds = tester.getRect(find.byType(TrainingTabs));
+    expect(navigationBounds.left, 12);
+    expect(navigationBounds.right, 390 - 12);
     expect(tester.takeException(), isNull);
 
     void expectNavigationSelection(String label) {
@@ -52,6 +68,9 @@ void main() {
     await tester.pumpAndSettle();
 
     expect(find.text('Shared SOP'), findsOneWidget);
+    final sopBounds = tester.getRect(find.byType(TrainingReadOnlySopTab));
+    expect(sopBounds.left, 8);
+    expect(sopBounds.right, 390 - 8);
     expectNavigationSelection(AppStrings.trainingSopTab);
     expect(tester.takeException(), isNull);
 

@@ -15,12 +15,19 @@ class _VideoTabContent extends StatelessWidget {
     required this.isEditingSummary,
     required this.isSavingSummary,
     required this.summaryController,
+    this.canGenerateSummary = false,
+    this.isGeneratingSummary = false,
+    this.isWritingSummary = false,
+    this.contentHorizontalPadding = 0,
+    this.fullscreenInLandscape = false,
+    this.onExitLandscapeFullscreen,
     this.onUploadVideoTap,
     this.onReUploadVideoTap,
     this.onUpdateThumbnailTap,
     this.onEditSummaryTap,
     this.onCancelSummaryTap,
     this.onSaveSummaryTap,
+    this.onGenerateSummaryTap,
   });
 
   final SeatDescriptionTrainingModuleDetail? detail;
@@ -36,12 +43,19 @@ class _VideoTabContent extends StatelessWidget {
   final bool isEditingSummary;
   final bool isSavingSummary;
   final TextEditingController summaryController;
+  final bool canGenerateSummary;
+  final bool isGeneratingSummary;
+  final bool isWritingSummary;
+  final double contentHorizontalPadding;
+  final bool fullscreenInLandscape;
+  final VoidCallback? onExitLandscapeFullscreen;
   final VoidCallback? onUploadVideoTap;
   final VoidCallback? onReUploadVideoTap;
   final VoidCallback? onUpdateThumbnailTap;
   final VoidCallback? onEditSummaryTap;
   final VoidCallback? onCancelSummaryTap;
   final Future<bool> Function()? onSaveSummaryTap;
+  final VoidCallback? onGenerateSummaryTap;
 
   @override
   Widget build(BuildContext context) {
@@ -50,6 +64,8 @@ class _VideoTabContent extends StatelessWidget {
     final summary = detail?.description?.trim();
     final hasVideo = videoUrl != null && videoUrl.isNotEmpty;
     final canRevealVideo = hasVideo && !isFinalizingVideoSetup;
+    final isLandscapeVideo =
+        fullscreenInLandscape && MediaQuery.orientationOf(context) == Orientation.landscape;
     final canUseVideoActions =
         isUploadEnabled &&
         !isPickingVideo &&
@@ -62,14 +78,16 @@ class _VideoTabContent extends StatelessWidget {
       crossAxisAlignment: CrossAxisAlignment.start,
       children: [
         if (canRevealVideo)
-          ComplianceVideoPlayer(
-            key: ValueKey<String>(videoUrl),
+          ComplianceVideoTranscriptPanel(
+            fullscreenInLandscape: fullscreenInLandscape,
+            onExitLandscapeFullscreen: onExitLandscapeFullscreen,
+            videoId: (detail?.uuid, video?.uuid),
+            transcript: video?.transcript,
             videoUrl: videoUrl,
             localVideoPath: localVideoPath,
             title: detail?.title ?? '',
             thumbnailLink: detail?.previewThumbnailLink,
-            height: (MediaQuery.sizeOf(context).height * 0.5).clamp(320.0, 520.0),
-            fillBounds: true,
+            activeCaptionMaxLines: 1,
             topRightActions: !isReadOnly
                 ? [
                     _TrainingVideoActionButton(
@@ -89,59 +107,137 @@ class _VideoTabContent extends StatelessWidget {
                 : const <Widget>[],
           )
         else if (isReadOnly)
-          const _ContentMessage(message: AppStrings.trainingNoVideoAvailable)
+          Padding(
+            padding: EdgeInsets.symmetric(horizontal: contentHorizontalPadding),
+            child: const _ContentMessage(message: AppStrings.trainingNoVideoAvailable),
+          )
         else
-          _TrainingVideoEmptyState(
-            isEnabled: isUploadEnabled && !isFinalizingVideoSetup,
-            isPickingVideo: isPickingVideo || isFinalizingVideoSetup,
-            isUploading: isUploadingVideo,
-            isFinalizingSetup: isFinalizingVideoSetup,
-            isLoading:
-                isUploadingVideo || isDeletingVideo || isPickingVideo || isFinalizingVideoSetup,
-            onTap: onUploadVideoTap,
+          Padding(
+            padding: EdgeInsets.symmetric(horizontal: contentHorizontalPadding),
+            child: _TrainingVideoEmptyState(
+              isEnabled: isUploadEnabled && !isFinalizingVideoSetup,
+              isPickingVideo: isPickingVideo || isFinalizingVideoSetup,
+              isUploading: isUploadingVideo,
+              isFinalizingSetup: isFinalizingVideoSetup,
+              isLoading:
+                  isUploadingVideo || isDeletingVideo || isPickingVideo || isFinalizingVideoSetup,
+              onTap: onUploadVideoTap,
+            ),
           ),
-        if (canRevealVideo) ...[
-          const SizedBox(height: 16),
-          Row(
-            crossAxisAlignment: CrossAxisAlignment.center,
-            children: [
-              const Expanded(child: _TrainingSectionHeader(title: AppStrings.trainingSummaryLabel)),
-              if (canEditSummary && isSavingSummary)
-                SizedBox(
-                  width: 16,
-                  height: 16,
-                  child: FastCircularProgressIndicator(width: 12, height: 12),
-                ),
-            ],
+        if (canRevealVideo)
+          Offstage(
+            offstage: isLandscapeVideo,
+            child: Padding(
+              padding: EdgeInsets.symmetric(horizontal: contentHorizontalPadding),
+              child: _buildSummarySection(summary),
+            ),
           ),
-          const SizedBox(height: 10),
-          canEditSummary
-              ? _TrainingOutlinedTextField(
-                  controller: summaryController,
-                  hintText: AppStrings.trainingSummaryHint,
-                  readOnly: !isEditingSummary,
-                  showCursor: isEditingSummary,
-                  onTap: onEditSummaryTap,
-                  minLines: 4,
-                  maxLines: 8,
-                  textInputAction: TextInputAction.newline,
-                  fontSize: 13,
-                  fontWeight: FontWeight.w400,
-                  textHeight: 1.65,
-                  hintFontWeight: FontWeight.w400,
-                  contentPadding: const EdgeInsets.symmetric(horizontal: 16, vertical: 14),
-                )
-              : _TrainingDisplayCard(
-                  child: AppTextView.body3(
-                    summary != null && summary.isNotEmpty
-                        ? CustomFunctions.stripHtmlTags(summary)
-                        : AppStrings.trainingNoSummaryAvailable,
-                    color: AppColors.textPrimary,
-                    height: 1.65,
-                  ),
-                ),
-        ],
       ],
+    );
+  }
+
+  Widget _buildSummarySection(String? summary) {
+    return Column(
+      crossAxisAlignment: CrossAxisAlignment.stretch,
+      children: [
+        const SizedBox(height: 16),
+        OverflowBar(
+          alignment: MainAxisAlignment.spaceBetween,
+          overflowAlignment: OverflowBarAlignment.end,
+          spacing: 12,
+          overflowSpacing: 8,
+          children: [
+            Row(
+              mainAxisSize: MainAxisSize.min,
+              children: [
+                const Flexible(
+                  child: _TrainingSectionHeader(title: AppStrings.trainingSummaryLabel),
+                ),
+                if (canEditSummary && isSavingSummary) ...[
+                  const SizedBox(width: 12),
+                  const SizedBox(
+                    width: 16,
+                    height: 16,
+                    child: FastCircularProgressIndicator(width: 12, height: 12),
+                  ),
+                ],
+              ],
+            ),
+            if (canEditSummary && !isReadOnly)
+              AppAiGenerateButton(
+                label: AppStrings.trainingGenerateSummaryAction,
+                isEnabled: canGenerateSummary,
+                isLoading: isGeneratingSummary,
+                onTap: onGenerateSummaryTap,
+                showOutline: true,
+                maxLines: null,
+              ),
+          ],
+        ),
+        const SizedBox(height: 10),
+        canEditSummary
+            ? _TrainingSummaryTextBlock(
+                controller: summaryController,
+                isEditing: isEditingSummary,
+                isGenerating: isGeneratingSummary,
+                isWriting: isWritingSummary,
+                onEditTap: onEditSummaryTap,
+              )
+            : _TrainingDisplayCard(
+                padding: const EdgeInsets.symmetric(horizontal: 12, vertical: 10),
+                child: AppTextView.body3(
+                  summary != null && summary.isNotEmpty
+                      ? CustomFunctions.stripHtmlTags(summary)
+                      : AppStrings.trainingNoSummaryAvailable,
+                  color: AppColors.textPrimary,
+                  height: 1.65,
+                ),
+              ),
+      ],
+    );
+  }
+}
+
+/// Keeps the summary field mounted while generation waits and reveals its text.
+class _TrainingSummaryTextBlock extends StatelessWidget {
+  const _TrainingSummaryTextBlock({
+    required this.controller,
+    required this.isEditing,
+    required this.isGenerating,
+    required this.isWriting,
+    required this.onEditTap,
+  });
+
+  final TextEditingController controller;
+  final bool isEditing;
+  final bool isGenerating;
+  final bool isWriting;
+  final VoidCallback? onEditTap;
+
+  @override
+  Widget build(BuildContext context) {
+    final isWaiting = isGenerating && !isWriting;
+
+    return AbsorbPointer(
+      absorbing: isGenerating,
+      child: Opacity(
+        opacity: isWaiting ? 0.4 : 1,
+        child: _TrainingOutlinedTextField(
+          controller: controller,
+          hintText: isGenerating ? '' : AppStrings.trainingSummaryHint,
+          readOnly: !isEditing || isGenerating,
+          showCursor: isEditing && !isGenerating,
+          onTap: isGenerating ? null : onEditTap,
+          minLines: 4,
+          maxLines: 8,
+          textInputAction: TextInputAction.newline,
+          fontSize: 13,
+          fontWeight: FontWeight.w400,
+          textHeight: 1.65,
+          hintFontWeight: FontWeight.w400,
+          contentPadding: const EdgeInsets.symmetric(horizontal: 12, vertical: 10),
+        ),
+      ),
     );
   }
 }

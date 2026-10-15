@@ -81,12 +81,12 @@ class _SeatDescriptionFinalCheckInReportScreenState
         child: Column(
           children: [
             Padding(
-              padding: const EdgeInsets.fromLTRB(16, 4, 16, 0),
+              padding: const EdgeInsets.fromLTRB(8, 4, 8, 0),
               child: _buildHeader(context),
             ),
             const SizedBox(height: 16),
             Padding(
-              padding: const EdgeInsets.symmetric(horizontal: 16),
+              padding: const EdgeInsets.symmetric(horizontal: 8),
               child: _TimeRangeDropdown(
                 value: _selectedTimeRange,
                 items: _timeRangeOptions,
@@ -131,7 +131,7 @@ class _SeatDescriptionFinalCheckInReportScreenState
                   }
 
                   return SingleChildScrollView(
-                    padding: const EdgeInsets.fromLTRB(16, 0, 16, 24),
+                    padding: const EdgeInsets.fromLTRB(8, 0, 8, 24),
                     child:
                         FutureBuilder<List<SeatDescriptionFinalAuditProfile>>(
                           future: _profilesFuture,
@@ -230,7 +230,7 @@ class _SeatDescriptionFinalCheckInReportScreenState
               borderRadius: BorderRadius.circular(20),
               onTap: () => Navigator.of(context).pop(),
               child: Padding(
-                padding: const EdgeInsets.all(4),
+                padding: const EdgeInsets.fromLTRB(0, 4, 8, 4),
                 child: SvgPicture.asset(
                   '${AppStrings.imagePath}back.svg',
                   height: 24,

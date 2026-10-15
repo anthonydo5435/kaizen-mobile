@@ -38,7 +38,10 @@ class OnBoardingBgWrapper extends StatelessWidget {
                 height: 550,
                 decoration: BoxDecoration(
                   shape: BoxShape.circle,
-                  border: Border.all(color: AppColors.textPrimary.withOpacity(0.03), width: 80),
+                  border: Border.all(
+                    color: AppColors.textPrimary.withValues(alpha: 0.03),
+                    width: 80,
+                  ),
                 ),
               ),
             ),

@@ -1,12 +1,17 @@
 import AVFoundation
 import Flutter
+import ObjectiveC
 import UIKit
 import UserNotifications
+import WebKit
+import webview_flutter_wkwebview
 
 @main
 @objc class AppDelegate: FlutterAppDelegate {
   private let trainingUploadNotificationBridge = TrainingUploadNotificationBridge()
   private let videoAudioSessionBridge = VideoAudioSessionBridge()
+  private let videoOrientationBridge = VideoOrientationBridge()
+  private let trainingSopWebViewBridge = TrainingSopWebViewBridge()
 
   override func application(
     _ application: UIApplication,
@@ -20,6 +25,8 @@ import UserNotifications
     if let controller = window?.rootViewController as? FlutterViewController {
       trainingUploadNotificationBridge.register(with: controller.binaryMessenger)
       videoAudioSessionBridge.register(with: controller.binaryMessenger)
+      videoOrientationBridge.register(with: controller.binaryMessenger)
+      trainingSopWebViewBridge.register(with: controller.binaryMessenger, registry: self)
     }
     return didFinishLaunching
   }
@@ -35,6 +42,182 @@ import UserNotifications
       didReceive: response,
       withCompletionHandler: completionHandler
     )
+  }
+}
+
+/// Re-enables rotation only after the phone itself returns to upright portrait.
+private final class VideoOrientationBridge {
+  private var orientationObserver: NSObjectProtocol?
+  private var pendingResult: FlutterResult?
+  private var startedOrientationNotifications = false
+
+  func register(with messenger: FlutterBinaryMessenger) {
+    let channel = FlutterMethodChannel(
+      name: "kaizenteams/video_fullscreen", binaryMessenger: messenger)
+    channel.setMethodCallHandler { [weak self] call, result in
+      guard let self else {
+        result(false)
+        return
+      }
+      switch call.method {
+      case "waitForPortrait":
+        self.waitForPortrait(result: result)
+      case "cancelWaitForPortrait":
+        self.finishWait(isPortrait: false)
+        result(nil)
+      default:
+        result(FlutterMethodNotImplemented)
+      }
+    }
+  }
+
+  private func waitForPortrait(result: @escaping FlutterResult) {
+    finishWait(isPortrait: false)
+    pendingResult = result
+    let device = UIDevice.current
+    startedOrientationNotifications = !device.isGeneratingDeviceOrientationNotifications
+    if startedOrientationNotifications { device.beginGeneratingDeviceOrientationNotifications() }
+    orientationObserver = NotificationCenter.default.addObserver(
+      forName: UIDevice.orientationDidChangeNotification, object: nil, queue: .main
+    ) { [weak self] _ in
+      if UIDevice.current.orientation == .portrait {
+        self?.finishWait(isPortrait: true)
+      }
+    }
+    if device.orientation == .portrait { finishWait(isPortrait: true) }
+  }
+
+  private func finishWait(isPortrait: Bool) {
+    if let orientationObserver { NotificationCenter.default.removeObserver(orientationObserver) }
+    orientationObserver = nil
+    if startedOrientationNotifications {
+      UIDevice.current.endGeneratingDeviceOrientationNotifications()
+      startedOrientationNotifications = false
+    }
+    let result = pendingResult
+    pendingResult = nil
+    result?(isPortrait)
+  }
+
+  deinit {
+    finishWait(isPortrait: false)
+  }
+}
+
+/// Applies keyboard presentation and zoom protection only to the SOP's WKWebView.
+final class TrainingSopWebViewBridge {
+  private static var zoomProtectionKey: UInt8 = 0
+
+  func register(with messenger: FlutterBinaryMessenger, registry: FlutterPluginRegistry) {
+    let channel = FlutterMethodChannel(
+      name: "kaizenteams/training_sop_webview", binaryMessenger: messenger)
+    channel.setMethodCallHandler { [weak registry] call, result in
+      guard call.method == "configureEditing" else {
+        result(FlutterMethodNotImplemented)
+        return
+      }
+      guard let registry,
+        let arguments = call.arguments as? [String: Any],
+        let identifier = arguments["webViewIdentifier"] as? NSNumber,
+        let webView = FWFWebViewFlutterWKWebViewExternalAPI.webView(
+          forIdentifier: identifier.int64Value, withPluginRegistry: registry),
+        Self.hideKeyboardAccessory(in: webView)
+      else {
+        result(FlutterError(code: "SOP_WEBVIEW_UNAVAILABLE", message: nil, details: nil))
+        return
+      }
+      if objc_getAssociatedObject(webView, &Self.zoomProtectionKey) == nil {
+        // The WebView owns this delegate for its own lifetime. Its internal
+        // WebKit delegate and the plugin's external callbacks remain intact.
+        let protection = TrainingSopZoomProtection(scrollView: webView.scrollView)
+        objc_setAssociatedObject(
+          webView, &Self.zoomProtectionKey, protection, .OBJC_ASSOCIATION_RETAIN_NONATOMIC)
+      }
+      result(nil)
+    }
+  }
+
+  @discardableResult
+  static func hideKeyboardAccessory(in webView: WKWebView) -> Bool {
+    func configure(_ view: UIView) -> Bool {
+      guard view is UITextInput else {
+        return view.subviews.map(configure).contains(true)
+      }
+      guard let originalClass = object_getClass(view) else { return false }
+      let className = NSStringFromClass(originalClass)
+      let prefix = "KaizenSopKeyboard_"
+      if className.hasPrefix(prefix) { return true }
+
+      // WKWebView exposes no accessory setter. Override the public responder
+      // getter on this text-input instance only; other WebViews stay untouched.
+      let selector = #selector(getter: UIResponder.inputAccessoryView)
+      guard let getter = class_getInstanceMethod(originalClass, selector) else { return false }
+      let subclassName = prefix + className
+      let subclass: AnyClass
+      if let existing = NSClassFromString(subclassName) {
+        subclass = existing
+      } else {
+        guard let created = objc_allocateClassPair(originalClass, subclassName, 0) else {
+          return false
+        }
+        let noAccessory: @convention(block) (AnyObject) -> UIView? = { _ in nil }
+        class_addMethod(
+          created, selector, imp_implementationWithBlock(noAccessory), method_getTypeEncoding(getter))
+        objc_registerClassPair(created)
+        subclass = created
+      }
+      object_setClass(view, subclass)
+      view.inputAssistantItem.leadingBarButtonGroups = []
+      view.inputAssistantItem.trailingBarButtonGroups = []
+      if view.isFirstResponder { view.reloadInputViews() }
+      return true
+    }
+    return configure(webView.scrollView)
+  }
+}
+
+/// iOS can zoom small editable text when a native long press focuses it, even
+/// when ordinary taps use preventScroll. Preserve the last user-selected scale
+/// unless a pinch or a changed viewport minimum is responsible for the zoom.
+private final class TrainingSopZoomProtection: NSObject, UIScrollViewDelegate {
+  private weak var forwardedDelegate: UIScrollViewDelegate?
+  private var scale: CGFloat
+  private var minimumScale: CGFloat
+  private var restoring = false
+
+  init(scrollView: UIScrollView) {
+    forwardedDelegate = scrollView.delegate
+    scale = scrollView.zoomScale
+    minimumScale = scrollView.minimumZoomScale
+    super.init()
+    scrollView.delegate = self
+  }
+
+  override func responds(to selector: Selector!) -> Bool {
+    super.responds(to: selector) || forwardedDelegate?.responds(to: selector) == true
+  }
+
+  override func forwardingTarget(for selector: Selector!) -> Any? {
+    if forwardedDelegate?.responds(to: selector) == true { return forwardedDelegate }
+    return super.forwardingTarget(for: selector)
+  }
+
+  func scrollViewDidZoom(_ scrollView: UIScrollView) {
+    defer { forwardedDelegate?.scrollViewDidZoom?(scrollView) }
+    guard !restoring else { return }
+    let pinch = scrollView.pinchGestureRecognizer?.state
+    let viewportChanged = abs(scrollView.minimumZoomScale - minimumScale) > 0.0001
+    if viewportChanged || pinch == .began || pinch == .changed || pinch == .ended
+      || scrollView.isZoomBouncing
+    {
+      minimumScale = scrollView.minimumZoomScale
+      scale = min(max(scrollView.zoomScale, minimumScale), scrollView.maximumZoomScale)
+      return
+    }
+    guard abs(scrollView.zoomScale - scale) > 0.0001 else { return }
+    restoring = true
+    scrollView.setZoomScale(scale, animated: false)
+    restoring = false
   }
 }
 

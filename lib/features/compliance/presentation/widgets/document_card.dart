@@ -8,6 +8,7 @@ import '../../../../core/utils/custom_functions.dart';
 import '../../../../core/widgets/app_text_view.dart';
 import '../../domain/entities/compliance_document.dart';
 import '../../domain/usecases/upload_compliance_document_usecase.dart';
+import '../../domain/usecases/pick_compliance_document_file_usecase.dart';
 import '../pages/document/compliance_document_upload_sheet.dart';
 import '../pages/document/full_screen_doc.dart';
 import '../providers/compliance_document_controller.dart';
@@ -256,6 +257,7 @@ class DocumentCard extends StatelessWidget {
 
   Future<void> _showUploadSheet(BuildContext context) async {
     final uploadUseCase = context.read<UploadComplianceDocumentUseCase>();
+    final pickFileUseCase = context.read<PickComplianceDocumentFileUseCase>();
     final didUpload = await showModalBottomSheet<bool>(
       context: context,
       isScrollControlled: true,
@@ -263,6 +265,7 @@ class DocumentCard extends StatelessWidget {
       builder: (_) => ComplianceDocumentUploadSheet(
         document: document,
         uploadComplianceDocumentUseCase: uploadUseCase,
+        pickComplianceDocumentFileUseCase: pickFileUseCase,
       ),
     );
     if (!context.mounted || didUpload != true) {

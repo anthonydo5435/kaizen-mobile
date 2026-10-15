@@ -5,6 +5,7 @@ import 'package:sparrowkaizen/features/seat_profile/data/models/seat_profile_det
 import 'package:sparrowkaizen/features/seat_profile/domain/entities/seat_profile_detail.dart';
 import 'package:sparrowkaizen/features/seat_profile/domain/usecases/get_seat_profiles_usecase.dart';
 import 'package:sparrowkaizen/features/seat_profile/presentation/pages/shared_seat_profile_screen.dart';
+import 'package:sparrowkaizen/routes/app_router.dart';
 
 void main() {
   testWidgets(
@@ -39,6 +40,7 @@ void main() {
 
       await tester.pumpWidget(
         MaterialApp(
+          onGenerateRoute: AppRouter.onGenerateRoute,
           home: SharedSeatProfileScreen(
             publicId: 'shared-id',
             getSeatProfilesUseCase: useCase,
@@ -54,6 +56,8 @@ void main() {
       await tester.tap(find.text('Financial Management'));
       await tester.pumpAndSettle();
       expect(find.text('Controls Financial Records'), findsOneWidget);
+      await tester.tap(find.text('Controls Financial Records'));
+      await tester.pumpAndSettle();
       expect(find.text('Verify all transactions accurately'), findsOneWidget);
       expect(
         find.text(AppStrings.seatProfileAddSeatDescriptionAction),

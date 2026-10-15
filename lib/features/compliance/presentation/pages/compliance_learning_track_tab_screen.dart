@@ -1,8 +1,10 @@
 import 'package:flutter/material.dart';
 import 'package:provider/provider.dart';
 
+import '../../../../core/constants/app_colors.dart';
 import '../../../../core/constants/app_strings.dart';
 import '../../../../core/utils/custom_functions.dart';
+import '../../../../core/widgets/fast_circular_progress.dart';
 import '../../../../routes/app_router.dart';
 import '../providers/compliance_controller.dart';
 import '../providers/compliance_learning_track_controller.dart';
@@ -20,7 +22,11 @@ class ComplianceLearningTrackTabScreen extends StatelessWidget {
     final tracks = controller.filteredTracks;
 
     return RefreshIndicator(
-      onRefresh: context.read<ComplianceController>().refreshCurrentTab,
+      color: AppColors.purple2,
+      onRefresh: () async {
+        await context.read<ComplianceController>().refreshCurrentTab();
+        await controller.refreshSearch(forceRefresh: true);
+      },
       child: CustomScrollView(
         physics: const AlwaysScrollableScrollPhysics(
           parent: ClampingScrollPhysics(),
@@ -29,13 +35,24 @@ class ComplianceLearningTrackTabScreen extends StatelessWidget {
           SliverToBoxAdapter(
             child: ComplianceSearchBar(
               controller: controller.searchController,
-              onChanged: (value) =>
-                  controller.updateSearchQuery(value, context),
+              onChanged: controller.updateSearchQuery,
+              onClearTap: controller.clearSearch,
+              showClearButton: true,
               onFilterTap: () => _showFilterSheet(context, controller),
             ),
           ),
           const SliverToBoxAdapter(child: SizedBox(height: 20)),
-          if (tracks.isEmpty)
+          if (controller.isSearchLoading)
+            const SliverFillRemaining(
+              hasScrollBody: false,
+              child: Center(child: FastCircularProgressIndicator()),
+            )
+          else if (controller.searchError != null)
+            SliverFillRemaining(
+              hasScrollBody: false,
+              child: ComplianceEmptyState(message: controller.searchError!),
+            )
+          else if (tracks.isEmpty)
             const SliverFillRemaining(
               hasScrollBody: false,
               child: ComplianceEmptyState(
@@ -94,10 +111,15 @@ class ComplianceLearningTrackTabScreen extends StatelessWidget {
                     await context.read<ComplianceController>().initialize(
                       showLoading: false,
                     );
+                    await controller.refreshSearch(forceRefresh: true);
                   },
                 );
               },
             ),
+          // The floating home bar contributes its measured height to this inset.
+          SliverToBoxAdapter(
+            child: SizedBox(height: MediaQuery.paddingOf(context).bottom + 24),
+          ),
         ],
       ),
     );

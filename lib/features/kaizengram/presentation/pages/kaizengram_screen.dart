@@ -215,7 +215,8 @@ class _KaizenGramViewState extends State<_KaizenGramView>
     int unreadNotificationCount,
   ) {
     return Padding(
-      padding: const EdgeInsets.only(right: 16),
+      // The action's inner padding completes the 8-pixel screen inset.
+      padding: const EdgeInsets.only(right: 4),
       child: InkWell(
         borderRadius: BorderRadius.circular(999),
         onTap: () => _openNotifications(context),
@@ -354,7 +355,7 @@ class _KaizenGramViewState extends State<_KaizenGramView>
 
   Widget _buildFeedTabs() {
     return Container(
-      margin: const EdgeInsets.fromLTRB(14, 12, 14, 0),
+      margin: const EdgeInsets.fromLTRB(7, 12, 7, 0),
       width: double.infinity,
       padding: const EdgeInsets.all(4),
       decoration: BoxDecoration(

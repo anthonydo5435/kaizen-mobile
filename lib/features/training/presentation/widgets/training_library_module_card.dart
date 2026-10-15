@@ -119,6 +119,10 @@ class TrainingLibraryModuleCard extends StatelessWidget {
                   child: InkWell(
                     onTap: onTap,
                     onLongPress: onLongPress,
+                    splashFactory: NoSplash.splashFactory,
+                    overlayColor: const WidgetStatePropertyAll(
+                      Colors.transparent,
+                    ),
                     child: Semantics(
                       button: true,
                       label: title,

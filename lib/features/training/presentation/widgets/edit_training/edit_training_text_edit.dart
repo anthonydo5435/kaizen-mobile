@@ -297,11 +297,10 @@ class _TrainingFormattingToolbar extends StatelessWidget {
         const SizedBox(width: 8),
         SizedBox.square(
           dimension: 44,
-          child: Material(
-            color: AppColors.secondaryColor,
-            shape: RoundedRectangleBorder(
+          child: Container(
+            decoration: BoxDecoration(
+              color: AppColors.secondaryColor,
               borderRadius: BorderRadius.circular(12),
-              side: const BorderSide(color: AppColors.lightPurple1),
             ),
             clipBehavior: Clip.antiAlias,
             child: IconButton(
