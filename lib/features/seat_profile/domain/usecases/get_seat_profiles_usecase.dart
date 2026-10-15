@@ -84,10 +84,7 @@ class GetSeatProfilesUseCase {
     required String actualId,
     required List<SeatProfileCategoryDraft> categories,
   }) {
-    return _repository.bulkUpsertSeatProfileCategories(
-      actualId: actualId,
-      categories: categories,
-    );
+    return _repository.bulkUpsertSeatProfileCategories(actualId: actualId, categories: categories);
   }
 
   Future<void> createSeatProfileDescription({
@@ -125,9 +122,7 @@ class GetSeatProfilesUseCase {
   }
 
   Future<void> deleteSeatProfileDescription({required String descriptionId}) {
-    return _repository.deleteSeatProfileDescription(
-      descriptionId: descriptionId,
-    );
+    return _repository.deleteSeatProfileDescription(descriptionId: descriptionId);
   }
 
   Future<SeatProfileCreationResult> getSeatProfileJobContent(String actualId) {
