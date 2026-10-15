@@ -3,6 +3,7 @@ import 'dart:async';
 import 'package:flutter/material.dart';
 import 'package:flutter/rendering.dart';
 import 'package:flutter/scheduler.dart';
+import 'package:flutter/services.dart';
 import 'package:provider/provider.dart';
 import 'package:video_player/video_player.dart';
 
@@ -57,6 +58,8 @@ class ComplianceVideoPlayer extends StatefulWidget {
     this.onVideoBoundsChanged,
     this.onRevealControlsHandlerChanged,
     this.layoutBuilder,
+    this.fullscreenInLandscape = false,
+    this.onExitLandscapeFullscreen,
   });
 
   final String videoUrl;
@@ -77,13 +80,15 @@ class ComplianceVideoPlayer extends StatefulWidget {
   final ValueChanged<Rect?>? onVideoBoundsChanged;
   final ValueChanged<VoidCallback?>? onRevealControlsHandlerChanged;
   final Widget Function(Widget video, Widget bottomControls)? layoutBuilder;
+  final bool fullscreenInLandscape;
+  final VoidCallback? onExitLandscapeFullscreen;
 
   @override
   State<ComplianceVideoPlayer> createState() => _ComplianceVideoPlayerState();
 }
 
 class _ComplianceVideoPlayerState extends State<ComplianceVideoPlayer>
-    with AutomaticKeepAliveClientMixin<ComplianceVideoPlayer> {
+    with AutomaticKeepAliveClientMixin<ComplianceVideoPlayer>, WidgetsBindingObserver {
   static const _cacheMaxAge = Duration(days: 30);
 
   VideoPlayerController? _controller;
@@ -102,10 +107,14 @@ class _ComplianceVideoPlayerState extends State<ComplianceVideoPlayer>
   GlobalKey _thumbnailKey = GlobalKey();
   Timer? _hidePlaybackControlsTimer;
   bool _wasPlaybackActive = false;
+  bool _isOpeningFullscreen = false;
+  bool _rotationRestoreScheduled = false;
+  bool _restoreRotationAfterFullscreen = false;
 
   @override
   void initState() {
     super.initState();
+    WidgetsBinding.instance.addObserver(this);
     _showPlaybackControls.addListener(_notifyControlsVisibility);
     _showThumbnailPreview = _hasThumbnail;
     _setupController();
@@ -114,8 +123,50 @@ class _ComplianceVideoPlayerState extends State<ComplianceVideoPlayer>
   }
 
   @override
+  void didChangeDependencies() {
+    super.didChangeDependencies();
+    _scheduleRotationRestore();
+  }
+
+  @override
+  void didChangeMetrics() => _scheduleRotationRestore();
+
+  bool get _isLandscape {
+    final size = View.of(context).physicalSize;
+    return size.width > size.height;
+  }
+
+  void _scheduleRotationRestore() {
+    if (!widget.fullscreenInLandscape ||
+        !_restoreRotationAfterFullscreen ||
+        _rotationRestoreScheduled) {
+      return;
+    }
+    _rotationRestoreScheduled = true;
+    WidgetsBinding.instance.addPostFrameCallback((_) {
+      _rotationRestoreScheduled = false;
+      if (!mounted ||
+          !widget.fullscreenInLandscape ||
+          _isOpeningFullscreen ||
+          ModalRoute.of(context)?.isCurrent != true ||
+          _isLandscape) {
+        return;
+      }
+      _restoreRotationAfterFullscreen = false;
+      unawaited(
+        SystemChrome.setPreferredOrientations(const [
+          DeviceOrientation.portraitUp,
+          DeviceOrientation.landscapeLeft,
+          DeviceOrientation.landscapeRight,
+        ]),
+      );
+    });
+  }
+
+  @override
   void didUpdateWidget(covariant ComplianceVideoPlayer oldWidget) {
     super.didUpdateWidget(oldWidget);
+    _scheduleRotationRestore();
     if (oldWidget.onRevealControlsHandlerChanged != widget.onRevealControlsHandlerChanged) {
       oldWidget.onRevealControlsHandlerChanged?.call(null);
       widget.onRevealControlsHandlerChanged?.call(_revealPlaybackControls);
@@ -137,7 +188,8 @@ class _ComplianceVideoPlayerState extends State<ComplianceVideoPlayer>
       _scrubPositionMillis = null;
     }
 
-    if (oldWidget.videoUrl != widget.videoUrl || oldWidget.localVideoPath != widget.localVideoPath) {
+    if (oldWidget.videoUrl != widget.videoUrl ||
+        oldWidget.localVideoPath != widget.localVideoPath) {
       _currentViewType = VideoViewType.textureView;
       _didRetryWithPlatformView = false;
       _disposeController();
@@ -147,6 +199,7 @@ class _ComplianceVideoPlayerState extends State<ComplianceVideoPlayer>
 
   @override
   void dispose() {
+    WidgetsBinding.instance.removeObserver(this);
     _showPlaybackControls.removeListener(_notifyControlsVisibility);
     widget.onSeekHandlerChanged?.call(null);
     widget.onRevealControlsHandlerChanged?.call(null);
@@ -459,44 +512,65 @@ class _ComplianceVideoPlayerState extends State<ComplianceVideoPlayer>
   }
 
   Future<void> _openFullScreenVideo() async {
-    final wasReadyBeforeOpen = _controller != null && _controller!.value.isInitialized;
-    if (!wasReadyBeforeOpen && mounted) {
-      setState(() {
-        _isPreparingPlayback = true;
-      });
-    }
+    if (_isOpeningFullscreen) return;
+    _isOpeningFullscreen = true;
+    var didOpenFullscreen = false;
+    try {
+      final wasReadyBeforeOpen = _controller != null && _controller!.value.isInitialized;
+      if (!wasReadyBeforeOpen && mounted) {
+        setState(() {
+          _isPreparingPlayback = true;
+        });
+      }
 
-    final controller = await _ensureControllerReady();
-    if (controller == null || !controller.value.isInitialized || !mounted) {
+      final controller = await _ensureControllerReady();
+      if (controller == null || !controller.value.isInitialized || !mounted) {
+        if (mounted) {
+          setState(() {
+            _isPreparingPlayback = false;
+          });
+        }
+        return;
+      }
+
+      final initialPosition = controller.value.position;
+      final transcriptController = context.read<ComplianceVideoController?>();
       if (mounted) {
         setState(() {
           _isPreparingPlayback = false;
         });
       }
-      return;
+      didOpenFullscreen = true;
+      await Navigator.of(context).push<void>(
+        MaterialPageRoute(
+          builder: (_) {
+            final view = ComplianceFullScreenVideoView(
+              controller: controller,
+              title: widget.title,
+              initialPosition: initialPosition,
+              exitOnPortrait: widget.fullscreenInLandscape,
+            );
+            return transcriptController == null
+                ? view
+                : ChangeNotifierProvider<ComplianceVideoController>.value(
+                    value: transcriptController,
+                    child: view,
+                  );
+          },
+        ),
+      );
+    } finally {
+      _isOpeningFullscreen = false;
+      if (mounted && didOpenFullscreen && widget.fullscreenInLandscape) {
+        final onExit = widget.onExitLandscapeFullscreen;
+        if (onExit != null) {
+          onExit();
+        } else {
+          _restoreRotationAfterFullscreen = true;
+          _scheduleRotationRestore();
+        }
+      }
     }
-
-    final initialPosition = controller.value.position;
-    final transcriptController = context.read<ComplianceVideoController?>();
-    if (mounted) {
-      setState(() {
-        _isPreparingPlayback = false;
-      });
-    }
-    await Navigator.of(context).push<void>(
-      MaterialPageRoute(
-        builder: (_) {
-          final view = ComplianceFullScreenVideoView(
-            controller: controller,
-            title: widget.title,
-            initialPosition: initialPosition,
-          );
-          return transcriptController == null
-              ? view
-              : ChangeNotifierProvider<ComplianceVideoController>.value(value: transcriptController, child: view);
-        },
-      ),
-    );
   }
 
   @override
@@ -514,7 +588,11 @@ class _ComplianceVideoPlayerState extends State<ComplianceVideoPlayer>
         return ValueListenableBuilder<VideoPlayerValue>(
           valueListenable: controller,
           builder: (context, controllerValue, child) {
-            return _buildPlayerContent(snapshot: snapshot, controller: controller, controllerValue: controllerValue);
+            return _buildPlayerContent(
+              snapshot: snapshot,
+              controller: controller,
+              controllerValue: controllerValue,
+            );
           },
         );
       },
@@ -526,6 +604,37 @@ class _ComplianceVideoPlayerState extends State<ComplianceVideoPlayer>
     required VideoPlayerController? controller,
     required VideoPlayerValue? controllerValue,
   }) {
+    if (widget.fullscreenInLandscape &&
+        MediaQuery.orientationOf(context) == Orientation.landscape) {
+      return SizedBox(
+        key: const ValueKey('training-inline-fullscreen-video'),
+        height: widget.height,
+        child: controller == null
+            ? ColoredBox(
+                color: Colors.black,
+                child: Center(
+                  child: (_initializationError ?? snapshot.error) != null
+                      ? const Icon(Icons.error_outline, color: Colors.white)
+                      : const FastCircularProgressIndicator(),
+                ),
+              )
+            : ComplianceFullScreenVideoView(
+                controller: controller,
+                title: widget.title,
+                initialPosition: controller.value.position,
+                isEmbedded: true,
+                video: VideoPlayer(controller, key: _videoKey),
+                onExit:
+                    widget.onExitLandscapeFullscreen ??
+                    () {
+                      _restoreRotationAfterFullscreen = true;
+                      unawaited(
+                        SystemChrome.setPreferredOrientations(const [DeviceOrientation.portraitUp]),
+                      );
+                    },
+              ),
+      );
+    }
     final thumbnailUrl = CustomFunctions.resolveImageUrl(widget.thumbnailLink);
     final initializationError = _initializationError ?? snapshot.error;
     final isReady = controller != null && controllerValue?.isInitialized == true && initializationError == null;

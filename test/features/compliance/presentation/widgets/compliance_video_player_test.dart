@@ -498,7 +498,15 @@ void main() {
       expect(find.byType(BottomSheet), findsNothing);
       expect(controller.value.position, Duration.zero);
       expect(controller.value.isPlaying, isTrue);
-      await tester.tap(find.byType(AppBackButton));
+      expect(find.byType(AppBackButton), findsNothing);
+      final exitButton = find.byKey(
+        const ValueKey('video-exit-fullscreen-button'),
+      );
+      expect(exitButton.hitTestable(), findsNothing);
+      await tester.tap(find.text('Introduction'));
+      await tester.pump();
+      expect(exitButton.hitTestable(), findsOneWidget);
+      await tester.tap(exitButton);
       await tester.pumpAndSettle();
       expect(find.byType(ComplianceFullScreenVideoView), findsNothing);
       expect(find.text('Introduction'), findsOneWidget);
@@ -553,7 +561,9 @@ void main() {
       await controller.seekTo(const Duration(milliseconds: 3750));
       await tester.pump();
       expect(find.text('First second third fourth'), findsOneWidget);
-      await tester.tap(find.byType(AppBackButton));
+      await tester.tap(
+        find.byKey(const ValueKey('video-exit-fullscreen-button')),
+      );
       await tester.pumpAndSettle();
       expect(find.byType(ComplianceFullScreenVideoView), findsNothing);
       expect(find.text('First second third fourth'), findsOneWidget);

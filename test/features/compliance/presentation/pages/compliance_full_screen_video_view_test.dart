@@ -115,6 +115,215 @@ void main() {
     await tester.pumpAndSettle();
   }
 
+  Future<void> tapVideo(WidgetTester tester) async {
+    await tester.tapAt(const Offset(80, 80));
+    await tester.pump();
+  }
+
+  Future<void> revealPlayingControls(WidgetTester tester) async {
+    await tapVideo(tester);
+    expect(controller.value.isPlaying, isFalse);
+    await tapVideo(tester);
+    expect(controller.value.isPlaying, isTrue);
+  }
+
+  void expectControls({required bool visible}) {
+    expect(find.byType(AppBackButton), findsNothing);
+    final matcher = visible ? findsOneWidget : findsNothing;
+    for (final finder in [
+      find.text('Lesson'),
+      find.text(AppStrings.trainingViewTranscript),
+      find.byType(Slider),
+      find.byIcon(
+        controller.value.isPlaying
+            ? Icons.pause_rounded
+            : Icons.play_arrow_rounded,
+      ),
+      find.byKey(const ValueKey('video-exit-fullscreen-button')),
+    ]) {
+      expect(finder.hitTestable(), matcher);
+    }
+  }
+
+  for (final screenSize in [const Size(390, 844), const Size(844, 390)]) {
+    testWidgets(
+      'fullscreen video and black area taps toggle playback and reveal controls at $screenSize',
+      (tester) async {
+        tester.view.devicePixelRatio = 1;
+        tester.view.physicalSize = screenSize;
+        addTearDown(tester.view.reset);
+        await openPlayer(tester, playing: false);
+        final video = find.byType(VideoPlayer);
+        final videoState = tester.state(video);
+        final blackArea = screenSize.width < screenSize.height
+            ? const Offset(80, 80)
+            : const Offset(20, 100);
+        expect(tester.getRect(video).contains(blackArea), isFalse);
+
+        await tester.tapAt(blackArea);
+        await tester.pump();
+        expect(controller.value.isPlaying, isTrue);
+        expectControls(visible: true);
+        await tester.tapAt(tester.getCenter(video));
+        await tester.pump(const Duration(seconds: 4));
+        expect(controller.value.isPlaying, isFalse);
+        expectControls(visible: true);
+        await tester.tapAt(blackArea);
+        await tester.pump();
+        expect(controller.value.isPlaying, isTrue);
+        expectControls(visible: true);
+        await tester.pump(const Duration(milliseconds: 2999));
+        expectControls(visible: true);
+        await tester.pump(const Duration(milliseconds: 1));
+        expectControls(visible: false);
+        expect(controller.value.position, const Duration(seconds: 20));
+        expect(tester.state(video), same(videoState));
+        await tester.pumpWidget(const SizedBox.shrink());
+        await controller.pause();
+        expect(tester.takeException(), isNull);
+      },
+    );
+
+    testWidgets(
+      'fullscreen captions keep a bottom gap during playback and restore on reveal at $screenSize',
+      (tester) async {
+        tester.view.devicePixelRatio = 1;
+        tester.view.physicalSize = screenSize;
+        addTearDown(tester.view.reset);
+        final transcript = ComplianceVideoController(
+          '[00:10 --> 00:30] Active caption',
+        );
+        addTearDown(transcript.dispose);
+        await openPlayer(tester, transcriptController: transcript);
+        final caption = find.byKey(
+          const ValueKey('fullscreen-active-transcript'),
+        );
+        final hiddenCaptionBounds = tester.getRect(caption);
+        final videoState = tester.state(find.byType(VideoPlayer));
+        expectControls(visible: false);
+        expect(find.text('Active caption').hitTestable(), findsOneWidget);
+
+        await tester.tap(caption);
+        await tester.pump();
+        expect(controller.value.isPlaying, isFalse);
+        expectControls(visible: true);
+        final visibleCaptionBounds = tester.getRect(caption);
+        final titleRow = find
+            .ancestor(of: find.text('Lesson'), matching: find.byType(Row))
+            .first;
+        final seekRow = find
+            .ancestor(of: find.byType(Slider), matching: find.byType(Row))
+            .first;
+        final seekBounds = tester.getRect(seekRow);
+        expect(
+          hiddenCaptionBounds.bottom,
+          closeTo(seekBounds.bottom - 8, 0.01),
+        );
+        expect(hiddenCaptionBounds.size, visibleCaptionBounds.size);
+        expect(hiddenCaptionBounds.top, greaterThan(visibleCaptionBounds.top));
+        expect(
+          tester.getTopLeft(titleRow).dy - visibleCaptionBounds.bottom,
+          closeTo(6, 0.01),
+        );
+        await tester.pump(const Duration(seconds: 4));
+        expectControls(visible: true);
+        await tester.tap(caption);
+        await tester.pump();
+        expect(controller.value.isPlaying, isTrue);
+        await tester.pump(const Duration(milliseconds: 2999));
+        expectControls(visible: true);
+        await tester.pump(const Duration(milliseconds: 1));
+        expectControls(visible: false);
+        expect(tester.getRect(caption), hiddenCaptionBounds);
+        expect(find.text('Active caption').hitTestable(), findsOneWidget);
+
+        await tapVideo(tester);
+        expect(tester.getRect(caption), visibleCaptionBounds);
+        expect(tester.getRect(seekRow), seekBounds);
+        await tester.pump(const Duration(seconds: 2));
+        await tapVideo(tester);
+        await tester.pump(const Duration(milliseconds: 2999));
+        expectControls(visible: true);
+        await tester.pump(const Duration(milliseconds: 1));
+        expectControls(visible: false);
+        expect(tester.getRect(caption), hiddenCaptionBounds);
+        expect(tester.state(find.byType(VideoPlayer)), same(videoState));
+        expect(controller.value.isPlaying, isTrue);
+        await tester.pumpWidget(const SizedBox.shrink());
+        await controller.pause();
+        expect(tester.takeException(), isNull);
+      },
+    );
+  }
+
+  testWidgets(
+    'fullscreen keeps paused and completed controls visible and hides on replay',
+    (tester) async {
+      await openPlayer(tester, playing: false);
+      await tester.pump(const Duration(seconds: 4));
+      expectControls(visible: true);
+      await tester.tap(find.byIcon(Icons.play_arrow_rounded));
+      await tester.pump();
+      expectControls(visible: false);
+
+      await revealPlayingControls(tester);
+      await tester.tap(find.byIcon(Icons.pause_rounded));
+      await tester.pump(const Duration(seconds: 4));
+      expect(controller.value.isPlaying, isFalse);
+      expectControls(visible: true);
+      await tester.tap(find.byIcon(Icons.play_arrow_rounded));
+      await tester.pump();
+      expectControls(visible: false);
+
+      await revealPlayingControls(tester);
+      await tester.runAsync(() async {
+        platform._events.add(VideoEvent(eventType: VideoEventType.completed));
+        await Future<void>.delayed(Duration.zero);
+      });
+      await tester.pump(const Duration(seconds: 4));
+      expect(controller.value.position, controller.value.duration);
+      expectControls(visible: true);
+      await tester.tap(find.byIcon(Icons.play_arrow_rounded));
+      await tester.pump();
+      expect(controller.value.position, Duration.zero);
+      expect(controller.value.isPlaying, isTrue);
+      expectControls(visible: false);
+
+      await revealPlayingControls(tester);
+      await tester.pumpWidget(const SizedBox.shrink());
+      await controller.pause();
+      await tester.pump(const Duration(seconds: 4));
+      expect(tester.takeException(), isNull);
+    },
+  );
+
+  testWidgets(
+    'fullscreen keeps controls visible while scrubbing and restarts the hide timer on release',
+    (tester) async {
+      await openPlayer(tester);
+      await revealPlayingControls(tester);
+      final slider = find.byType(Slider);
+      final gesture = await tester.startGesture(tester.getCenter(slider));
+      await gesture.moveBy(const Offset(20, 0));
+      await tester.pump(const Duration(seconds: 4));
+      expectControls(visible: true);
+      await gesture.up();
+      await tester.pump();
+      expect(
+        controller.value.position,
+        greaterThan(const Duration(seconds: 20)),
+      );
+      expect(controller.value.isPlaying, isTrue);
+      await tester.pump(const Duration(milliseconds: 2999));
+      expectControls(visible: true);
+      await tester.pump(const Duration(milliseconds: 1));
+      expectControls(visible: false);
+      await tester.pumpWidget(const SizedBox.shrink());
+      await controller.pause();
+      expect(tester.takeException(), isNull);
+    },
+  );
+
   testWidgets(
     'fullscreen captions write left to right with playback and pause with the video',
     (tester) async {
@@ -257,8 +466,8 @@ void main() {
       );
       expect(tester.getBottomRight(action).dx, titleBounds.right);
       final captionBounds = tester.getRect(find.text('Active caption'));
-      expect(captionBounds.left, titleBounds.left);
-      expect(captionBounds.right, titleBounds.right);
+      expect(captionBounds.left, titleBounds.left + 16);
+      expect(captionBounds.right, titleBounds.right - 16);
       expect(
         tester.getTopLeft(find.byIcon(Icons.play_arrow_rounded)).dx,
         titleBounds.left,
@@ -267,9 +476,13 @@ void main() {
         tester.getBottomRight(find.text(AppStrings.trainingViewTranscript)).dx,
         titleBounds.right,
       );
+      final exitButton = find.byKey(
+        const ValueKey('video-exit-fullscreen-button'),
+      );
+      expect(tester.getBottomRight(exitButton).dx, titleBounds.right);
       expect(
         tester.getBottomRight(find.text('00:20/01:00')).dx,
-        titleBounds.right,
+        lessThanOrEqualTo(tester.getTopLeft(exitButton).dx),
       );
 
       await controller.seekTo(const Duration(seconds: 35));
@@ -305,6 +518,16 @@ void main() {
       expect(controller.value.position, Duration.zero);
       expect(controller.value.isPlaying, isTrue);
       expect(find.text('Introduction'), findsOneWidget);
+      expect(
+        tester.getBottomLeft(captionContainer).dy,
+        tester
+            .getBottomLeft(
+              find.byKey(const ValueKey('fullscreen-video-footer')),
+            )
+            .dy,
+      );
+      await tester.tap(captionContainer);
+      await tester.pump();
       expect(
         tester.getTopLeft(titleRow).dy -
             tester.getBottomLeft(captionContainer).dy,
@@ -365,6 +588,7 @@ void main() {
         expect(position.maxScrollExtent, greaterThan(0));
         await tester.drag(viewport, Offset(0, -position.maxScrollExtent - 100));
         await tester.pumpAndSettle();
+        expect(controller.value.isPlaying, isFalse);
         expect(position.pixels, closeTo(position.maxScrollExtent, 1));
         final scrollOffset = position.pixels;
         await controller.seekTo(const Duration(seconds: 21));
@@ -377,6 +601,44 @@ void main() {
           tester.state<ScrollableState>(updatedScrollable).position.pixels,
           closeTo(scrollOffset, 1),
         );
+        final captionContainer = find.byKey(
+          const ValueKey('fullscreen-active-transcript'),
+        );
+        final captionBounds = tester.getRect(captionContainer);
+        await controller.play();
+        await tester.pump();
+        expectControls(visible: false);
+        final hiddenCaptionBounds = tester.getRect(captionContainer);
+        expect(hiddenCaptionBounds.top, greaterThan(captionBounds.top));
+        expect(hiddenCaptionBounds.size, captionBounds.size);
+        expect(
+          hiddenCaptionBounds.bottom,
+          tester
+              .getBottomLeft(
+                find.byKey(const ValueKey('fullscreen-video-footer')),
+              )
+              .dy,
+        );
+        await tester.tap(captionContainer);
+        await tester.pump();
+        expect(controller.value.isPlaying, isFalse);
+        expectControls(visible: true);
+        expect(tester.getRect(captionContainer), captionBounds);
+        await tester.pump(const Duration(seconds: 4));
+        expectControls(visible: true);
+        await tester.tap(captionContainer);
+        await tester.pump();
+        expect(controller.value.isPlaying, isTrue);
+        await tester.pump(const Duration(seconds: 3));
+        expectControls(visible: false);
+        expect(tester.getRect(captionContainer), hiddenCaptionBounds);
+        expect(
+          tester.state<ScrollableState>(updatedScrollable).position.pixels,
+          closeTo(scrollOffset, 1),
+        );
+        await tester.tap(captionContainer);
+        await tester.pump();
+        expect(tester.getRect(captionContainer), captionBounds);
         await tester.tap(find.text(AppStrings.trainingViewTranscript));
         await tester.pumpAndSettle();
         expect(find.byType(BottomSheet), findsOneWidget);
@@ -388,6 +650,7 @@ void main() {
           findsOneWidget,
         );
         await tester.pumpWidget(const SizedBox.shrink());
+        await controller.pause();
         expect(tester.takeException(), isNull);
       },
     );
@@ -406,7 +669,7 @@ void main() {
 
   for (final useSystemBack in [false, true]) {
     testWidgets(
-      'fullscreen allows phone rotation and restores portrait on ${useSystemBack ? 'system' : 'button'} back',
+      'fullscreen allows phone rotation and restores portrait on ${useSystemBack ? 'system back' : 'exit icon'}',
       (tester) async {
         tester.view.devicePixelRatio = 1;
         tester.view.physicalSize = const Size(390, 844);
@@ -427,13 +690,18 @@ void main() {
         final size = tester.getSize(video);
         expect(size.height, closeTo(390 * 9 / 16, 0.01));
         expect(tester.getTopLeft(video).dx, 0);
+        expect(find.byType(AppBackButton), findsNothing);
+        final exitButton = find.byKey(
+          const ValueKey('video-exit-fullscreen-button'),
+        );
+        expect(tester.getTopLeft(exitButton).dx, greaterThanOrEqualTo(30));
         expect(
-          tester.getTopLeft(find.byType(AppBackButton)).dx,
-          greaterThanOrEqualTo(30),
+          tester.getBottomRight(exitButton).dx,
+          lessThanOrEqualTo(390 - 30),
         );
         expect(
-          tester.getTopLeft(find.byType(AppBackButton)).dy,
-          greaterThanOrEqualTo(24),
+          tester.getBottomRight(exitButton).dy,
+          lessThanOrEqualTo(844 - 20),
         );
         expect(tester.widget<VideoPlayer>(video).controller, same(controller));
         expect(controller.value.position, const Duration(seconds: 20));
@@ -453,7 +721,8 @@ void main() {
         if (useSystemBack) {
           await tester.binding.handlePopRoute();
         } else {
-          await tester.tap(find.byType(AppBackButton));
+          await revealPlayingControls(tester);
+          await tester.tap(exitButton);
         }
         await tester.pump();
         expect(orientationRequests.last, ['DeviceOrientation.portraitUp']);
@@ -471,6 +740,7 @@ void main() {
         expect(controller.value.isPlaying, isTrue);
         expect(controller.value.position, const Duration(seconds: 20));
         await tester.pumpWidget(const SizedBox.shrink());
+        await controller.pause();
         expect(tester.takeException(), isNull);
       },
     );

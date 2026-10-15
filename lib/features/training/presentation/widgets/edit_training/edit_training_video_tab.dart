@@ -19,6 +19,8 @@ class _VideoTabContent extends StatelessWidget {
     this.isGeneratingSummary = false,
     this.isWritingSummary = false,
     this.contentHorizontalPadding = 0,
+    this.fullscreenInLandscape = false,
+    this.onExitLandscapeFullscreen,
     this.onUploadVideoTap,
     this.onReUploadVideoTap,
     this.onUpdateThumbnailTap,
@@ -45,6 +47,8 @@ class _VideoTabContent extends StatelessWidget {
   final bool isGeneratingSummary;
   final bool isWritingSummary;
   final double contentHorizontalPadding;
+  final bool fullscreenInLandscape;
+  final VoidCallback? onExitLandscapeFullscreen;
   final VoidCallback? onUploadVideoTap;
   final VoidCallback? onReUploadVideoTap;
   final VoidCallback? onUpdateThumbnailTap;
@@ -60,6 +64,8 @@ class _VideoTabContent extends StatelessWidget {
     final summary = detail?.description?.trim();
     final hasVideo = videoUrl != null && videoUrl.isNotEmpty;
     final canRevealVideo = hasVideo && !isFinalizingVideoSetup;
+    final isLandscapeVideo =
+        fullscreenInLandscape && MediaQuery.orientationOf(context) == Orientation.landscape;
     final canUseVideoActions =
         isUploadEnabled &&
         !isPickingVideo &&
@@ -73,6 +79,8 @@ class _VideoTabContent extends StatelessWidget {
       children: [
         if (canRevealVideo)
           ComplianceVideoTranscriptPanel(
+            fullscreenInLandscape: fullscreenInLandscape,
+            onExitLandscapeFullscreen: onExitLandscapeFullscreen,
             videoId: (detail?.uuid, video?.uuid),
             transcript: video?.transcript,
             videoUrl: videoUrl,
@@ -117,9 +125,12 @@ class _VideoTabContent extends StatelessWidget {
             ),
           ),
         if (canRevealVideo)
-          Padding(
-            padding: EdgeInsets.symmetric(horizontal: contentHorizontalPadding),
-            child: _buildSummarySection(summary),
+          Offstage(
+            offstage: isLandscapeVideo,
+            child: Padding(
+              padding: EdgeInsets.symmetric(horizontal: contentHorizontalPadding),
+              child: _buildSummarySection(summary),
+            ),
           ),
       ],
     );

@@ -16,6 +16,7 @@ import '../../../../core/constants/app_assets.dart';
 import '../../../../core/constants/app_colors.dart';
 import '../../../../core/constants/app_strings.dart';
 import '../../../../core/managers/app_manager.dart';
+import '../../../../core/services/video_playback_service.dart';
 import '../../../../core/utils/custom_functions.dart';
 import '../../../../core/widgets/app_ai_generate_button.dart';
 import '../../../../core/widgets/app_bar_gradient_action.dart';
@@ -116,24 +117,32 @@ class EditTrainingScreen extends StatelessWidget {
         canManageTraining: canManageTraining,
         startNewLessonWhenEmpty: startNewLessonWhenEmpty,
         useNonBlockingVideoUpload: useNonBlockingVideoUpload,
+        allowDeviceRotation: true,
         horizontalContentPadding: 8,
-        builder: (context, section, headerActions) => Scaffold(
-          backgroundColor: AppColors.mainBg,
-          resizeToAvoidBottomInset: false,
-          body: SafeArea(
-            bottom: false,
-            child: Column(
-              children: [
-                Padding(
-                  padding: const EdgeInsets.fromLTRB(8, 2, 8, 0),
-                  child: _buildHeader(context, headerActions),
+        builder: (context, section, headerActions, isLandscapeVideo) =>
+            Scaffold(
+              backgroundColor: AppColors.mainBg,
+              resizeToAvoidBottomInset: false,
+              body: SafeArea(
+                top: !isLandscapeVideo,
+                left: !isLandscapeVideo,
+                right: !isLandscapeVideo,
+                bottom: false,
+                child: Column(
+                  children: [
+                    Offstage(
+                      offstage: isLandscapeVideo,
+                      child: Padding(
+                        padding: const EdgeInsets.fromLTRB(8, 2, 8, 0),
+                        child: _buildHeader(context, headerActions),
+                      ),
+                    ),
+                    SizedBox(height: isLandscapeVideo ? 0 : 18),
+                    Expanded(child: section),
+                  ],
                 ),
-                const SizedBox(height: 18),
-                Expanded(child: section),
-              ],
+              ),
             ),
-          ),
-        ),
       ),
     );
   }
@@ -184,6 +193,7 @@ class EditTrainingSection extends StatelessWidget {
     this.skipResumeSessionRefreshOnMediaPicker = false,
     this.showOnlyApiErrorSnackBars = false,
     this.useNonBlockingVideoUpload = false,
+    this.allowDeviceRotation = false,
     this.horizontalContentPadding = 0,
     this.builder,
   });
@@ -196,6 +206,7 @@ class EditTrainingSection extends StatelessWidget {
   final bool skipResumeSessionRefreshOnMediaPicker;
   final bool showOnlyApiErrorSnackBars;
   final bool useNonBlockingVideoUpload;
+  final bool allowDeviceRotation;
   final double horizontalContentPadding;
 
   /// Builds the surrounding screen within the section's controller scope.
@@ -203,6 +214,7 @@ class EditTrainingSection extends StatelessWidget {
     BuildContext context,
     Widget section,
     Widget headerActions,
+    bool isLandscapeVideo,
   )?
   builder;
 
@@ -255,6 +267,7 @@ class EditTrainingSection extends StatelessWidget {
             skipResumeSessionRefreshOnMediaPicker,
         showOnlyApiErrorSnackBars: showOnlyApiErrorSnackBars,
         useNonBlockingVideoUpload: useNonBlockingVideoUpload,
+        allowDeviceRotation: allowDeviceRotation,
         horizontalContentPadding: horizontalContentPadding,
         builder: builder,
       ),
@@ -271,6 +284,7 @@ class _EditTrainingSectionView extends StatefulWidget {
     required this.skipResumeSessionRefreshOnMediaPicker,
     required this.showOnlyApiErrorSnackBars,
     required this.useNonBlockingVideoUpload,
+    required this.allowDeviceRotation,
     required this.horizontalContentPadding,
     this.builder,
   });
@@ -282,11 +296,13 @@ class _EditTrainingSectionView extends StatefulWidget {
   final bool skipResumeSessionRefreshOnMediaPicker;
   final bool showOnlyApiErrorSnackBars;
   final bool useNonBlockingVideoUpload;
+  final bool allowDeviceRotation;
   final double horizontalContentPadding;
   final Widget Function(
     BuildContext context,
     Widget section,
     Widget headerActions,
+    bool isLandscapeVideo,
   )?
   builder;
 
@@ -315,6 +331,9 @@ class _EditTrainingSectionViewState extends State<_EditTrainingSectionView> {
   int _lastHandledGlobalVideoSummaryEventSequence = 0;
   int _activeTrainingModalSheetCount = 0;
   late final Listenable _viewStateListenable;
+  bool _isLandscapeVideoFullscreen = false;
+  bool _isWaitingForDevicePortrait = false;
+  int _portraitResetGeneration = 0;
 
   int get _selectedTabIndex => _tabNavigation.selectedIndex;
 
@@ -323,6 +342,55 @@ class _EditTrainingSectionViewState extends State<_EditTrainingSectionView> {
   bool get _isFinalizingVideoSetup => _isFinalizingVideoSetupNotifier.value;
 
   bool get _isTrainingModalSheetOpen => _activeTrainingModalSheetCount > 0;
+
+  bool get _isLandscapeVideo =>
+      widget.allowDeviceRotation &&
+      !widget.isEmbedded &&
+      _selectedTabIndex == 0 &&
+      _trainingController?.isCreatingNewLessonDraft != true &&
+      !_isFinalizingVideoSetup &&
+      (_trainingController?.selectedModuleDetail?.trainingVideo?.url
+              ?.trim()
+              .isNotEmpty ??
+          false) &&
+      MediaQuery.orientationOf(context) == Orientation.landscape;
+
+  void _syncLandscapeVideoDisplay(bool enabled) {
+    if (ModalRoute.of(context)?.isCurrent != true) return;
+    if (_isLandscapeVideoFullscreen == enabled) return;
+    _isLandscapeVideoFullscreen = enabled;
+    unawaited(VideoPlaybackService.setFullscreen(enabled));
+    if (!enabled && _selectedTabIndex == 0) {
+      _updatePreferredOrientations();
+    }
+  }
+
+  void _resetVideoToPortrait() {
+    if (_isWaitingForDevicePortrait) return;
+    _isWaitingForDevicePortrait = true;
+    final generation = ++_portraitResetGeneration;
+    unawaited(_restoreRotationAfterDevicePortrait(generation));
+  }
+
+  Future<void> _restoreRotationAfterDevicePortrait(int generation) async {
+    await SystemChrome.setPreferredOrientations(const [
+      DeviceOrientation.portraitUp,
+    ]);
+    if (!mounted || generation != _portraitResetGeneration) return;
+    final isPortrait = await VideoPlaybackService.waitForDevicePortrait();
+    if (!mounted || generation != _portraitResetGeneration || !isPortrait) {
+      return;
+    }
+    _isWaitingForDevicePortrait = false;
+    _updatePreferredOrientations();
+  }
+
+  void _cancelVideoPortraitReset() {
+    if (!_isWaitingForDevicePortrait) return;
+    _isWaitingForDevicePortrait = false;
+    _portraitResetGeneration += 1;
+    unawaited(VideoPlaybackService.cancelDevicePortraitWait());
+  }
 
   void _beginTrainingModalSheetPresentation() {
     _activeTrainingModalSheetCount += 1;
@@ -341,6 +409,7 @@ class _EditTrainingSectionViewState extends State<_EditTrainingSectionView> {
     super.initState();
     _tabNavigation = TrainingTabNavigationController()
       ..addListener(_handleTabChanged);
+    _updatePreferredOrientations();
     _viewStateListenable = Listenable.merge([
       _tabNavigation,
       _isPickingVideoNotifier,
@@ -385,6 +454,17 @@ class _EditTrainingSectionViewState extends State<_EditTrainingSectionView> {
 
   @override
   void dispose() {
+    _cancelVideoPortraitReset();
+    if (_isLandscapeVideoFullscreen) {
+      unawaited(VideoPlaybackService.setFullscreen(false));
+    }
+    if (widget.allowDeviceRotation) {
+      unawaited(
+        SystemChrome.setPreferredOrientations(const [
+          DeviceOrientation.portraitUp,
+        ]),
+      );
+    }
     _trainingController?.removeListener(_handleTrainingControllerChanged);
     if (widget.useNonBlockingVideoUpload) {
       TrainingVideoUploadController.instance.removeListener(
@@ -399,41 +479,68 @@ class _EditTrainingSectionViewState extends State<_EditTrainingSectionView> {
     super.dispose();
   }
 
+  void _updatePreferredOrientations() {
+    if (!widget.allowDeviceRotation) return;
+    unawaited(
+      SystemChrome.setPreferredOrientations(
+        _selectedTabIndex <= 1 && !_isWaitingForDevicePortrait
+            ? const [
+                DeviceOrientation.portraitUp,
+                DeviceOrientation.landscapeLeft,
+                DeviceOrientation.landscapeRight,
+              ]
+            : const [DeviceOrientation.portraitUp],
+      ),
+    );
+  }
+
   @override
   Widget build(BuildContext context) {
     final controller = context.watch<TrainingModuleController>();
     final exitsEmptyCreateDraft =
         widget.startNewLessonWhenEmpty && controller.modules.isEmpty;
-    final section = AnimatedBuilder(
+    return AnimatedBuilder(
       animation: _viewStateListenable,
-      builder: (context, _) => _buildBody(controller),
-    );
-    return PopScope<Object?>(
-      canPop:
-          !controller.isCreatingModule &&
-          (exitsEmptyCreateDraft || !controller.isCreatingNewLessonDraft),
-      onPopInvokedWithResult: (didPop, _) {
-        if (didPop ||
-            exitsEmptyCreateDraft ||
-            !controller.isCreatingNewLessonDraft ||
-            controller.isCreatingModule) {
-          return;
-        }
+      builder: (context, _) {
+        final isLandscapeVideo = _isLandscapeVideo;
+        WidgetsBinding.instance.addPostFrameCallback((_) {
+          if (mounted) _syncLandscapeVideoDisplay(isLandscapeVideo);
+        });
+        final section = _buildBody(controller);
+        return PopScope<Object?>(
+          canPop:
+              !isLandscapeVideo &&
+              !controller.isCreatingModule &&
+              (exitsEmptyCreateDraft || !controller.isCreatingNewLessonDraft),
+          onPopInvokedWithResult: (didPop, _) {
+            if (!didPop && isLandscapeVideo) {
+              _resetVideoToPortrait();
+              return;
+            }
+            if (didPop ||
+                exitsEmptyCreateDraft ||
+                !controller.isCreatingNewLessonDraft ||
+                controller.isCreatingModule) {
+              return;
+            }
 
-        FocusScope.of(context).unfocus();
-        unawaited(controller.cancelCreatingNewLessonDraft());
+            FocusScope.of(context).unfocus();
+            unawaited(controller.cancelCreatingNewLessonDraft());
+          },
+          child:
+              widget.builder?.call(
+                context,
+                section,
+                _TrainingHeaderActions(
+                  controller: controller,
+                  onShowAllLessons: () => _showAllLessons(controller),
+                  onAddLesson: () => _startNewLesson(controller),
+                ),
+                isLandscapeVideo,
+              ) ??
+              section,
+        );
       },
-      child:
-          widget.builder?.call(
-            context,
-            section,
-            _TrainingHeaderActions(
-              controller: controller,
-              onShowAllLessons: () => _showAllLessons(controller),
-              onAddLesson: () => _startNewLesson(controller),
-            ),
-          ) ??
-          section,
     );
   }
 }

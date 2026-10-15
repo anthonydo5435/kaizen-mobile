@@ -32,7 +32,7 @@ extension _EditTrainingSectionViewStateView on _EditTrainingSectionViewState {
         (isEditingSopWithKeyboard || availableHeight < 440);
     final contentCard = _buildTabContent(
       controller,
-      showLessonHeader: !collapseLessonHeader,
+      showLessonHeader: !collapseLessonHeader && !_isLandscapeVideo,
     );
     final contentChildren = <Widget>[
       if (fillAvailableSpace) Expanded(child: contentCard) else contentCard,
@@ -60,13 +60,16 @@ extension _EditTrainingSectionViewStateView on _EditTrainingSectionViewState {
         crossAxisAlignment: CrossAxisAlignment.stretch,
         children: contentChildren,
       ),
-      bottomNavigationBar: SafeArea(
-        top: false,
-        bottom: false,
-        minimum: const EdgeInsets.fromLTRB(12, 10, 12, 14),
-        child: TrainingTabs(
-          navigation: _tabNavigation,
-          maxTabIndex: controller.maxAccessibleTabIndex,
+      bottomNavigationBar: Offstage(
+        offstage: _isLandscapeVideo,
+        child: SafeArea(
+          top: false,
+          bottom: false,
+          minimum: const EdgeInsets.fromLTRB(12, 10, 12, 14),
+          child: TrainingTabs(
+            navigation: _tabNavigation,
+            maxTabIndex: controller.maxAccessibleTabIndex,
+          ),
         ),
       ),
     );
@@ -120,6 +123,7 @@ extension _EditTrainingSectionViewStateView on _EditTrainingSectionViewState {
     return TrainingTabView(
       navigation: _tabNavigation,
       maxTabIndex: controller.maxAccessibleTabIndex,
+      isSwipeEnabled: !_isLandscapeVideo,
       onPageApproaching: (index) {
         if (index == 1) {
           unawaited(controller.loadDocumentForSelectedModule());
@@ -231,6 +235,11 @@ extension _EditTrainingSectionViewStateView on _EditTrainingSectionViewState {
 
     if (tabIndex == 0) {
       return _VideoTabContent(
+        fullscreenInLandscape:
+            widget.allowDeviceRotation && _selectedTabIndex == 0,
+        onExitLandscapeFullscreen: widget.allowDeviceRotation
+            ? _resetVideoToPortrait
+            : null,
         detail: controller.selectedModuleDetail,
         localVideoPath: controller.selectedModuleLocalVideoPath,
         isReadOnly: !controller.canManageTraining,

@@ -23,6 +23,8 @@ class ComplianceVideoTranscriptPanel extends StatelessWidget {
     this.mediaAlignment = const Alignment(0, -0.5),
     this.topControlsInset = 6,
     this.topRightActions = const <Widget>[],
+    this.fullscreenInLandscape = false,
+    this.onExitLandscapeFullscreen,
   });
 
   final Object videoId;
@@ -35,6 +37,8 @@ class ComplianceVideoTranscriptPanel extends StatelessWidget {
   final Alignment mediaAlignment;
   final double topControlsInset;
   final List<Widget> topRightActions;
+  final bool fullscreenInLandscape;
+  final VoidCallback? onExitLandscapeFullscreen;
 
   @override
   Widget build(BuildContext context) {
@@ -181,8 +185,12 @@ class _VideoPlayerArea extends StatelessWidget {
   @override
   Widget build(BuildContext context) {
     final animateTranscript = !MediaQuery.disableAnimationsOf(context);
-    final height =
-        (MediaQuery.sizeOf(context).height * 0.5).clamp(320.0, 520.0) - 39;
+    final isLandscapeVideo =
+        panel.fullscreenInLandscape &&
+        MediaQuery.orientationOf(context) == Orientation.landscape;
+    final height = isLandscapeVideo
+        ? MediaQuery.sizeOf(context).height
+        : (MediaQuery.sizeOf(context).height * 0.5).clamp(320.0, 520.0) - 39;
     final videoUrl = panel.videoUrl?.trim();
     if (videoUrl == null || videoUrl.isEmpty) {
       return _VideoTranscriptLayout(
@@ -192,6 +200,8 @@ class _VideoPlayerArea extends StatelessWidget {
       );
     }
     return ComplianceVideoPlayer(
+      fullscreenInLandscape: panel.fullscreenInLandscape,
+      onExitLandscapeFullscreen: panel.onExitLandscapeFullscreen,
       videoUrl: videoUrl,
       localVideoPath: panel.localVideoPath,
       title: panel.title,

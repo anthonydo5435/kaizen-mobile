@@ -16,6 +16,7 @@ void main() {
     double height = 480,
     IndexedWidgetBuilder? pageBuilder,
     ValueChanged<int>? onPageApproaching,
+    bool isSwipeEnabled = true,
   }) {
     return tester.pumpWidget(
       MaterialApp(
@@ -27,6 +28,7 @@ void main() {
               navigation: navigation,
               maxTabIndex: maxTabIndex,
               onPageApproaching: onPageApproaching,
+              isSwipeEnabled: isSwipeEnabled,
               pageBuilder:
                   pageBuilder ??
                   (_, index) => SizedBox.expand(
@@ -118,6 +120,30 @@ void main() {
         expectSettled(tester, index);
       }
     }
+  });
+
+  testWidgets('disabling swipes cancels a live drag and restores swiping when enabled again', (
+    tester,
+  ) async {
+    await mountTabs(tester);
+    final controller = pageController(tester);
+    final gesture = await beginSwipe(tester, -1);
+    expect(controller.page, inExclusiveRange(0, 1));
+    await mountTabs(tester, isSwipeEnabled: false);
+    await tester.pumpAndSettle();
+    expect(pageController(tester), same(controller));
+    await gesture.moveBy(const Offset(-240, 0));
+    await gesture.up();
+    await tester.pumpAndSettle();
+    expectSettled(tester, 0);
+    await tester.drag(find.byType(PageView), const Offset(-300, 0));
+    await tester.pumpAndSettle();
+    expectSettled(tester, 0);
+    await mountTabs(tester);
+    await tester.drag(find.byType(PageView), const Offset(-300, 0));
+    await tester.pumpAndSettle();
+    expect(pageController(tester), same(controller));
+    expectSettled(tester, 1);
   });
 
   testWidgets('incoming SOP data can load before the swipe passes its midpoint', (tester) async {
