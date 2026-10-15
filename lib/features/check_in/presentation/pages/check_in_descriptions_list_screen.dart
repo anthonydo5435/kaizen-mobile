@@ -32,16 +32,11 @@ bool _canEditSingleDescriptionAudit({
   required bool isOwner,
   required String date,
 }) {
-  return AppManager.instance.canCurrentOrganizationModifyContent &&
-      !isViewOnly &&
-      isOwner &&
-      CustomFunctions.isAuditWithinContinueWindow(date);
+  return !isViewOnly && isOwner && CustomFunctions.isAuditWithinContinueWindow(date);
 }
 
 bool _canCommentOnSingleDescriptionAudit({required bool isViewOnly, required String date}) {
-  return AppManager.instance.canCurrentOrganizationModifyContent &&
-      !isViewOnly &&
-      CustomFunctions.isAuditWithinContinueWindow(date);
+  return !isViewOnly && CustomFunctions.isAuditWithinContinueWindow(date);
 }
 
 enum _PassBlockState { great, almostThere, needsImprovement, defaultValue }
@@ -1148,16 +1143,10 @@ class _CheckInDescriptionCardState extends State<_CheckInDescriptionCard> {
     final auditFactorType = CustomFunctions.capitalizeFirstLetter(
       widget.description.auditFactorType,
     );
-    final milestone = CustomFunctions.normalizeAuditMilestone(
-      widget.description.milestoneDay,
-    );
+    final milestone = CustomFunctions.normalizeAuditMilestone(widget.description.milestoneDay);
     final hasMilestone = AppStrings.auditMilestoneOptions.contains(milestone);
-    final auditTypeLabel = auditFactorType.isEmpty
-        ? AppStrings.checkInTitle
-        : auditFactorType;
-    final milestoneLabel = hasMilestone
-        ? AppStrings.auditMilestoneCardLabel(milestone)
-        : null;
+    final auditTypeLabel = auditFactorType.isEmpty ? AppStrings.checkInTitle : auditFactorType;
+    final milestoneLabel = hasMilestone ? AppStrings.auditMilestoneCardLabel(milestone) : null;
     final descriptionText = widget.description.description.isEmpty
         ? AppStrings.auditNoDescriptionAvailable
         : widget.description.description;
@@ -1208,9 +1197,7 @@ class _CheckInDescriptionCardState extends State<_CheckInDescriptionCard> {
                 ),
                 const SizedBox(height: 18),
                 ConstrainedBox(
-                  constraints: BoxConstraints(
-                    minHeight: canCreateComments ? 78 : 42,
-                  ),
+                  constraints: BoxConstraints(minHeight: canCreateComments ? 78 : 42),
                   child: Stack(
                     children: [
                       Row(
@@ -1219,9 +1206,7 @@ class _CheckInDescriptionCardState extends State<_CheckInDescriptionCard> {
                           ValueListenableBuilder<_PassSelectionViewState>(
                             valueListenable: _viewStateNotifier,
                             builder: (context, viewState, _) {
-                              final counts = _auditCountsFromBlocks(
-                                viewState.blocks,
-                              );
+                              final counts = _auditCountsFromBlocks(viewState.blocks);
                               return Row(
                                 mainAxisSize: MainAxisSize.min,
                                 crossAxisAlignment: CrossAxisAlignment.start,
@@ -1229,21 +1214,14 @@ class _CheckInDescriptionCardState extends State<_CheckInDescriptionCard> {
                                   _SelectionCounter(
                                     color: canEditBlocks
                                         ? AppColors.green1
-                                        : AppColors.green1.withValues(
-                                            alpha: 0.5,
-                                          ),
+                                        : AppColors.green1.withValues(alpha: 0.5),
                                     count: counts['great'] ?? 0,
-                                    showDecrementControl:
-                                        widget.isOwner && !widget.isSelfAudit,
+                                    showDecrementControl: widget.isOwner && !widget.isSelfAudit,
                                     onTapCount: canEditBlocks
-                                        ? () => _incrementRating(
-                                            _PassBlockState.great,
-                                          )
+                                        ? () => _incrementRating(_PassBlockState.great)
                                         : null,
                                     onTapArrow: canEditBlocks
-                                        ? () => _decrementRating(
-                                            _PassBlockState.great,
-                                          )
+                                        ? () => _decrementRating(_PassBlockState.great)
                                         : null,
                                     canEditBlocks: canEditBlocks,
                                   ),
@@ -1251,21 +1229,14 @@ class _CheckInDescriptionCardState extends State<_CheckInDescriptionCard> {
                                   _SelectionCounter(
                                     color: canEditBlocks
                                         ? AppColors.orange1
-                                        : AppColors.orange1.withValues(
-                                            alpha: 0.5,
-                                          ),
+                                        : AppColors.orange1.withValues(alpha: 0.5),
                                     count: counts['almost_there'] ?? 0,
-                                    showDecrementControl:
-                                        widget.isOwner && !widget.isSelfAudit,
+                                    showDecrementControl: widget.isOwner && !widget.isSelfAudit,
                                     onTapCount: canEditBlocks
-                                        ? () => _incrementRating(
-                                            _PassBlockState.almostThere,
-                                          )
+                                        ? () => _incrementRating(_PassBlockState.almostThere)
                                         : null,
                                     onTapArrow: canEditBlocks
-                                        ? () => _decrementRating(
-                                            _PassBlockState.almostThere,
-                                          )
+                                        ? () => _decrementRating(_PassBlockState.almostThere)
                                         : null,
                                     canEditBlocks: canEditBlocks,
                                   ),
@@ -1275,17 +1246,12 @@ class _CheckInDescriptionCardState extends State<_CheckInDescriptionCard> {
                                         ? AppColors.red1
                                         : AppColors.red1.withValues(alpha: 0.5),
                                     count: counts['needs_improvement'] ?? 0,
-                                    showDecrementControl:
-                                        widget.isOwner && !widget.isSelfAudit,
+                                    showDecrementControl: widget.isOwner && !widget.isSelfAudit,
                                     onTapCount: canEditBlocks
-                                        ? () => _incrementRating(
-                                            _PassBlockState.needsImprovement,
-                                          )
+                                        ? () => _incrementRating(_PassBlockState.needsImprovement)
                                         : null,
                                     onTapArrow: canEditBlocks
-                                        ? () => _decrementRating(
-                                            _PassBlockState.needsImprovement,
-                                          )
+                                        ? () => _decrementRating(_PassBlockState.needsImprovement)
                                         : null,
                                     canEditBlocks: canEditBlocks,
                                   ),
@@ -1308,9 +1274,7 @@ class _CheckInDescriptionCardState extends State<_CheckInDescriptionCard> {
                               decoration: BoxDecoration(
                                 color: isMediaCommentCreated
                                     ? AppColors.green1
-                                    : AppColors.secondaryColor.withValues(
-                                        alpha: 0.14,
-                                      ),
+                                    : AppColors.secondaryColor.withValues(alpha: 0.14),
                                 shape: BoxShape.circle,
                               ),
                               child: ValueListenableBuilder<bool>(

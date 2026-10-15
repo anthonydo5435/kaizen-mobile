@@ -781,9 +781,9 @@ class _EmptyMediaUploadCard extends StatelessWidget {
     final width = MediaQuery.sizeOf(context).width;
     final previewWidth = width > 560 ? 440.0 : width * 0.82;
 
-    return SizedBox(
+    return Container(
       width: previewWidth,
-      height: 220,
+      constraints: const BoxConstraints(minHeight: 220),
       child: Material(
         color: Colors.transparent,
         child: InkWell(

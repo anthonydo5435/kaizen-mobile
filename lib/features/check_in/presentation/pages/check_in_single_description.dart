@@ -857,16 +857,11 @@ bool _canEditSingleDescriptionAudit({
   required bool isOwner,
   required String date,
 }) {
-  return AppManager.instance.canCurrentOrganizationModifyContent &&
-      !isViewOnly &&
-      isOwner &&
-      CustomFunctions.isAuditWithinContinueWindow(date);
+  return !isViewOnly && isOwner && CustomFunctions.isAuditWithinContinueWindow(date);
 }
 
 bool _canCommentOnSingleDescriptionAudit({required bool isViewOnly, required String date}) {
-  return AppManager.instance.canCurrentOrganizationModifyContent &&
-      !isViewOnly &&
-      CustomFunctions.isAuditWithinContinueWindow(date);
+  return !isViewOnly && CustomFunctions.isAuditWithinContinueWindow(date);
 }
 
 enum _PassBlockState { great, almostThere, needsImprovement, defaultValue }
