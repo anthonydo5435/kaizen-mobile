@@ -28,6 +28,10 @@ class AppStrings {
   static const String loginFailedTitle = 'Login Failed';
   static const String loginGoogleUnavailable =
       'Google sign-in is unavailable right now. Please use your email and password.';
+  static const String loginGoogleBrowserUnavailable =
+      'Google sign-in requires an up-to-date browser. Please update Chrome and try again, or use your email and password.';
+  static const String loginGoogleAppNotVerified =
+      'Google sign-in could not verify this app. Please try again later or use your email and password.';
   static const String loginGoogleFailed = 'Unable to sign in with Google. Please try again.';
   static const String loginGoogleTimedOut = 'Google sign-in timed out. Please try again.';
   static const String loginGoogleCodeRejected =
@@ -810,6 +814,7 @@ class AppStrings {
   static const String trainingQuestionCorrectOptionRequired = 'Please select the correct option.';
   static const String trainingViewTranscript = 'View Transcript';
   static const String trainingCc = 'CC';
+  static const String trainingExitFullscreen = 'Exit fullscreen';
   static const String trainingHideActiveTranscript = 'Hide active transcript';
   static const String trainingShowActiveTranscript = 'Show active transcript';
   static const String trainingTranscriptTitle = 'Transcript';
