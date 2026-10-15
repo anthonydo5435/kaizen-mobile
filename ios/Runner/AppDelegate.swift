@@ -10,6 +10,7 @@ import webview_flutter_wkwebview
 @objc class AppDelegate: FlutterAppDelegate {
   private let trainingUploadNotificationBridge = TrainingUploadNotificationBridge()
   private let videoAudioSessionBridge = VideoAudioSessionBridge()
+  private let videoOrientationBridge = VideoOrientationBridge()
   private let trainingSopWebViewBridge = TrainingSopWebViewBridge()
 
   override func application(
@@ -24,6 +25,7 @@ import webview_flutter_wkwebview
     if let controller = window?.rootViewController as? FlutterViewController {
       trainingUploadNotificationBridge.register(with: controller.binaryMessenger)
       videoAudioSessionBridge.register(with: controller.binaryMessenger)
+      videoOrientationBridge.register(with: controller.binaryMessenger)
       trainingSopWebViewBridge.register(with: controller.binaryMessenger, registry: self)
     }
     return didFinishLaunching
@@ -40,6 +42,65 @@ import webview_flutter_wkwebview
       didReceive: response,
       withCompletionHandler: completionHandler
     )
+  }
+}
+
+/// Re-enables rotation only after the phone itself returns to upright portrait.
+private final class VideoOrientationBridge {
+  private var orientationObserver: NSObjectProtocol?
+  private var pendingResult: FlutterResult?
+  private var startedOrientationNotifications = false
+
+  func register(with messenger: FlutterBinaryMessenger) {
+    let channel = FlutterMethodChannel(
+      name: "kaizenteams/video_fullscreen", binaryMessenger: messenger)
+    channel.setMethodCallHandler { [weak self] call, result in
+      guard let self else {
+        result(false)
+        return
+      }
+      switch call.method {
+      case "waitForPortrait":
+        self.waitForPortrait(result: result)
+      case "cancelWaitForPortrait":
+        self.finishWait(isPortrait: false)
+        result(nil)
+      default:
+        result(FlutterMethodNotImplemented)
+      }
+    }
+  }
+
+  private func waitForPortrait(result: @escaping FlutterResult) {
+    finishWait(isPortrait: false)
+    pendingResult = result
+    let device = UIDevice.current
+    startedOrientationNotifications = !device.isGeneratingDeviceOrientationNotifications
+    if startedOrientationNotifications { device.beginGeneratingDeviceOrientationNotifications() }
+    orientationObserver = NotificationCenter.default.addObserver(
+      forName: UIDevice.orientationDidChangeNotification, object: nil, queue: .main
+    ) { [weak self] _ in
+      if UIDevice.current.orientation == .portrait {
+        self?.finishWait(isPortrait: true)
+      }
+    }
+    if device.orientation == .portrait { finishWait(isPortrait: true) }
+  }
+
+  private func finishWait(isPortrait: Bool) {
+    if let orientationObserver { NotificationCenter.default.removeObserver(orientationObserver) }
+    orientationObserver = nil
+    if startedOrientationNotifications {
+      UIDevice.current.endGeneratingDeviceOrientationNotifications()
+      startedOrientationNotifications = false
+    }
+    let result = pendingResult
+    pendingResult = nil
+    result?(isPortrait)
+  }
+
+  deinit {
+    finishWait(isPortrait: false)
   }
 }
 
