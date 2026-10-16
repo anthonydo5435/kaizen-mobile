@@ -738,6 +738,7 @@ class CheckInController extends ChangeNotifier {
       return;
     }
     _cancelPendingMainListSearchRefresh();
+    _clearMainListCaches(clearDefaultCaches: true);
     await _refreshMainListSearchResults(showLoader: true, forceRefresh: true);
   }
 

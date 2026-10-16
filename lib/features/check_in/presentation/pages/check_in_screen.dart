@@ -11,6 +11,7 @@ import '../../../../routes/app_router.dart';
 import '../../data/datasources/audit_remote_data_source.dart';
 import '../../data/repositories/audit_repository_impl.dart';
 import '../../domain/entities/audit_member_status.dart';
+import '../../domain/entities/audit_member.dart';
 import '../../domain/entities/audit_profile.dart';
 import '../../domain/usecases/get_audit_overview_usecase.dart';
 import '../providers/check_in_controller.dart';
@@ -199,23 +200,8 @@ class _CheckInScreenViewState extends State<_CheckInScreenView> {
           for (var index = 0; index < members.length; index++) ...[
             CheckInMemberCard(
               member: members[index],
-              onCheckInTap: () {
-                final member = members[index];
-                AppRouter.pushNamed(
-                  context,
-                  AppRouter.checkInDetails,
-                  arguments: CheckInDetailsRouteArgs(
-                    profileJobId: member is AuditProfile
-                        ? member.profileJob
-                        : '',
-                    year: controller.selectedAuditYear,
-                    quarter: controller.selectedAuditQuarter,
-                    selectedProfileUuid: member is AuditProfile
-                        ? member.profileUuid
-                        : null,
-                  ),
-                );
-              },
+              onCheckInTap: () =>
+                  _openCheckInDetails(members[index], controller),
             ),
             if (index != members.length - 1) const SizedBox(height: 18),
           ],
@@ -255,6 +241,26 @@ class _CheckInScreenViewState extends State<_CheckInScreenView> {
         ),
       ],
     );
+  }
+
+  Future<void> _openCheckInDetails(
+    AuditMember member,
+    CheckInController controller,
+  ) async {
+    await AppRouter.pushNamed<void>(
+      context,
+      AppRouter.checkInDetails,
+      arguments: CheckInDetailsRouteArgs(
+        profileJobId: member is AuditProfile ? member.profileJob : '',
+        year: controller.selectedAuditYear,
+        quarter: controller.selectedAuditQuarter,
+        selectedProfileUuid: member is AuditProfile ? member.profileUuid : null,
+      ),
+    );
+    if (!mounted) return;
+
+    // Fetch the saved summary after the entire description/detail flow closes.
+    await controller.refresh();
   }
 
   Future<void> _openFilterSheet(
