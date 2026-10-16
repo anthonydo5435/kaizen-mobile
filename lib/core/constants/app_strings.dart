@@ -457,6 +457,35 @@ class AppStrings {
   static const String reportsScreenTitle = 'Reports';
   static const String myReportsTitle = 'My Reports';
   static const String certify = 'Certify';
+  static const String performanceReportThisQuarter = 'This Quarter';
+  static const String performanceReportCustomDateRange = 'Custom Date Range';
+  static const String performanceReportChooseDateRange = 'Choose Date range';
+  static const String performanceReportPaygradeLabel = 'Paygrade: ';
+  static const String performanceReportRunningScore = 'Running Overall Performance Score';
+  static const String performanceReportConfidenceLevel = 'Confidence Level';
+  static const String performanceReportOpenSeatMessage = 'No profile is assigned to this seat yet.';
+  static const String performanceReportOpenSeatTitle = 'No Profile Assigned';
+  static const String performanceReportSelectCertifiedReport = 'Select Certified Report';
+  static const String performanceReportGenerateRemarks = 'Generate Remarks';
+  static const String performanceReportRatings = 'Ratings';
+  static const String performanceReportRemarks = 'Remarks';
+  static const String performanceReportCommitmentTitle = 'For the quarter I commit to working on:';
+  static const String performanceReportCommitmentHint =
+      'Share your goals, plans, and key focus areas for this quarter.';
+  static const String performanceReportEnterComments = 'Enter Comments';
+  static const String performanceReportSignature = 'Signature';
+  static const String performanceReportSignatureHint =
+      'Add the Employee and Facilitator signature to confirm this commitment.';
+  static const String performanceReportEmployeeSignature = 'Employee Signature';
+  static const String performanceReportFacilitatorSignature = 'Facilitator Signature';
+  static const String performanceReportNoSignature = 'No signature added yet';
+  static const String performanceReportAddSignatureHint = 'Add signature to confirm';
+  static const String performanceReportAddSignature = 'Add Signature';
+  static const String performanceReportRetakeSignature = 'Retake Signature';
+  static const String performanceReportCertifiedSuccessfully =
+      'Performance report certified successfully.';
+  static String performanceReportCommitmentCount(int count) => '$count/2000';
+  static String performanceReportCertifiedAt(String date) => 'Certified at: $date';
   static const String performanceReportUnavailable =
       'Performance report is not available right now.';
   static const String performanceReportSelectedCategoryTitle = 'Selected Category';
