@@ -98,11 +98,37 @@ HTTP 200 with `Content-Type: application/json`, no login, and no redirect or SPA
 HTML fallback. The deployed frontend is separate; this repository change alone
 does not publish the file.
 
-The bundled file supports this developer's debug and locally signed release
-builds. For production, choose the certificates for the builds you distribute.
-If Play App Signing uses a different certificate, add the **app signing** SHA-256
-from Play Console; the local/upload certificate does not identify Play-installed
+The bundled file supports this developer's debug, locally signed release, and
+observed Play-installed builds. The October 16, 2026 check confirmed that the
+Play-installed app has a different certificate; see the deployment correction
+below. For production, choose the certificates for the builds you distribute.
+Use the **app signing** SHA-256 from Play Console and verify it against the
+installed app; the local/upload certificate does not identify Play-installed
 apps. See Android's [website association requirements](https://developer.android.com/training/app-links/configure-assetlinks).
+
+### Play-installed certificate correction — October 16, 2026
+
+The connected phone had version `1.0.6` (version code `8`) of `com.kaizenteam`,
+installed by `com.android.vending`. Android's domain status and `apksigner` on
+the pulled installed `base.apk` both identified this app signer SHA-256:
+
+```text
+C0:7A:66:EE:A0:7A:8C:90:B6:83:A3:C1:65:22:A3:FB:9C:62:4E:71:3B:7A:CB:F7:28:CB:78:D6:36:3B:F0:17
+```
+
+Both live app and dev domains still listed only the debug and local release
+certificates. Their Android verification state was `1024`. This also explains
+why Google's HTTPS Auth Tab returned "Google sign-in could not verify this app"
+for the Play build while a locally installed release worked. An earlier report
+of `8C:84:…` as the Play certificate was incorrect for this installed build.
+
+The bundled JSON now retains those existing fingerprints and adds the observed
+Play signer. Deploy it as the actual frontend's `public/.well-known/assetlinks.json`
+on **both app and dev domains**. No new Android release is required for this
+website association update. This repository edit alone does not publish it.
+After deployment, use the verification commands below and retry the Google
+Login button in the Play-installed app. Use `apksigner`'s app signer certificate,
+not its separate source-stamp certificate, when comparing future Play builds.
 
 ### Production domain
 

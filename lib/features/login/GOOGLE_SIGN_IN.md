@@ -30,10 +30,52 @@ user closes it or the attempt times out; the app cannot read Google's browser pa
 
 HTTPS Auth Tab callbacks still require the live domain's `assetlinks.json` to list
 the installed app's signing certificate. For Play builds, compare the **App signing
-key certificate**, rather than assuming it differs from the local release key.
-The Play certificate supplied for this investigation was
-`8C:84:F7:B4:50:5C:BA:9B:C2:10:B7:A2:F5:CC:6D:A1:1F:7D:A5:18:FA:97:A4:24:29:2A:C8:FC:41:E4:A4:33`;
-it was present on both production and development domains on 2026-10-15.
+key certificate** with the certificate extracted from the Play-installed APK.
+The earlier certificate reported as the Play certificate,
+`8C:84:F7:B4:50:5C:BA:9B:C2:10:B7:A2:F5:CC:6D:A1:1F:7D:A5:18:FA:97:A4:24:29:2A:C8:FC:41:E4:A4:33`,
+identifies the locally signed release. Its presence on a domain does not verify
+the Play-installed app.
+
+### Play Store verification failure confirmed on October 16, 2026
+
+The connected phone had `com.kaizenteam` version `1.0.6` (version code `8`),
+installed by `com.android.vending`. Both `pm get-app-links --user cur com.kaizenteam`
+and `apksigner verify --print-certs` on its pulled `base.apk` identified this
+actual app signer SHA-256:
+
+```text
+C0:7A:66:EE:A0:7A:8C:90:B6:83:A3:C1:65:22:A3:FB:9C:62:4E:71:3B:7A:CB:F7:28:CB:78:D6:36:3B:F0:17
+```
+
+At the time of that check, both live callback domains served HTTP 200 JSON but
+listed only the debug (`0D:60:…`) and local release (`8C:84:…`) certificates.
+The Play signer was absent, and Android reported verifier failure code `1024`
+for both domains. Chrome's `RESULT_VERIFICATION_FAILED` becomes the Login error
+"Google sign-in could not verify this app."
+
+`web/.well-known/assetlinks.json` now includes all three observed certificates.
+Copy it into the actual frontend's `public/.well-known/assetlinks.json` and deploy
+it at both `https://app.kaizenteams.ai/.well-known/assetlinks.json` and
+`https://dev.kaizenteams.ai/.well-known/assetlinks.json`. Each URL must return
+HTTP 200 JSON directly with the Play signer included. This Flutter repository
+does not deploy either website. A new Android release is not required for this
+association change.
+
+After deployment, request fresh verification on the Play-installed app:
+
+```sh
+adb shell pm verify-app-links --re-verify com.kaizenteam
+# Allow verification to finish before inspecting the result.
+adb shell pm get-app-links --user cur com.kaizenteam
+```
+
+Confirm the callback host says `verified`, then retry the real Google Login
+button in the Play-installed app. Chrome also verifies the HTTPS Auth Tab
+association; an Android domain status alone does not establish successful sign-in.
+Use the **Signer #1 certificate SHA-256** from `apksigner`, not its separate
+Source Stamp Signer certificate. Keep the browser's existing Web client and
+registered HTTPS callback pair; changing native Android OAuth SHA-1 registration
+does not repair this missing website association in the current browser flow.
 
 `GoogleLoginUseCase` sends the code through `AuthRepository` to:
 
