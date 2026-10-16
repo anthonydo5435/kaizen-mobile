@@ -28,12 +28,7 @@ class _LiquidGlassNavBar extends StatelessWidget {
     return SafeArea(
       top: false,
       bottom: false,
-      minimum: const EdgeInsets.fromLTRB(
-        _horizontalInset,
-        10,
-        _horizontalInset,
-        14,
-      ),
+      minimum: const EdgeInsets.fromLTRB(_horizontalInset, 10, _horizontalInset, 14),
       child: DecoratedBox(
         decoration: BoxDecoration(
           borderRadius: BorderRadius.circular(28),
@@ -72,9 +67,7 @@ class _GlassSurface extends StatelessWidget {
         filter: ImageFilter.blur(sigmaX: 18, sigmaY: 18),
         enabled: !highContrast,
         child: Material(
-          color: AppColors.surfaceDark.withValues(
-            alpha: highContrast ? 1 : 0.72,
-          ),
+          color: AppColors.surfaceDark.withValues(alpha: highContrast ? 1 : 0.72),
           child: Ink(
             decoration: BoxDecoration(
               borderRadius: BorderRadius.circular(28),
@@ -118,17 +111,14 @@ class _GlassDestinations extends StatelessWidget {
                 duration: duration,
                 curve: Curves.easeOutCubic,
                 alignment: AlignmentDirectional(
-                  items.length == 1
-                      ? 0
-                      : -1 + 2 * selectedIndex / (items.length - 1),
+                  items.length == 1 ? 0 : -1 + 2 * selectedIndex / (items.length - 1),
                   0,
                 ),
                 child: FractionallySizedBox(
                   widthFactor: 1 / items.length,
                   heightFactor: 1,
                   child: _GlassSelectionLens(
-                    horizontalPadding:
-                        items[selectedIndex].selectionHorizontalPadding,
+                    horizontalPadding: items[selectedIndex].selectionHorizontalPadding,
                   ),
                 ),
               ),
@@ -156,9 +146,7 @@ class _GlassSelectionLens extends StatelessWidget {
 
   @override
   Widget build(BuildContext context) {
-    final edge = BorderSide(
-      color: AppColors.textPrimary.withValues(alpha: 0.22),
-    );
+    final edge = BorderSide(color: AppColors.textPrimary.withValues(alpha: 0.22));
 
     return LayoutBuilder(
       builder: (context, constraints) => OverflowBox(
@@ -230,11 +218,10 @@ class _GlassNavItem extends StatelessWidget {
                   AppTextView.body3(
                     item.label,
                     color: color,
-                    fontWeight: item.isSelected
-                        ? FontWeight.w700
-                        : FontWeight.w500,
+                    fontWeight: item.isSelected ? FontWeight.w700 : FontWeight.w500,
                     textAlign: TextAlign.center,
                     height: 1.2,
+                    fontSize: 11,
                   ),
                 ],
               ),
