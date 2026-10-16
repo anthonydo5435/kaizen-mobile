@@ -37,6 +37,7 @@ import '../../domain/usecases/submit_description_audit_usecase.dart';
 import '../../../login/domain/entities/user.dart';
 import 'check_in_media_upload_controller.dart';
 import 'check_in_state.dart';
+import 'check_in_descriptions_list_filters_state.dart';
 
 class CheckInController extends ChangeNotifier {
   static const Duration _certifiedReportPdfUrlCacheTtl = Duration(minutes: 10);
@@ -86,6 +87,8 @@ class CheckInController extends ChangeNotifier {
   final TextEditingController descriptionSearchController =
       TextEditingController();
   String _descriptionSearchQuery = '';
+  CheckInDescriptionsListFiltersState _descriptionFilters =
+      const CheckInDescriptionsListFiltersState();
   bool _isSeatProfileFilterLoading = false;
   List<String> _seatProfileOptions = const <String>[];
   Map<String, String> _seatProfileJobUuids = const <String, String>{};
@@ -97,6 +100,8 @@ class CheckInController extends ChangeNotifier {
 
   CheckInState get state => _state;
   String get descriptionSearchQuery => _descriptionSearchQuery;
+  CheckInDescriptionsListFiltersState get descriptionFilters =>
+      _descriptionFilters;
 
   void updateDescriptionSearchQuery(String query) {
     final normalizedQuery = query.trim().toLowerCase();
@@ -122,6 +127,251 @@ class CheckInController extends ChangeNotifier {
           ),
         )
         .toList(growable: false);
+  }
+
+  List<QuarterlyAuditDescription> filteredDescriptions(
+    QuarterlyAudit audit, {
+    required String date,
+  }) {
+    final filtersState = _descriptionFilters;
+    return searchDescriptions(
+      audit.descriptions
+          .where((description) {
+            if (!_isDescriptionEligibleForDisplay(audit, description, date)) {
+              return false;
+            }
+
+            final categoryTitle = CustomFunctions.resolveAuditCategoryOption(
+              audit: audit,
+              description: description,
+            );
+            final milestone = CustomFunctions.normalizeAuditMilestone(
+              description.milestoneDay,
+            );
+            final auditTiming = CustomFunctions.resolveAuditTiming(description);
+            final auditType = CustomFunctions.normalizeAuditType(
+              description.auditFactorType,
+            );
+
+            final matchesCategory =
+                filtersState.selectedCategories.isEmpty ||
+                filtersState.selectedCategories.contains(categoryTitle);
+            final matchesMilestone =
+                filtersState.selectedMilestones.isEmpty ||
+                filtersState.selectedMilestones.contains(milestone);
+            final matchesAuditTiming =
+                filtersState.selectedAuditTimings.isEmpty ||
+                filtersState.selectedAuditTimings.contains(auditTiming);
+            final matchesAuditType =
+                filtersState.selectedAuditTypes.isEmpty ||
+                filtersState.selectedAuditTypes.contains(auditType);
+
+            return matchesCategory &&
+                matchesMilestone &&
+                matchesAuditTiming &&
+                matchesAuditType;
+          })
+          .toList(growable: false),
+    );
+  }
+
+  bool _isDescriptionAudited(QuarterlyAuditDescription description) {
+    return description.hasAudit || description.totalRatings > 0;
+  }
+
+  bool _isDescriptionEligibleForDisplay(
+    QuarterlyAudit audit,
+    QuarterlyAuditDescription description,
+    String date,
+  ) {
+    if (!_isDescriptionEligibleForFilterOptions(audit, description, date)) {
+      return false;
+    }
+
+    final isAudited = _isDescriptionAudited(description);
+    if (audit.isMismatch && !isAudited) {
+      return false;
+    }
+
+    if (_descriptionFilters.showAuditedOnly && !isAudited) {
+      return false;
+    }
+
+    return true;
+  }
+
+  bool _isDescriptionEligibleForFilterOptions(
+    QuarterlyAudit audit,
+    QuarterlyAuditDescription description,
+    String date,
+  ) {
+    final isAudited = _isDescriptionAudited(description);
+    final isSelectedAuditDateBeforeToday = CustomFunctions.isDateBeforeToday(
+      date,
+    );
+    final shouldIncludeUnauditedContinueDescriptions =
+        _shouldIncludeUnauditedContinueDescriptions(audit, date);
+
+    if (audit.isMismatch && !isAudited) {
+      return false;
+    }
+
+    if (isSelectedAuditDateBeforeToday &&
+        !isAudited &&
+        !shouldIncludeUnauditedContinueDescriptions) {
+      return false;
+    }
+
+    return true;
+  }
+
+  bool _shouldIncludeUnauditedContinueDescriptions(
+    QuarterlyAudit audit,
+    String date,
+  ) {
+    return !audit.isMismatch &&
+        CustomFunctions.isAuditWithinContinueWindow(date);
+  }
+
+  List<String> descriptionCategoryOptions(
+    QuarterlyAudit audit, {
+    required String date,
+  }) {
+    final options =
+        audit.descriptions
+            .where(
+              (description) => _isDescriptionEligibleForFilterOptions(
+                audit,
+                description,
+                date,
+              ),
+            )
+            .map(
+              (description) => CustomFunctions.resolveAuditCategoryOption(
+                audit: audit,
+                description: description,
+              ),
+            )
+            .where((value) => value.isNotEmpty)
+            .toSet()
+            .toList()
+          ..sort();
+    return options;
+  }
+
+  List<String> descriptionMilestoneOptions(
+    QuarterlyAudit audit, {
+    required String date,
+  }) {
+    final options =
+        audit.descriptions
+            .where(
+              (description) => _isDescriptionEligibleForFilterOptions(
+                audit,
+                description,
+                date,
+              ),
+            )
+            .map(
+              (description) => CustomFunctions.normalizeAuditMilestone(
+                description.milestoneDay,
+              ),
+            )
+            .where((value) => value.isNotEmpty)
+            .toSet()
+            .toList()
+          ..sort();
+    return options;
+  }
+
+  List<String> descriptionAuditTimingOptions(
+    QuarterlyAudit audit, {
+    required String date,
+  }) {
+    final preferredOrder = AppStrings.auditTimingOptions;
+    final availableOptions = audit.descriptions
+        .where(
+          (description) =>
+              _isDescriptionEligibleForFilterOptions(audit, description, date),
+        )
+        .map(CustomFunctions.resolveAuditTiming)
+        .where((value) => value.isNotEmpty)
+        .toSet();
+
+    return preferredOrder
+        .where(availableOptions.contains)
+        .toList(growable: false);
+  }
+
+  List<String> descriptionAuditTypeOptions(
+    QuarterlyAudit audit, {
+    required String date,
+  }) {
+    final preferredOrder = AppStrings.auditTypeOptions;
+    final availableOptions = audit.descriptions
+        .where(
+          (description) =>
+              _isDescriptionEligibleForFilterOptions(audit, description, date),
+        )
+        .map(
+          (description) =>
+              CustomFunctions.normalizeAuditType(description.auditFactorType),
+        )
+        .where((value) => value.isNotEmpty)
+        .toSet();
+
+    return preferredOrder
+        .where(availableOptions.contains)
+        .toList(growable: false);
+  }
+
+  void toggleDescriptionFilterOptions() {
+    _descriptionFilters = _descriptionFilters.copyWith(
+      isFilterOptionsVisible: !_descriptionFilters.isFilterOptionsVisible,
+    );
+    notifyListeners();
+  }
+
+  void toggleDescriptionCategory(String value) {
+    _descriptionFilters = _descriptionFilters.toggleCategory(value);
+    notifyListeners();
+  }
+
+  void toggleShowAuditedDescriptionsOnly() {
+    _descriptionFilters = _descriptionFilters.copyWith(
+      showAuditedOnly: !_descriptionFilters.showAuditedOnly,
+    );
+    notifyListeners();
+  }
+
+  void toggleDescriptionMilestone(String value) {
+    _descriptionFilters = _descriptionFilters.toggleMilestone(value);
+    notifyListeners();
+  }
+
+  void toggleDescriptionAuditTiming(String value) {
+    _descriptionFilters = _descriptionFilters.toggleAuditTiming(value);
+    notifyListeners();
+  }
+
+  void toggleDescriptionAuditType(String value) {
+    _descriptionFilters = _descriptionFilters.toggleAuditType(value);
+    notifyListeners();
+  }
+
+  void clearDescriptionFilters() {
+    _descriptionFilters = const CheckInDescriptionsListFiltersState();
+    notifyListeners();
+  }
+
+  bool isCurrentAuditMember(QuarterlyAudit audit, AuditProfile member) {
+    final memberProfileUuid = member.profileUuid.trim();
+    final memberProfileJob = member.profileJob.trim();
+
+    return memberProfileUuid.isNotEmpty &&
+            memberProfileUuid == audit.profileUuid.trim() ||
+        memberProfileJob.isNotEmpty &&
+            memberProfileJob == audit.profileJob.trim();
   }
 
   PerformanceReportViewData? get performanceReportViewData {
@@ -736,6 +986,7 @@ class CheckInController extends ChangeNotifier {
     _singleAuditDetailsGeneration += 1;
     descriptionSearchController.clear();
     _descriptionSearchQuery = '';
+    _descriptionFilters = const CheckInDescriptionsListFiltersState();
     try {
       final user = await AppPreference.getUser();
       final isOwner = _hasTeamMemberTabsAccess(user);

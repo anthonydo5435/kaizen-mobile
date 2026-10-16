@@ -1013,6 +1013,14 @@ class AppStrings {
   static const String profile = "Profile";
 
   static const String auditDescriptionDetails = 'Description Details';
+  static const String auditDescriptionsTitle = 'Descriptions';
+  static const String auditDescriptionFilterOptions = 'Filter Options';
+  static const String auditDescriptionCategories = 'Categories';
+  static const String auditDescriptionMilestones = 'Milestons';
+  static const String auditDescriptionTiming = 'Audit Timing';
+  static const String auditDescriptionType = 'Audit Type';
+  static const String auditDescriptionClearFilters = 'Clear All';
+  static const String auditDescriptionShowAuditedOnly = 'Show Audited Only';
   static String auditDescriptionPagePosition(int current, int total) => 'Page $current of $total';
   static const String auditPreviousDescription = 'Previous description';
   static const String auditNextDescription = 'Next description';
