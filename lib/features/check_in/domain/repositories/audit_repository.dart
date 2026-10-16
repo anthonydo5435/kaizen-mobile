@@ -1,4 +1,5 @@
 import '../entities/audit_description_audit.dart';
+import '../entities/description_comments_response.dart';
 import '../entities/audit_details.dart';
 import '../entities/audit_evaluation_chart.dart';
 import '../entities/audit_list.dart';
@@ -322,6 +323,18 @@ abstract class AuditRepository {
     required String mediaUrl,
     required String mediaType,
   });
+
+  Future<DescriptionCommentsResponse> getDescriptionComments({
+    required String auditMediaId,
+  });
+
+  Future<CommentAdditionResponse> addComment({
+    required String auditMediaId,
+    required String comment,
+    String? parent,
+  });
+
+  Future<void> deleteAuditMedia({required String auditMediaId});
 
   Future<void> createAuditDescriptionComment({
     required String descriptionId,

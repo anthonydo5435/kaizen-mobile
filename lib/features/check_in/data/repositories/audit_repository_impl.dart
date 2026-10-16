@@ -1,5 +1,6 @@
 import '../../../training/domain/entities/seat_description_training.dart';
 import '../../domain/entities/audit_description_audit.dart';
+import '../../domain/entities/description_comments_response.dart';
 import '../../domain/entities/audit_details.dart';
 import '../../domain/entities/audit_evaluation_chart.dart';
 import '../../domain/entities/audit_list.dart';
@@ -688,6 +689,31 @@ class AuditRepositoryImpl implements AuditRepository {
       mediaUrl: mediaUrl,
       mediaType: mediaType,
     );
+  }
+
+  @override
+  Future<DescriptionCommentsResponse> getDescriptionComments({
+    required String auditMediaId,
+  }) {
+    return _remoteDataSource.getDescriptionComments(auditMediaId: auditMediaId);
+  }
+
+  @override
+  Future<CommentAdditionResponse> addComment({
+    required String auditMediaId,
+    required String comment,
+    String? parent,
+  }) {
+    return _remoteDataSource.addComment(
+      auditMediaId: auditMediaId,
+      comment: comment,
+      parent: parent,
+    );
+  }
+
+  @override
+  Future<void> deleteAuditMedia({required String auditMediaId}) {
+    return _remoteDataSource.deleteAuditMedia(auditMediaId: auditMediaId);
   }
 
   @override

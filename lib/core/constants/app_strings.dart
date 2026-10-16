@@ -1110,6 +1110,33 @@ class AppStrings {
       'The video was captured, but we could not save it to your gallery.';
 
   static const String auditDelete = 'Delete';
+  static const String auditMediaDeleteTitle = 'Are you sure you want to Delete?';
+  static const String auditMediaDeleteMessage =
+      'This media and the comments will not be able to recover after deletion';
+  static const String auditMediaDeleteNo = 'No';
+  static const String auditMediaDeleteYes = 'Yes';
+  static const String auditMediaUploadTypeTitle = 'Select upload type';
+  static const String auditMediaImage = 'Image';
+  static const String auditMediaImageFormats = 'JPG or PNG';
+  static const String auditMediaVideoFormats = 'MP4, MOV, or H264';
+  static const String auditMediaMaxFileSizeError = 'Max file size is 80 MB.';
+  static const String auditMediaUnsupportedFormat =
+      'Only JPG, PNG, MP4, MOV, and H264 files are supported.';
+  static const String auditMediaPickError =
+      'Unable to pick a media file right now. Please try again.';
+  static const String auditMediaUploadErrorTitle = 'Failed';
+  static const String auditMediaUploadErrorMessage = 'File failed to upload!, Try again later!';
+  static const String auditMediaUploading = 'Uploading media...';
+  static const String auditMediaUploadPrompt = 'Click to upload';
+  static const String auditMediaSupportedFormats = 'File Format: JPG, PNG, MP4, MOV, H264';
+  static const String auditMediaVideoLoadError = 'Video could not be loaded.';
+  static const String auditMediaPause = 'Pause';
+  static const String auditMediaPlay = 'Play';
+  static const String auditMediaHideReplies = 'Hide all replies';
+  static String auditMediaShowReplies(int count) => 'Show all replies ($count)';
+  static const String auditMediaSendMessage = 'Send message';
+  static const String auditMediaReplyingToComment = 'Replying to Comment';
+  static String auditMediaReplyingTo(String name) => 'Replying to $name';
   static const String auditSave = 'Save';
   static const String auditStartRecording = 'Start Recording';
   static const String auditStopRecording = 'Stop Recording';
