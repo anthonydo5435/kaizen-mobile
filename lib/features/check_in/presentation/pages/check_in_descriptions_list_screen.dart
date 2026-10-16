@@ -848,7 +848,7 @@ class _CheckInDescriptionsListViewState
         shape: BoxShape.circle,
         image: DecorationImage(
           image: resolvedImageUrl == null
-              ? const AssetImage('${AppStrings.imagePath}dumy_pic.png')
+              ? const AssetImage(AppStrings.dummyProfileImagePath)
               : NetworkImage(resolvedImageUrl),
           fit: BoxFit.cover,
         ),

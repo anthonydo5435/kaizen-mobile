@@ -2147,7 +2147,7 @@ class _Avatar extends StatelessWidget {
         shape: BoxShape.circle,
         image: DecorationImage(
           image: resolvedImageUrl == null
-              ? const AssetImage('lib/assets/images/dumy_pic.png')
+              ? const AssetImage(AppStrings.dummyProfileImagePath)
               : NetworkImage(resolvedImageUrl),
           fit: BoxFit.cover,
         ),

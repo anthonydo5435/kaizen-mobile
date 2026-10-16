@@ -1008,6 +1008,7 @@ class AppStrings {
   // Date placeholders (if needed for static display)
   static const String defaultDate = "October 1, 25";
   static const String imagePath = "lib/assets/images/";
+  static const String dummyProfileImagePath = '${imagePath}dumy_pic.png';
 
   static const String selectTeamMember = "Select Team Member";
   static const String profile = "Profile";

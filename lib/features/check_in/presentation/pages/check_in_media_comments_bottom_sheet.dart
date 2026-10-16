@@ -1599,12 +1599,12 @@ class _ProfileAvatar extends StatelessWidget {
         width: size,
         height: size,
         child: resolvedImageUrl == null
-            ? Image.asset('lib/assets/images/dumy_pic.png', fit: BoxFit.cover)
+            ? Image.asset(AppStrings.dummyProfileImagePath, fit: BoxFit.cover)
             : Image.network(
                 resolvedImageUrl,
                 fit: BoxFit.cover,
                 errorBuilder: (_, __, ___) {
-                  return Image.asset('lib/assets/images/dumy_pic.png', fit: BoxFit.cover);
+                  return Image.asset(AppStrings.dummyProfileImagePath, fit: BoxFit.cover);
                 },
               ),
       ),

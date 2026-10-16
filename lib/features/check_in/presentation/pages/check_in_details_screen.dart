@@ -219,7 +219,7 @@ class _CheckInDetailsScreenView extends StatelessWidget {
                       border: Border.all(color: Colors.white, width: 1.2),
                       image: DecorationImage(
                         image: profileImage == null
-                            ? const AssetImage('lib/assets/images/dumy_pic.png')
+                            ? const AssetImage(AppStrings.dummyProfileImagePath)
                             : NetworkImage(profileImage),
                         fit: BoxFit.cover,
                       ),
@@ -888,7 +888,7 @@ class _DetailProfileAvatar extends StatelessWidget {
         border: Border.all(color: AppColors.textPrimary, width: 1.4),
         image: DecorationImage(
           image: resolvedImageUrl == null
-              ? const AssetImage('lib/assets/images/dumy_pic.png')
+              ? const AssetImage(AppStrings.dummyProfileImagePath)
               : NetworkImage(resolvedImageUrl),
           fit: BoxFit.cover,
         ),
