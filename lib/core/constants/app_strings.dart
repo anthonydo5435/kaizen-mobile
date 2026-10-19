@@ -1043,6 +1043,10 @@ class AppStrings {
   static const String profile = "Profile";
 
   static const String auditDescriptionDetails = 'Description Details';
+  static const String auditSelectRatings = 'Select Ratings';
+  static const String auditRatingGreat = 'Great';
+  static const String auditRatingAlmostThere = 'Almost There';
+  static const String auditRatingNeedsImprovement = 'Needs Improvement';
   static const String auditDescriptionsTitle = 'Descriptions';
   static const String auditDescriptionFilterOptions = 'Filter Options';
   static const String auditDescriptionCategories = 'Categories';
