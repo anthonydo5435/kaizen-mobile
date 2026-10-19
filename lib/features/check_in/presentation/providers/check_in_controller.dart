@@ -481,10 +481,114 @@ class CheckInController extends ChangeNotifier {
     );
   }
 
-  Color resolvePerformanceReportPaygradeDisplayColor(String value) {
-    return _isUnavailablePerformanceReportPaygradeDisplay(value)
+  PerformanceReportPaygradeSummaryData buildPerformanceReportPaygradeSummary(
+    PerformanceReport report,
+  ) {
+    final currentStepIndex = report.paygradePipeline.indexWhere(
+      (step) => step.isCurrent,
+    );
+    final currentStep = currentStepIndex >= 0
+        ? report.paygradePipeline[currentStepIndex]
+        : null;
+
+    return PerformanceReportPaygradeSummaryData(
+      currentPosition: _performanceReportCurrentPositionFallbackTitle(
+        report,
+        position: currentStepIndex >= 0 ? currentStepIndex + 1 : 1,
+      ),
+      currentPay: formatPerformanceReportPaygradeDisplay(
+        paygradeDisplay: currentStep?.payRateDisplay ?? report.currentPaygrade,
+        paygradeUnit: report.paygradeUnit,
+      ),
+      totalLevels: '${report.paygradePipeline.length}',
+    );
+  }
+
+  PerformanceReportPaygradeStageStatus
+  resolvePerformanceReportPaygradeStageStatus({
+    required PerformanceReportPaygradeStep step,
+    required int index,
+    required int currentStepIndex,
+  }) {
+    if (step.isCurrent) {
+      return PerformanceReportPaygradeStageStatus(
+        label: AppStrings.performanceReportPaygradeStatusCurrent,
+        accentColor: AppColors.secondaryColor,
+        borderColor: AppColors.secondaryColor,
+        surfaceColor: AppColors.bgGlow.withValues(alpha: 0.55),
+        badgeBackgroundColor: AppColors.secondaryColor,
+        badgeTextColor: AppColors.textPrimary,
+        indicatorFillColor: AppColors.secondaryColor,
+      );
+    }
+
+    if (currentStepIndex >= 0 && index < currentStepIndex) {
+      return PerformanceReportPaygradeStageStatus(
+        label: AppStrings.performanceReportPaygradeStatusAchieved,
+        accentColor: AppColors.progressColor,
+        borderColor: AppColors.secondaryColor,
+        surfaceColor: AppColors.surfaceDark1,
+        badgeBackgroundColor: AppColors.progressColor.withValues(alpha: 0.16),
+        badgeTextColor: AppColors.progressColor,
+        indicatorFillColor: AppColors.secondaryColor.withValues(alpha: 0.08),
+      );
+    }
+
+    if (currentStepIndex >= 0 && index == currentStepIndex + 1) {
+      return PerformanceReportPaygradeStageStatus(
+        label: AppStrings.performanceReportPaygradeStatusNext,
+        accentColor: AppColors.orange1,
+        borderColor: AppColors.secondaryColor,
+        surfaceColor: AppColors.surfaceDark1,
+        badgeBackgroundColor: AppColors.orange1.withValues(alpha: 0.16),
+        badgeTextColor: AppColors.orange1,
+        indicatorFillColor: AppColors.secondaryColor.withValues(alpha: 0.08),
+      );
+    }
+
+    return PerformanceReportPaygradeStageStatus(
+      label: AppStrings.performanceReportPaygradeStatusUpcoming,
+      accentColor: AppColors.textSecondary,
+      borderColor: AppColors.secondaryColor,
+      surfaceColor: AppColors.surfaceDark,
+      badgeBackgroundColor: AppColors.textSecondary.withValues(alpha: 0.12),
+      badgeTextColor: AppColors.textSecondary,
+      indicatorFillColor: AppColors.secondaryColor.withValues(alpha: 0.05),
+    );
+  }
+
+  Color resolvePerformanceReportPaygradeDisplayColor(
+    String value, {
+    double? payRateAmount,
+  }) {
+    return (payRateAmount != null && payRateAmount <= 0) ||
+            _isUnavailablePerformanceReportPaygradeDisplay(value)
         ? AppColors.secondaryColor
         : AppColors.textPrimary;
+  }
+
+  String _performanceReportCurrentPositionFallbackTitle(
+    PerformanceReport report, {
+    int position = 1,
+  }) {
+    final seatProfileCode = _performanceReportSeatProfileCode(
+      report.profile.seatProfile,
+    );
+    return '$seatProfileCode $position';
+  }
+
+  String _performanceReportSeatProfileCode(String seatProfile) {
+    final words = seatProfile
+        .trim()
+        .split(RegExp(r'\s+'))
+        .where((word) => word.isNotEmpty)
+        .take(3)
+        .toList(growable: false);
+    if (words.isEmpty) {
+      return '--';
+    }
+
+    return words.map((word) => word[0].toUpperCase()).join();
   }
 
   double _parsePerformanceReportPayRateDisplay(String value) {
@@ -3134,6 +3238,38 @@ class PerformanceReportViewData {
   final bool shouldShowCompleteReportUi;
   final bool shouldShowMessageOnly;
   final PerformanceReportPaygradeStep? currentPaygradeStep;
+}
+
+class PerformanceReportPaygradeSummaryData {
+  const PerformanceReportPaygradeSummaryData({
+    required this.currentPosition,
+    required this.currentPay,
+    required this.totalLevels,
+  });
+
+  final String currentPosition;
+  final String currentPay;
+  final String totalLevels;
+}
+
+class PerformanceReportPaygradeStageStatus {
+  const PerformanceReportPaygradeStageStatus({
+    required this.label,
+    required this.accentColor,
+    required this.borderColor,
+    required this.surfaceColor,
+    required this.badgeBackgroundColor,
+    required this.badgeTextColor,
+    required this.indicatorFillColor,
+  });
+
+  final String label;
+  final Color accentColor;
+  final Color borderColor;
+  final Color surfaceColor;
+  final Color badgeBackgroundColor;
+  final Color badgeTextColor;
+  final Color indicatorFillColor;
 }
 
 class PerformanceReportCoreValueVisualSpec {

@@ -18,27 +18,19 @@ import 'performance_report_dialogs.dart';
 import 'seat_description_final_check_in_report.dart';
 
 class PerformanceReportScreen extends StatelessWidget {
-  const PerformanceReportScreen({
-    super.key,
-    required this.profile,
-    this.isMyReport = false,
-  });
+  const PerformanceReportScreen({super.key, required this.profile, this.isMyReport = false});
   final AuditProfile profile;
   final bool isMyReport;
   @override
   Widget build(BuildContext context) {
     return MultiProvider(
       providers: [
-        Provider<AuditRemoteDataSource>(
-          create: (_) => createAuditRemoteDataSource(),
-        ),
+        Provider<AuditRemoteDataSource>(create: (_) => createAuditRemoteDataSource()),
         ProxyProvider<AuditRemoteDataSource, AuditRepositoryImpl>(
-          update: (_, remoteDataSource, __) =>
-              createAuditRepository(remoteDataSource),
+          update: (_, remoteDataSource, __) => createAuditRepository(remoteDataSource),
         ),
         ProxyProvider<AuditRepositoryImpl, GetAuditOverviewUseCase>(
-          update: (_, repository, __) =>
-              createGetAuditOverviewUseCase(repository),
+          update: (_, repository, __) => createGetAuditOverviewUseCase(repository),
         ),
         ChangeNotifierProvider<CheckInController>(
           create: (context) => CheckInController(
@@ -53,9 +45,9 @@ class PerformanceReportScreen extends StatelessWidget {
           )..initializePerformanceReport(profile),
         ),
         ChangeNotifierProvider<PerformanceReportController>(
-          create: (context) => PerformanceReportController(
-            checkInController: context.read<CheckInController>(),
-          )..loadAccess(),
+          create: (context) =>
+              PerformanceReportController(checkInController: context.read<CheckInController>())
+                ..loadAccess(),
         ),
       ],
       child: PerformanceReportView(isMyReport: isMyReport),
@@ -85,18 +77,11 @@ class PerformanceReportView extends StatelessWidget {
           fontWeight: FontWeight.w500,
         ),
       ),
-      body: SafeArea(
-        top: false,
-        bottom: false,
-        child: _buildBody(context, controller),
-      ),
+      body: SafeArea(top: false, bottom: false, child: _buildBody(context, controller)),
     );
   }
 
-  Widget _buildBody(
-    BuildContext context,
-    PerformanceReportController controller,
-  ) {
+  Widget _buildBody(BuildContext context, PerformanceReportController controller) {
     if (controller.state.isPerformanceReportLoading) {
       return const FastCircularProgressIndicator();
     }
@@ -119,18 +104,15 @@ class PerformanceReportView extends StatelessWidget {
       report: report,
       viewData: viewData,
       isMyReport: isMyReport,
-      onTimeRangeChanged: (value) =>
-          _changeTimeRange(context, controller, value),
-      onDescriptionGo: (row) =>
-          _openFinalReport(context, controller, report, row),
+      onTimeRangeChanged: (value) => _changeTimeRange(context, controller, value),
+      onDescriptionGo: (row) => _openFinalReport(context, controller, report, row),
       onEmployeeSignature: () => showPerformanceReportSignatureDialog(
         context,
         title: AppStrings.performanceReportEmployeeSignature,
         existingSignatureUrl: report.selectedProfileSignatureUrl,
         onSaved: controller.checkInController.saveEmployeeSignature,
       ),
-      onFacilitatorSignature: () =>
-          _addFacilitatorSignature(context, controller),
+      onFacilitatorSignature: () => _addFacilitatorSignature(context, controller),
       onCertify: () => _certify(context, controller),
     );
   }
@@ -182,17 +164,11 @@ class PerformanceReportView extends StatelessWidget {
     );
   }
 
-  Future<void> _certify(
-    BuildContext context,
-    PerformanceReportController controller,
-  ) async {
-    final message = await controller.checkInController
-        .certifyPerformanceReport();
+  Future<void> _certify(BuildContext context, PerformanceReportController controller) async {
+    final message = await controller.checkInController.certifyPerformanceReport();
     if (!context.mounted) return;
     if (message != AppStrings.performanceReportCertifiedSuccessfully) {
-      ScaffoldMessenger.of(
-        context,
-      ).showSnackBar(SnackBar(content: Text(message)));
+      ScaffoldMessenger.of(context).showSnackBar(SnackBar(content: Text(message)));
     }
   }
 
