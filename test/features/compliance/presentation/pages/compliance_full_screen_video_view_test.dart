@@ -134,6 +134,8 @@ void main() {
       find.text('Lesson'),
       find.text(AppStrings.trainingViewTranscript),
       find.byType(Slider),
+      find.byIcon(Icons.replay_10_rounded),
+      find.byIcon(Icons.forward_10_rounded),
       find.byIcon(
         controller.value.isPlaying
             ? Icons.pause_rounded
@@ -164,7 +166,11 @@ void main() {
         await tester.pump();
         expect(controller.value.isPlaying, isTrue);
         expectControls(visible: true);
-        await tester.tapAt(tester.getCenter(video));
+        final videoBounds = tester.getRect(video);
+        await tester.tapAt(
+          videoBounds.topLeft +
+              Offset(videoBounds.width * 0.25, videoBounds.height * 0.25),
+        );
         await tester.pump(const Duration(seconds: 4));
         expect(controller.value.isPlaying, isFalse);
         expectControls(visible: true);
@@ -296,6 +302,52 @@ void main() {
       expect(tester.takeException(), isNull);
     },
   );
+
+  for (final playing in [false, true]) {
+    testWidgets(
+      'fullscreen 10-second skips preserve playback, clamp at the ends, and restart hiding (playing: $playing)',
+      (tester) async {
+        await openPlayer(tester, playing: playing);
+        if (playing) await revealPlayingControls(tester);
+
+        await tester.tap(find.byIcon(Icons.forward_10_rounded));
+        await tester.pump();
+        expect(controller.value.position, const Duration(seconds: 30));
+        expect(controller.value.isPlaying, playing);
+        await tester.pump(const Duration(seconds: 2));
+        expectControls(visible: true);
+
+        await tester.tap(find.byIcon(Icons.replay_10_rounded));
+        await tester.pump();
+        expect(controller.value.position, const Duration(seconds: 20));
+        expect(controller.value.isPlaying, playing);
+        await tester.pump(const Duration(milliseconds: 2999));
+        expectControls(visible: true);
+        await tester.pump(const Duration(milliseconds: 1));
+        expectControls(visible: !playing);
+
+        if (playing) await revealPlayingControls(tester);
+        await controller.seekTo(const Duration(seconds: 5));
+        await tester.pump();
+        await tester.tap(find.byIcon(Icons.replay_10_rounded));
+        await tester.pump();
+        expect(controller.value.position, Duration.zero);
+        expect(controller.value.isPlaying, playing);
+
+        await controller.seekTo(const Duration(seconds: 55));
+        await tester.pump();
+        await tester.tap(find.byIcon(Icons.forward_10_rounded));
+        await tester.pump();
+        expect(controller.value.position, controller.value.duration);
+        expect(controller.value.isPlaying, playing);
+        expectControls(visible: true);
+
+        await tester.pumpWidget(const SizedBox.shrink());
+        await controller.pause();
+        expect(tester.takeException(), isNull);
+      },
+    );
+  }
 
   testWidgets(
     'fullscreen keeps controls visible while scrubbing and restarts the hide timer on release',
@@ -469,8 +521,8 @@ void main() {
       expect(captionBounds.left, titleBounds.left + 16);
       expect(captionBounds.right, titleBounds.right - 16);
       expect(
-        tester.getTopLeft(find.byIcon(Icons.play_arrow_rounded)).dx,
-        titleBounds.left,
+        tester.getCenter(find.byIcon(Icons.play_arrow_rounded)).dx,
+        tester.getCenter(find.byType(VideoPlayer)).dx,
       );
       expect(
         tester.getBottomRight(find.text(AppStrings.trainingViewTranscript)).dx,
@@ -567,6 +619,13 @@ void main() {
         final viewport = find.ancestor(
           of: caption,
           matching: find.byType(SingleChildScrollView),
+        );
+        expectControls(visible: true);
+        expect(
+          tester.getTopLeft(viewport).dy,
+          greaterThan(
+            tester.getBottomLeft(find.byIcon(Icons.play_arrow_rounded)).dy,
+          ),
         );
         final titleRow = find
             .ancestor(of: find.text('Lesson'), matching: find.byType(Row))
@@ -795,38 +854,33 @@ void main() {
     }),
   );
 
-  testWidgets(
-    'portrait video fits the screen and remains seekable',
-    (tester) async {
-      tester.view.devicePixelRatio = 1;
-      tester.view.physicalSize = const Size(390, 844);
-      addTearDown(tester.view.reset);
-      platform.size = const Size(360, 640);
-      await openPlayer(tester, playing: false);
-      expect(orientationRequests.single, fullscreenOrientations);
-      final size = tester.getSize(find.byType(VideoPlayer));
-      expect(size.width, 390);
-      expect(size.height, closeTo(390 * 16 / 9, 0.01));
-      expect(controller.value.isPlaying, isFalse);
+  testWidgets('portrait video fits the screen and remains seekable', (
+    tester,
+  ) async {
+    tester.view.devicePixelRatio = 1;
+    tester.view.physicalSize = const Size(390, 844);
+    addTearDown(tester.view.reset);
+    platform.size = const Size(360, 640);
+    await openPlayer(tester, playing: false);
+    expect(orientationRequests.single, fullscreenOrientations);
+    final size = tester.getSize(find.byType(VideoPlayer));
+    expect(size.width, 390);
+    expect(size.height, closeTo(390 * 16 / 9, 0.01));
+    expect(controller.value.isPlaying, isFalse);
 
-      await tester.drag(find.byType(Slider), const Offset(40, 0));
-      await tester.pumpAndSettle();
-      expect(
-        controller.value.position,
-        greaterThan(const Duration(seconds: 20)),
-      );
-      await tester.pumpWidget(const SizedBox.shrink());
-      await tester.pump();
-      expect(orientationRequests.last, ['DeviceOrientation.portraitUp']);
-      expect(fullscreenRequests, isEmpty);
-      expect(systemUiRequests, [
-        'SystemUiMode.immersiveSticky',
-        'SystemUiMode.edgeToEdge',
-      ]);
-      expect(tester.takeException(), isNull);
-    },
-    variant: TargetPlatformVariant.only(TargetPlatform.iOS),
-  );
+    await tester.drag(find.byType(Slider), const Offset(40, 0));
+    await tester.pumpAndSettle();
+    expect(controller.value.position, greaterThan(const Duration(seconds: 20)));
+    await tester.pumpWidget(const SizedBox.shrink());
+    await tester.pump();
+    expect(orientationRequests.last, ['DeviceOrientation.portraitUp']);
+    expect(fullscreenRequests, isEmpty);
+    expect(systemUiRequests, [
+      'SystemUiMode.immersiveSticky',
+      'SystemUiMode.edgeToEdge',
+    ]);
+    expect(tester.takeException(), isNull);
+  }, variant: TargetPlatformVariant.only(TargetPlatform.iOS));
 }
 
 class _VideoPlatform extends VideoPlayerPlatform {

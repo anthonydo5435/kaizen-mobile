@@ -14,6 +14,7 @@ import '../../../../core/widgets/app_text_view.dart';
 import '../../../../core/widgets/fast_circular_progress.dart';
 import '../pages/training/compliance_full_screen_video_view.dart';
 import '../providers/compliance_video_controller.dart';
+import 'compliance_video_playback_controls.dart';
 
 class ComplianceVideoPlayer extends StatefulWidget {
   static const bottomControlsInset = 30.0;
@@ -832,25 +833,12 @@ class _ComplianceVideoPlayerState extends State<ComplianceVideoPlayer>
     bool includeTopControls = true,
   }) {
     final playbackControls = _buildPlaybackControlsVisibility(
-      child: Row(
-        mainAxisAlignment: MainAxisAlignment.center,
-        children: [
-          _CircleIconButton(
-            icon: Icons.replay_10_rounded,
-            onTap: isReady ? () => _seekBy(const Duration(seconds: -10)) : null,
-          ),
-          const SizedBox(width: 8),
-          _PlayButton(
-            isLoading: isLoading,
-            isPlaying: controllerValue?.isPlaying ?? false,
-            onTap: initializationError != null ? null : _togglePlayback,
-          ),
-          const SizedBox(width: 8),
-          _CircleIconButton(
-            icon: Icons.forward_10_rounded,
-            onTap: isReady ? () => _seekBy(const Duration(seconds: 10)) : null,
-          ),
-        ],
+      child: ComplianceVideoPlaybackControls(
+        isLoading: isLoading,
+        isPlaying: controllerValue?.isPlaying ?? false,
+        onTogglePlayback: initializationError != null ? null : _togglePlayback,
+        onSkipBackward: isReady ? () => _seekBy(const Duration(seconds: -10)) : null,
+        onSkipForward: isReady ? () => _seekBy(const Duration(seconds: 10)) : null,
       ),
     );
     return Stack(
@@ -1142,48 +1130,4 @@ class _VideoMediaLayoutDelegate extends MultiChildLayoutDelegate {
       videoSize != oldDelegate.videoSize ||
       mediaAlignment != oldDelegate.mediaAlignment ||
       topControlsInset != oldDelegate.topControlsInset;
-}
-
-class _CircleIconButton extends StatelessWidget {
-  const _CircleIconButton({required this.icon, required this.onTap});
-
-  final IconData icon;
-  final VoidCallback? onTap;
-  static const double _diameter = 36;
-
-  @override
-  Widget build(BuildContext context) {
-    return GestureDetector(
-      onTap: onTap,
-      child: Container(
-        width: _diameter,
-        height: _diameter,
-        decoration: BoxDecoration(color: Colors.black.withValues(alpha: 0.35), shape: BoxShape.circle),
-        child: Icon(icon, color: onTap == null ? AppColors.grey1 : AppColors.textPrimary, size: _diameter * 0.7),
-      ),
-    );
-  }
-}
-
-class _PlayButton extends StatelessWidget {
-  const _PlayButton({required this.isLoading, required this.isPlaying, required this.onTap});
-
-  final bool isLoading;
-  final bool isPlaying;
-  final VoidCallback? onTap;
-
-  @override
-  Widget build(BuildContext context) {
-    return GestureDetector(
-      onTap: onTap,
-      child: Container(
-        width: 52,
-        height: 52,
-        decoration: const BoxDecoration(color: AppColors.secondaryColor, shape: BoxShape.circle),
-        child: isLoading
-            ? FastCircularProgressIndicator(width: 24, height: 24)
-            : Icon(isPlaying ? Icons.pause_rounded : Icons.play_arrow_rounded, color: AppColors.textPrimary, size: 42),
-      ),
-    );
-  }
 }

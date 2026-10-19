@@ -13,6 +13,7 @@ import '../../../../../core/utils/custom_functions.dart';
 import '../../../../../core/widgets/app_text_view.dart';
 import '../../../../../core/widgets/fast_circular_progress.dart';
 import '../../providers/compliance_video_controller.dart';
+import '../../widgets/compliance_video_playback_controls.dart';
 import '../../widgets/compliance_video_transcript_sheet.dart';
 
 class ComplianceFullScreenVideoView extends StatefulWidget {
@@ -357,6 +358,19 @@ class _ComplianceFullScreenVideoViewState
     }
   }
 
+  Future<void> _seekBy(Duration offset) async {
+    final controller = widget.controller;
+    if (!controller.value.isInitialized) return;
+    _revealPlaybackControls();
+    final target = Duration(
+      milliseconds: (controller.value.position + offset).inMilliseconds.clamp(
+        0,
+        controller.value.duration.inMilliseconds,
+      ),
+    );
+    await controller.seekTo(target);
+  }
+
   @override
   Widget build(BuildContext context) {
     return PopScope<void>(
@@ -433,10 +447,16 @@ class _ComplianceFullScreenVideoViewState
                 child: _FullScreenVideoFooter(
                   title: widget.title,
                   showControls: showControls,
-                  maxHeight: (constraints.maxHeight - 100).clamp(
-                    0,
-                    double.infinity,
-                  ),
+                  // Reserve the same room below the center buttons in both
+                  // states so caption scrolling never overlaps their targets.
+                  maxHeight:
+                      (constraints.maxHeight / 2 -
+                              ComplianceVideoPlaybackControls
+                                      .playButtonDiameter /
+                                  2 -
+                              8 -
+                              (isLandscape ? 0 : 24))
+                          .clamp(0, double.infinity),
                   controls: ValueListenableBuilder<double?>(
                     valueListenable: _scrubPositionMillis,
                     builder: (context, scrubPosition, _) =>
@@ -445,7 +465,6 @@ class _ComplianceFullScreenVideoViewState
                           isReady: controllerValue.isInitialized,
                           isScrubbing: scrubPosition != null,
                           scrubPositionMillis: scrubPosition,
-                          onTogglePlayback: _togglePlayback,
                           onExitFullscreen:
                               widget.onExit ??
                               () => Navigator.of(context).pop(),
@@ -466,6 +485,23 @@ class _ComplianceFullScreenVideoViewState
                   ),
                 ),
               ),
+              if (controllerValue.isInitialized)
+                Positioned.fill(
+                  child: Center(
+                    child: _FullScreenControlsVisibility(
+                      visible: showControls,
+                      child: ComplianceVideoPlaybackControls(
+                        isLoading: false,
+                        isPlaying: controllerValue.isPlaying,
+                        onTogglePlayback: _togglePlayback,
+                        onSkipBackward: () =>
+                            _seekBy(const Duration(seconds: -10)),
+                        onSkipForward: () =>
+                            _seekBy(const Duration(seconds: 10)),
+                      ),
+                    ),
+                  ),
+                ),
             ],
           ),
         ),
@@ -619,7 +655,6 @@ class _FullScreenVideoControls extends StatelessWidget {
     required this.isReady,
     required this.isScrubbing,
     required this.scrubPositionMillis,
-    required this.onTogglePlayback,
     required this.onExitFullscreen,
     required this.onScrubStart,
     required this.onScrubChanged,
@@ -630,7 +665,6 @@ class _FullScreenVideoControls extends StatelessWidget {
   final bool isReady;
   final bool isScrubbing;
   final double? scrubPositionMillis;
-  final VoidCallback onTogglePlayback;
   final VoidCallback onExitFullscreen;
   final ValueChanged<double> onScrubStart;
   final ValueChanged<double> onScrubChanged;
@@ -657,18 +691,6 @@ class _FullScreenVideoControls extends StatelessWidget {
     return LayoutBuilder(
       builder: (context, constraints) => Row(
         children: [
-          IconButton(
-            onPressed: isReady ? onTogglePlayback : null,
-            alignment: Alignment.centerLeft,
-            padding: const EdgeInsets.fromLTRB(0, 8, 16, 8),
-            icon: Icon(
-              controllerValue.isPlaying
-                  ? Icons.pause_rounded
-                  : Icons.play_arrow_rounded,
-              color: AppColors.textPrimary,
-              size: 34,
-            ),
-          ),
           Expanded(
             child: SliderTheme(
               data: SliderTheme.of(context).copyWith(
