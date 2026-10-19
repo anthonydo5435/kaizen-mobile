@@ -518,15 +518,15 @@ void main() {
       );
       expect(tester.getBottomRight(action).dx, titleBounds.right);
       final captionBounds = tester.getRect(find.text('Active caption'));
-      expect(captionBounds.left, titleBounds.left + 16);
-      expect(captionBounds.right, titleBounds.right - 16);
+      expect(captionBounds.left, titleBounds.left + 8);
+      expect(captionBounds.right, titleBounds.right - 8);
       expect(
         tester.getCenter(find.byIcon(Icons.play_arrow_rounded)).dx,
         tester.getCenter(find.byType(VideoPlayer)).dx,
       );
       expect(
         tester.getBottomRight(find.text(AppStrings.trainingViewTranscript)).dx,
-        titleBounds.right,
+        titleBounds.right - 12,
       );
       final exitButton = find.byKey(
         const ValueKey('video-exit-fullscreen-button'),

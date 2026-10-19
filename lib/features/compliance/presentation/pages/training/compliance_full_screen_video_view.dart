@@ -433,6 +433,7 @@ class _ComplianceFullScreenVideoViewState
   Widget _buildControlsOverlay(VideoPlayerValue controllerValue) {
     final isLandscape =
         MediaQuery.orientationOf(context) == Orientation.landscape;
+    final footerBottomInset = isLandscape ? 8.0 : 24.0;
     return ValueListenableBuilder<bool>(
       valueListenable: _showPlaybackControls,
       builder: (context, showControls, _) => SafeArea(
@@ -443,7 +444,7 @@ class _ComplianceFullScreenVideoViewState
               Positioned(
                 left: 8,
                 right: 8,
-                bottom: (isLandscape ? 0.0 : 24.0) + (showControls ? 0 : 8),
+                bottom: footerBottomInset + (showControls ? 0 : 8),
                 child: _FullScreenVideoFooter(
                   title: widget.title,
                   showControls: showControls,
@@ -455,7 +456,7 @@ class _ComplianceFullScreenVideoViewState
                                       .playButtonDiameter /
                                   2 -
                               8 -
-                              (isLandscape ? 0 : 24))
+                              footerBottomInset)
                           .clamp(0, double.infinity),
                   controls: ValueListenableBuilder<double?>(
                     valueListenable: _scrubPositionMillis,
@@ -531,6 +532,20 @@ class _FullScreenControlsVisibility extends StatelessWidget {
   );
 }
 
+class _FullScreenControlSurface extends StatelessWidget {
+  const _FullScreenControlSurface({required this.child});
+
+  final Widget child;
+
+  @override
+  Widget build(BuildContext context) => Material(
+    color: AppColors.hex111317.withValues(alpha: 0.85),
+    borderRadius: BorderRadius.circular(12),
+    clipBehavior: Clip.antiAlias,
+    child: child,
+  );
+}
+
 class _FullScreenVideoFooter extends StatelessWidget {
   const _FullScreenVideoFooter({
     required this.title,
@@ -601,12 +616,18 @@ class _FullScreenVideoFooter extends StatelessWidget {
             ],
             _FullScreenControlsVisibility(
               visible: showControls,
-              child: _FullScreenVideoTitleRow(title: title),
+              child: Padding(
+                padding: const EdgeInsets.symmetric(horizontal: 8),
+                child: _FullScreenVideoTitleRow(title: title),
+              ),
             ),
-            const SizedBox(height: 8),
+            const SizedBox(height: 4),
             _FullScreenControlsVisibility(
               visible: showControls,
-              child: controls,
+              child: Padding(
+                padding: const EdgeInsets.symmetric(horizontal: 8),
+                child: _FullScreenControlSurface(child: controls),
+              ),
             ),
           ],
         ),
@@ -626,21 +647,33 @@ class _FullScreenVideoTitleRow extends StatelessWidget {
       builder: (context, constraints) => Row(
         children: [
           Expanded(
-            child: AppTextView.body1(
-              title,
-              color: AppColors.textPrimary,
-              fontSize: 13,
-              fontWeight: FontWeight.w700,
-              maxLines: 2,
-              overflow: TextOverflow.ellipsis,
+            child: Align(
+              alignment: Alignment.centerLeft,
+              child: _FullScreenControlSurface(
+                child: Padding(
+                  padding: const EdgeInsets.symmetric(
+                    horizontal: 12,
+                    vertical: 4,
+                  ),
+                  child: AppTextView.body1(
+                    title,
+                    color: AppColors.textPrimary,
+                    fontSize: 13,
+                    fontWeight: FontWeight.w700,
+                    maxLines: 2,
+                    overflow: TextOverflow.ellipsis,
+                  ),
+                ),
+              ),
             ),
           ),
           const SizedBox(width: 8),
           ConstrainedBox(
             constraints: BoxConstraints(maxWidth: constraints.maxWidth * 0.6),
-            child: ComplianceVideoTranscriptButton(
-              onPressed: () => showComplianceVideoTranscriptSheet(context),
-              padding: const EdgeInsets.fromLTRB(12, 4, 0, 6),
+            child: _FullScreenControlSurface(
+              child: ComplianceVideoTranscriptButton(
+                onPressed: () => showComplianceVideoTranscriptSheet(context),
+              ),
             ),
           ),
         ],
@@ -731,6 +764,11 @@ class _FullScreenVideoControls extends StatelessWidget {
             key: const ValueKey('video-exit-fullscreen-button'),
             tooltip: AppStrings.trainingExitFullscreen,
             onPressed: onExitFullscreen,
+            constraints: const BoxConstraints(minWidth: 36, minHeight: 36),
+            padding: const EdgeInsets.all(6),
+            style: IconButton.styleFrom(
+              tapTargetSize: MaterialTapTargetSize.shrinkWrap,
+            ),
             icon: const Icon(
               Icons.fullscreen_exit_rounded,
               color: Colors.white,
