@@ -434,6 +434,7 @@ class _ComplianceFullScreenVideoViewState
     final isLandscape =
         MediaQuery.orientationOf(context) == Orientation.landscape;
     final footerBottomInset = isLandscape ? 8.0 : 24.0;
+    final footerSideInset = isLandscape ? 12.0 : 0.0;
     return ValueListenableBuilder<bool>(
       valueListenable: _showPlaybackControls,
       builder: (context, showControls, _) => SafeArea(
@@ -442,8 +443,8 @@ class _ComplianceFullScreenVideoViewState
           builder: (context, constraints) => Stack(
             children: [
               Positioned(
-                left: 8,
-                right: 8,
+                left: footerSideInset,
+                right: footerSideInset,
                 bottom: footerBottomInset + (showControls ? 0 : 8),
                 child: _FullScreenVideoFooter(
                   title: widget.title,
@@ -561,6 +562,8 @@ class _FullScreenVideoFooter extends StatelessWidget {
 
   @override
   Widget build(BuildContext context) {
+    final sidePadding =
+        MediaQuery.orientationOf(context) == Orientation.landscape ? 8.0 : 0.0;
     final disableAnimations = MediaQuery.disableAnimationsOf(context);
     final (caption, activeCueIndex) = context
         .select<ComplianceVideoController?, (String?, int?)>(
@@ -577,7 +580,7 @@ class _FullScreenVideoFooter extends StatelessWidget {
       constraints: BoxConstraints(maxHeight: maxHeight),
       child: Padding(
         key: const ValueKey('fullscreen-video-footer'),
-        padding: const EdgeInsets.symmetric(horizontal: 8),
+        padding: EdgeInsets.symmetric(horizontal: sidePadding),
         child: Column(
           mainAxisSize: MainAxisSize.min,
           crossAxisAlignment: CrossAxisAlignment.stretch,
