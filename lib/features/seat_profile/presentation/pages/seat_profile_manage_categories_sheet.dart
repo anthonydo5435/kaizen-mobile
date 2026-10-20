@@ -11,6 +11,7 @@ import '../../../../core/widgets/app_overlay_close_button.dart';
 import '../../../../core/widgets/app_swipe_reveal_action.dart';
 import '../../../../core/widgets/app_text_view.dart';
 import '../../domain/entities/seat_profile_category_draft.dart';
+import '../providers/seat_profile_category_form_controller.dart';
 
 ////
 Future<bool> showSeatProfileManageCategoriesSheet(
@@ -53,49 +54,35 @@ class SeatProfileManageCategoriesSheet extends StatefulWidget {
 
 class _SeatProfileManageCategoriesSheetState
     extends State<SeatProfileManageCategoriesSheet> {
-  late final _ManageSeatCategoriesDialogController _formController;
+  late final SeatProfileCategoryFormController _formController;
 
   @override
   void initState() {
     super.initState();
-    _formController = _ManageSeatCategoriesDialogController()
-      ..initializeWith(widget.initialCategories);
+    _formController =
+        SeatProfileCategoryFormController(
+            onSaveCategories: widget.onSaveCategories,
+          )
+          ..initializeWith(widget.initialCategories)
+          ..addListener(_handleFormChanged);
   }
 
   Future<void> _submit() async {
-    final validationMessage = _formController.validateEntries();
-    if (validationMessage != null) {
-      _formController.setMessage(validationMessage);
-      return;
-    }
-
-    if (_formController.requiresTotalConfirmation) {
+    var result = await _formController.submit();
+    if (!mounted) return;
+    if (result == SeatProfileCategorySaveResult.confirmationRequired) {
       final shouldContinue = await _showTotalConfirmationDialog();
-      if (!mounted || !shouldContinue) {
-        return;
-      }
+      if (!mounted || !shouldContinue) return;
+      result = await _formController.submit(confirmIncompleteTotal: true);
     }
-
-    _formController.setSaving(true);
-
-    try {
-      await widget.onSaveCategories(_formController.buildDrafts());
-      if (!mounted) {
-        return;
-      }
-
+    if (mounted && result == SeatProfileCategorySaveResult.saved) {
       Navigator.of(context).pop(true);
-    } catch (error) {
-      if (!mounted) {
-        return;
-      }
-
-      _showSnackBar(error.toString());
-    } finally {
-      if (mounted) {
-        _formController.setSaving(false);
-      }
     }
+  }
+
+  void _handleFormChanged() {
+    final message = _formController.takeErrorMessage();
+    if (mounted && message != null) _showSnackBar(message);
   }
 
   void _showSnackBar(String message) {
@@ -123,7 +110,9 @@ class _SeatProfileManageCategoriesSheetState
 
   @override
   void dispose() {
-    _formController.dispose();
+    _formController
+      ..removeListener(_handleFormChanged)
+      ..dispose();
     super.dispose();
   }
 
@@ -194,8 +183,8 @@ class _SeatProfileManageCategoriesSheetState
                             SizedBox(height: isCompact ? 18 : 24),
                             _ManageSeatCategoriesIntroSection(
                               isCompact: isCompact,
-                              importanceStatusValue:
-                                  _formController.importanceStatusValue,
+                              importanceStatusValueLabel:
+                                  _formController.importanceStatusValueLabel,
                               importanceStatusLabel:
                                   _formController.importanceStatusLabel,
                               importanceStatusColor:
@@ -233,7 +222,8 @@ class _SeatProfileManageCategoriesSheetState
                             ],
                             _SeatCategoryActionFooter(
                               isCompact: isCompact,
-                              totalImportance: _formController.totalImportance,
+                              totalImportanceLabel:
+                                  _formController.totalImportanceLabel,
                               onAddTap: _formController.isSaving
                                   ? null
                                   : _formController.addRow,
@@ -284,199 +274,15 @@ class _SeatProfileManageCategoriesSheetState
   }
 }
 
-class _ManageSeatCategoriesDialogController extends ChangeNotifier {
-  final List<_SeatCategoryRowController> rows = <_SeatCategoryRowController>[];
-  bool _isSaving = false;
-  String? _message;
-
-  bool get isSaving => _isSaving;
-  String? get message => _message;
-
-  double get totalImportance => rows.fold<double>(
-    0,
-    (total, row) => total + _parseWeightPercent(row.weightController.text),
-  );
-
-  double get remainingImportance => 100 - totalImportance;
-  bool get hasReachedImportance => remainingImportance.abs() < 0.001;
-  bool get hasExceededImportance => remainingImportance < -0.001;
-  double get importanceStatusValue => totalImportance;
-
-  String get importanceStatusLabel {
-    if (hasReachedImportance) {
-      return AppStrings.seatProfileCategoryImportanceReached;
-    }
-
-    if (hasExceededImportance) {
-      return AppStrings.seatProfileCategoryImportanceExceeded;
-    }
-
-    return AppStrings.seatProfileCategoryImportanceRemaining;
-  }
-
-  Color get importanceStatusColor =>
-      hasReachedImportance ? AppColors.secondaryColor : AppColors.red1;
-  bool get requiresTotalConfirmation => remainingImportance > 0.001;
-
-  void initializeWith(List<SeatProfileCategoryDraft> categories) {
-    for (final row in rows) {
-      row.dispose();
-    }
-    rows.clear();
-
-    for (final category in categories) {
-      rows.add(
-        _SeatCategoryRowController(
-          uuid: category.uuid,
-          title: category.title,
-          weightPercent: _formatSeatProfilePercent(category.weightPercent),
-          onChanged: _handleRowChanged,
-        ),
-      );
-    }
-
-    _message = null;
-    notifyListeners();
-  }
-
-  void addRow() {
-    rows.add(_SeatCategoryRowController(onChanged: _handleRowChanged));
-    _message = null;
-    notifyListeners();
-  }
-
-  void removeRowAt(int index) {
-    if (index < 0 || index >= rows.length) {
-      return;
-    }
-
-    final row = rows.removeAt(index);
-    row.dispose();
-    _message = null;
-    notifyListeners();
-  }
-
-  void setSaving(bool value) {
-    if (_isSaving == value) {
-      return;
-    }
-
-    _isSaving = value;
-    notifyListeners();
-  }
-
-  void setMessage(String? message) {
-    if (_message == message) {
-      return;
-    }
-
-    _message = message;
-    notifyListeners();
-  }
-
-  String? validateEntries() {
-    for (final row in rows) {
-      final title = row.nameController.text.trim();
-      if (title.isEmpty) {
-        return AppStrings.seatProfileCategoryNameRequired;
-      }
-      if (title.length > 25) {
-        return AppStrings.seatProfileCategoryNameCharacterLimit;
-      }
-      if (_countWords(title) > 3) {
-        return AppStrings.seatProfileCategoryNameWordLimit;
-      }
-
-      final weightText = row.weightController.text.trim();
-      if (weightText.isEmpty) {
-        return AppStrings.seatProfileCategoryImportanceRequired;
-      }
-
-      final weight = double.tryParse(weightText);
-      if (weight == null || weight <= 0) {
-        return AppStrings.seatProfileCategoryImportanceInvalid;
-      }
-    }
-
-    if (totalImportance > 100.001) {
-      return AppStrings.seatProfileCategoryImportanceTotalExceeded;
-    }
-
-    return null;
-  }
-
-  List<SeatProfileCategoryDraft> buildDrafts() {
-    return rows
-        .map(
-          (row) => SeatProfileCategoryDraft(
-            uuid: row.uuid,
-            title: row.nameController.text.trim(),
-            weightPercent: _parseWeightPercent(row.weightController.text),
-          ),
-        )
-        .toList(growable: false);
-  }
-
-  void _handleRowChanged() {
-    if (_message == null) {
-      notifyListeners();
-      return;
-    }
-
-    _message = null;
-    notifyListeners();
-  }
-
-  @override
-  void dispose() {
-    for (final row in rows) {
-      row.dispose();
-    }
-    super.dispose();
-  }
-}
-
-class _SeatCategoryRowController {
-  _SeatCategoryRowController({
-    this.uuid,
-    String title = '',
-    String weightPercent = '',
-    required VoidCallback onChanged,
-  }) : _onChanged = onChanged {
-    nameController = TextEditingController(text: title)
-      ..addListener(_handleChanged);
-    weightController = TextEditingController(text: weightPercent)
-      ..addListener(_handleChanged);
-  }
-
-  final String? uuid;
-  late final TextEditingController nameController;
-  late final TextEditingController weightController;
-  final VoidCallback _onChanged;
-
-  void _handleChanged() {
-    _onChanged();
-  }
-
-  void dispose() {
-    nameController
-      ..removeListener(_handleChanged)
-      ..dispose();
-    weightController
-      ..removeListener(_handleChanged)
-      ..dispose();
-  }
-}
-
 class _CategoryRemainingCard extends StatelessWidget {
   const _CategoryRemainingCard({
-    required this.importanceStatusValue,
+    required this.importanceStatusValueLabel,
     required this.importanceStatusLabel,
     required this.backgroundColor,
     required this.isCompact,
   });
 
-  final double importanceStatusValue;
+  final String importanceStatusValueLabel;
   final String importanceStatusLabel;
   final Color backgroundColor;
   final bool isCompact;
@@ -497,7 +303,7 @@ class _CategoryRemainingCard extends StatelessWidget {
         children: [
           Expanded(
             child: AppTextView.title1(
-              '${_formatSeatProfilePercent(importanceStatusValue)}%',
+              importanceStatusValueLabel,
               color: AppColors.textPrimary,
               fontSize: isCompact ? 28 : 34,
               fontWeight: FontWeight.w700,
@@ -522,13 +328,13 @@ class _CategoryRemainingCard extends StatelessWidget {
 class _ManageSeatCategoriesIntroSection extends StatelessWidget {
   const _ManageSeatCategoriesIntroSection({
     required this.isCompact,
-    required this.importanceStatusValue,
+    required this.importanceStatusValueLabel,
     required this.importanceStatusLabel,
     required this.importanceStatusColor,
   });
 
   final bool isCompact;
-  final double importanceStatusValue;
+  final String importanceStatusValueLabel;
   final String importanceStatusLabel;
   final Color importanceStatusColor;
 
@@ -571,7 +377,7 @@ class _ManageSeatCategoriesIntroSection extends StatelessWidget {
           infoCard,
           const SizedBox(height: 12),
           _CategoryRemainingCard(
-            importanceStatusValue: importanceStatusValue,
+            importanceStatusValueLabel: importanceStatusValueLabel,
             importanceStatusLabel: importanceStatusLabel,
             backgroundColor: importanceStatusColor,
             isCompact: true,
@@ -586,7 +392,7 @@ class _ManageSeatCategoriesIntroSection extends StatelessWidget {
         Expanded(child: infoCard),
         const SizedBox(width: 16),
         _CategoryRemainingCard(
-          importanceStatusValue: importanceStatusValue,
+          importanceStatusValueLabel: importanceStatusValueLabel,
           importanceStatusLabel: importanceStatusLabel,
           backgroundColor: importanceStatusColor,
           isCompact: false,
@@ -642,7 +448,7 @@ class _SeatCategoryInputRow extends StatelessWidget {
     required this.amountFieldWidth,
   });
 
-  final _SeatCategoryRowController rowController;
+  final SeatProfileCategoryRowController rowController;
   final VoidCallback? onDeleteTap;
   final bool isCompact;
   final double amountFieldWidth;
@@ -686,7 +492,9 @@ class _SeatCategoryInputRow extends StatelessWidget {
                 hintText: AppStrings.seatProfileCategoryNameColumn,
                 isCompact: isCompact,
                 inputFormatters: <TextInputFormatter>[
-                  LengthLimitingTextInputFormatter(25),
+                  LengthLimitingTextInputFormatter(
+                    SeatProfileCategoryFormController.maxCategoryTitleLength,
+                  ),
                 ],
               ),
             ),
@@ -695,7 +503,7 @@ class _SeatCategoryInputRow extends StatelessWidget {
               width: amountFieldWidth,
               child: _DialogInputField(
                 controller: rowController.weightController,
-                hintText: '0',
+                hintText: AppStrings.seatProfileCategoryImportanceHint,
                 keyboardType: const TextInputType.numberWithOptions(
                   decimal: true,
                 ),
@@ -820,19 +628,16 @@ class _DialogDottedActionButton extends StatelessWidget {
 class _SeatCategoryActionFooter extends StatelessWidget {
   const _SeatCategoryActionFooter({
     required this.isCompact,
-    required this.totalImportance,
+    required this.totalImportanceLabel,
     required this.onAddTap,
   });
 
   final bool isCompact;
-  final double totalImportance;
+  final String totalImportanceLabel;
   final VoidCallback? onAddTap;
 
   @override
   Widget build(BuildContext context) {
-    final totalLabel =
-        '${AppStrings.seatProfileCategoriesTotalLabel}: ${_formatSeatProfilePercent(totalImportance)}%';
-
     if (isCompact) {
       return Column(
         crossAxisAlignment: CrossAxisAlignment.stretch,
@@ -844,7 +649,7 @@ class _SeatCategoryActionFooter extends StatelessWidget {
           ),
           const SizedBox(height: 10),
           AppTextView.body2(
-            totalLabel,
+            totalImportanceLabel,
             color: AppColors.textPrimary,
             fontWeight: FontWeight.w700,
             textAlign: TextAlign.right,
@@ -864,7 +669,7 @@ class _SeatCategoryActionFooter extends StatelessWidget {
         ),
         const SizedBox(width: 16),
         AppTextView.body1(
-          totalLabel,
+          totalImportanceLabel,
           color: AppColors.textPrimary,
           fontWeight: FontWeight.w700,
         ),
@@ -948,24 +753,4 @@ class _SeatProfileDottedRoundedBorderPainter extends CustomPainter {
   ) {
     return oldDelegate.color != color || oldDelegate.radius != radius;
   }
-}
-
-double _parseWeightPercent(String value) {
-  return double.tryParse(value.trim()) ?? 0;
-}
-
-String _formatSeatProfilePercent(double value) {
-  if (value == value.roundToDouble()) {
-    return value.toInt().toString();
-  }
-
-  return value.toStringAsFixed(1).replaceFirst(RegExp(r'\.?0+$'), '');
-}
-
-int _countWords(String value) {
-  return value
-      .trim()
-      .split(RegExp(r'\s+'))
-      .where((word) => word.isNotEmpty)
-      .length;
 }
