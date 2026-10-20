@@ -58,6 +58,9 @@ void main() {
       expect(find.text('$tab specifics'), findsNothing);
       await tester.tap(find.text(title));
       await tester.pumpAndSettle();
+      expect(find.text('$tab specifics'), findsOneWidget);
+      await tester.tap(find.text(title));
+      await tester.pumpAndSettle();
       expect(find.text('$tab specifics'), findsNothing);
 
       await _swipeCard(tester, const Offset(180, 0));
@@ -81,6 +84,38 @@ void main() {
       expect(useCase.updates, isEmpty);
       expect(useCase.deletions, isEmpty);
     });
+
+    testWidgets(
+      '$tab card padding, rate and expanded text toggle only that card',
+      (tester) async {
+        await openScreen(tester, ancillary: ancillary);
+        final card = find.byType(AppSwipeRevealAction).first;
+        final collapsedHeight = tester.getSize(card).height;
+        await tester.tapAt(tester.getTopRight(card) + const Offset(-8, 8));
+        await tester.pumpAndSettle();
+        expect(find.text('$tab specifics'), findsOneWidget);
+        expect(find.text('$tab promotion'), findsOneWidget);
+        expect(find.text('second specifics'), findsNothing);
+
+        await tester.tap(find.text('$tab specifics'));
+        await tester.pumpAndSettle();
+        expect(tester.getSize(card).height, closeTo(collapsedHeight, 0.01));
+        expect(find.text('$tab specifics'), findsNothing);
+        final rate = find.descendant(of: card, matching: find.text('10.00/hr'));
+        await tester.tap(rate);
+        await tester.pumpAndSettle();
+        expect(find.text('$tab promotion'), findsOneWidget);
+        await tester.ensureVisible(find.text('$tab promotion'));
+        await tester.pumpAndSettle();
+        await tester.tap(find.text('$tab promotion'));
+        await tester.pumpAndSettle();
+        expect(find.text('$tab promotion'), findsNothing);
+        expect(find.byType(TextField), findsNothing);
+        expect(useCase.updates, isEmpty);
+        expect(useCase.deletions, isEmpty);
+        expect(tester.takeException(), isNull);
+      },
+    );
 
     testWidgets('$tab left swipe edits the selected entry without expanding it', (tester) async {
       await openScreen(tester, ancillary: ancillary);

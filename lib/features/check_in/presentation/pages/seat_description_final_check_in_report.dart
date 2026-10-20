@@ -61,18 +61,14 @@ class _FinalReportView extends StatelessWidget {
 
   @override
   Widget build(BuildContext context) {
-    final controller = context
-        .watch<SeatDescriptionFinalCheckInReportController>();
+    final controller = context.watch<SeatDescriptionFinalCheckInReportController>();
     return Scaffold(
       backgroundColor: AppColors.mainBg,
       body: SafeArea(
         bottom: false,
         child: Column(
           children: [
-            const Padding(
-              padding: EdgeInsets.fromLTRB(8, 4, 8, 0),
-              child: _FinalReportHeader(),
-            ),
+            const Padding(padding: EdgeInsets.fromLTRB(8, 4, 8, 0), child: _FinalReportHeader()),
             const SizedBox(height: 16),
             Padding(
               padding: const EdgeInsets.symmetric(horizontal: 8),

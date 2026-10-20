@@ -126,6 +126,50 @@ void main() {
     expect(tester.takeException(), isNull);
   });
 
+  testWidgets(
+    'card surface taps expand and expanded content taps collapse without editing',
+    (tester) async {
+      final useCase = await _openScreen(tester);
+      await _openCategory(tester, 'Financial Management');
+      final card = _description('records');
+      final collapsedHeight = tester.getSize(card).height;
+      final specifics = _withinDescription(
+        'records',
+        AppStrings.seatProfileAuditSpecifics,
+      );
+
+      // Tap the card padding, outside the title's previous tap target.
+      await tester.tapAt(tester.getTopRight(card) + const Offset(-8, 8));
+      await tester.pumpAndSettle();
+      expect(tester.getSize(card).height, greaterThan(collapsedHeight));
+      expect(specifics.hitTestable(), findsOneWidget);
+      expect(
+        _withinDescription(
+          'reports',
+          AppStrings.seatProfileAuditSpecifics,
+        ).hitTestable(),
+        findsNothing,
+      );
+
+      await tester.tap(
+        _withinDescription('records', 'Verify all transactions accurately'),
+      );
+      await tester.pumpAndSettle();
+      expect(tester.getSize(card).height, closeTo(collapsedHeight, 0.01));
+      expect(specifics.hitTestable(), findsNothing);
+      expect(find.byType(TextField), findsNothing);
+      expect(useCase.updatedDescriptionId, isNull);
+
+      await tester.tap(_withinDescription('records', 'Observation'));
+      await tester.pumpAndSettle();
+      expect(specifics.hitTestable(), findsOneWidget);
+      await tester.tap(specifics);
+      await tester.pumpAndSettle();
+      expect(tester.getSize(card).height, closeTo(collapsedHeight, 0.01));
+      expect(tester.takeException(), isNull);
+    },
+  );
+
   testWidgets('right swipe shows more and less for only the selected description', (tester) async {
     await _openScreen(tester);
     await _openCategory(tester, 'Financial Management');
