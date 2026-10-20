@@ -14,13 +14,14 @@ class _TrainingHeaderActions extends StatelessWidget {
   @override
   Widget build(BuildContext context) {
     final isBusy = controller.isLoading || controller.isCreatingModule;
+    final actionSpacing = MediaQuery.orientationOf(context) == Orientation.landscape ? 4.0 : 8.0;
     return Row(
       mainAxisSize: MainAxisSize.min,
       children: [
         AppBarGradientAction(
           label: AppStrings.trainingAllLessons,
           icon: Icons.format_list_bulleted_rounded,
-          endPadding: 8,
+          endPadding: actionSpacing,
           compact: true,
           onTap: isBusy ? null : onShowAllLessons,
         ),
@@ -28,7 +29,7 @@ class _TrainingHeaderActions extends StatelessWidget {
           AppBarGradientAction(
             label: AppStrings.trainingNewLesson,
             icon: Icons.add_rounded,
-            endPadding: 8,
+            endPadding: actionSpacing,
             compact: true,
             onTap: isBusy || controller.isCreatingNewLessonDraft ? null : onAddLesson,
           ),

@@ -7,7 +7,7 @@ extension _EditTrainingSectionViewStateHandlers
       return;
     }
     _lastHandledTabIndex = _selectedTabIndex;
-    if (_selectedTabIndex != 0) _cancelVideoPortraitReset();
+    _cancelPortraitReset();
     _updatePreferredOrientations();
     FocusScope.of(context).unfocus();
     unawaited(_syncSelectedTabData(context.read<TrainingModuleController>()));

@@ -13,6 +13,7 @@ class _SopTabContent extends StatelessWidget {
     required this.editorControllerBuilder,
     required this.onGenerateSopTap,
     required this.onDoneTap,
+    this.onExitLandscape,
     this.errorMessage,
   });
 
@@ -28,61 +29,106 @@ class _SopTabContent extends StatelessWidget {
   final TrainingSopEditorController Function() editorControllerBuilder;
   final VoidCallback onGenerateSopTap;
   final VoidCallback onDoneTap;
+  final VoidCallback? onExitLandscape;
 
   @override
   Widget build(BuildContext context) {
     return LayoutBuilder(
       builder: (context, constraints) {
-        final content = _buildContent();
+        final content = _buildContent(
+          isLandscape: MediaQuery.orientationOf(context) == Orientation.landscape,
+        );
         if (constraints.hasBoundedHeight) return content;
         return SizedBox(height: MediaQuery.sizeOf(context).height * 0.65, child: content);
       },
     );
   }
 
-  Widget _buildContent() => Column(
+  Widget _buildContent({required bool isLandscape}) => Column(
     crossAxisAlignment: CrossAxisAlignment.stretch,
     children: [
-      OverflowBar(
-        alignment: MainAxisAlignment.spaceBetween,
-        overflowAlignment: OverflowBarAlignment.end,
-        spacing: 12,
-        overflowSpacing: 8,
-        children: [
-          Row(
-            mainAxisSize: MainAxisSize.min,
+      Offstage(
+        offstage: isLandscape,
+        child: SafeArea(
+          top: false,
+          bottom: false,
+          left: !isLandscape,
+          right: !isLandscape,
+          minimum: EdgeInsets.symmetric(horizontal: isLandscape ? 8 : 0),
+          child: OverflowBar(
+            alignment: MainAxisAlignment.spaceBetween,
+            overflowAlignment: OverflowBarAlignment.end,
+            spacing: isLandscape ? 4 : 12,
+            overflowSpacing: isLandscape ? 2 : 8,
             children: [
-              const Flexible(
-                child: AppTextView.body1(
-                  AppStrings.trainingCreateSop,
-                  color: AppColors.textPrimary,
-                  fontSize: 18,
-                  fontWeight: FontWeight.w700,
-                ),
+              Row(
+                mainAxisSize: MainAxisSize.min,
+                children: [
+                  const Flexible(
+                    child: AppTextView.body1(
+                      AppStrings.trainingCreateSop,
+                      color: AppColors.textPrimary,
+                      fontSize: 18,
+                      fontWeight: FontWeight.w700,
+                    ),
+                  ),
+                  if (isSavingDocument) ...[
+                    const SizedBox(width: 12),
+                    const FastCircularProgressIndicator(width: 16, height: 16),
+                  ],
+                ],
               ),
-              if (isSavingDocument) ...[
-                const SizedBox(width: 12),
-                const FastCircularProgressIndicator(width: 16, height: 16),
-              ],
+              if (canManageGeneration)
+                AppAiGenerateButton(
+                  label: AppStrings.trainingCreateWithAi,
+                  isEnabled: canGenerate,
+                  isLoading: isGeneratingSop,
+                  onTap: onGenerateSopTap,
+                  showOutline: true,
+                  maxLines: null,
+                  minHeight: isLandscape ? 32 : null,
+                  outerPadding: EdgeInsets.all(isLandscape ? 2 : 6),
+                  contentPadding: isLandscape
+                      ? const EdgeInsets.symmetric(horizontal: 12, vertical: 4)
+                      : const EdgeInsets.symmetric(horizontal: 20, vertical: 7),
+                ),
             ],
           ),
-          if (canManageGeneration)
-            AppAiGenerateButton(
-              label: AppStrings.trainingCreateWithAi,
-              isEnabled: canGenerate,
-              isLoading: isGeneratingSop,
-              onTap: onGenerateSopTap,
-              showOutline: true,
-              maxLines: null,
-            ),
-        ],
+        ),
       ),
-      const SizedBox(height: 24),
+      SizedBox(height: isLandscape ? 0 : 24),
       Expanded(
-        child: Container(
-          clipBehavior: Clip.antiAlias,
-          decoration: BoxDecoration(color: Colors.white, borderRadius: BorderRadius.circular(14)),
-          child: _buildDocument(),
+        child: Padding(
+          padding: EdgeInsets.symmetric(horizontal: isLandscape ? 8 : 0),
+          child: Container(
+            clipBehavior: Clip.antiAlias,
+            decoration: BoxDecoration(color: Colors.white, borderRadius: BorderRadius.circular(14)),
+            child: Stack(
+              fit: StackFit.expand,
+              children: [
+                _buildDocument(),
+                if (isLandscape && onExitLandscape != null)
+                  Positioned(
+                    right: 8,
+                    bottom: 8,
+                    child: Material(
+                      color: AppColors.surfaceDark2,
+                      borderRadius: BorderRadius.circular(12),
+                      child: IconButton(
+                        key: const ValueKey('sop-exit-fullscreen-button'),
+                        tooltip: AppStrings.trainingExitFullscreen,
+                        onPressed: onExitLandscape,
+                        icon: const Icon(
+                          Icons.fullscreen_exit_rounded,
+                          color: Colors.white,
+                          size: 24,
+                        ),
+                      ),
+                    ),
+                  ),
+              ],
+            ),
+          ),
         ),
       ),
     ],
@@ -126,17 +172,25 @@ class _TrainingSopEditor extends StatelessWidget {
   Widget build(BuildContext context) {
     final controller = context.watch<TrainingSopEditorController>();
     final error = errorMessage ?? controller.errorMessage;
+    final isLandscape = MediaQuery.orientationOf(context) == Orientation.landscape;
     return Column(
       children: [
-        Expanded(child: TrainingSopDocumentView(controller: controller)),
+        Expanded(
+          child: TrainingSopDocumentView(controller: controller, preventTapCursor: isLandscape),
+        ),
         if (error != null)
           Padding(
             padding: const EdgeInsets.symmetric(horizontal: 16, vertical: 8),
             child: AppTextView.body1(error, color: AppColors.mainBg),
           ),
-        Padding(
-          padding: const EdgeInsets.symmetric(horizontal: 10, vertical: 12),
-          child: _TrainingSopFormattingToolbar(controller: controller, onDoneTap: onDoneTap),
+        Offstage(
+          offstage: isLandscape,
+          child: SafeArea(
+            top: false,
+            bottom: false,
+            minimum: const EdgeInsets.symmetric(horizontal: 10, vertical: 12),
+            child: _TrainingSopFormattingToolbar(controller: controller, onDoneTap: onDoneTap),
+          ),
         ),
       ],
     );
