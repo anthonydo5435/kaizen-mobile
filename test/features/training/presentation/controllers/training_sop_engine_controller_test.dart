@@ -68,6 +68,70 @@ void main() {
     expect(controller.errorMessage, AppStrings.trainingSopEditorError);
   });
 
+  test(
+    'landscape tap and scroll messages control the toolbar without reinitializing the editor',
+    () async {
+      await controller.initialize();
+      final surface = controller.editor as TrainingSopEngineController;
+      surface.buildDocument(width: 820, textScale: 1, preventTapCursor: true);
+      expect(platform.controller.configurations.last['preventTapCursor'], isTrue);
+      platform.controller.sendSurfaceMessage({'interaction': 'scroll'});
+      await Future<void>.delayed(Duration.zero);
+      expect(controller.showFormattingToolbar, isFalse);
+      platform.controller.sendSurfaceMessage({'interaction': 'tap'});
+      await Future<void>.delayed(Duration.zero);
+      expect(controller.showFormattingToolbar, isTrue);
+
+      surface.buildDocument(width: 360, textScale: 1);
+      expect(platform.controller.configurations.last['preventTapCursor'], isFalse);
+      platform.controller.sendSurfaceMessage({'interaction': 'scroll'});
+      await Future<void>.delayed(Duration.zero);
+      expect(controller.showFormattingToolbar, isTrue);
+      expect(
+        platform.controller.commands.where((command) => command['name'] == 'init'),
+        hasLength(1),
+      );
+    },
+  );
+
+  test('landscape disables native editing and formatting and portrait restores editing', () async {
+    await controller.initialize();
+    final surface = controller.editor as TrainingSopEngineController;
+    surface.buildDocument(width: 820, textScale: 1, preventTapCursor: true);
+    await Future<void>.delayed(Duration.zero);
+    expect(surface.editorState?.editable, isFalse);
+    await controller.format('toggleBold');
+    expect(platform.controller.commands.map((command) => command['name']), ['init', 'setEditable']);
+    expect(platform.controller.commands.last['payload']['editable'], isFalse);
+    surface.buildDocument(width: 360, textScale: 1);
+    await Future<void>.delayed(Duration.zero);
+    expect(surface.editorState?.editable, isTrue);
+    await controller.format('toggleItalic');
+    expect(platform.controller.commands.last['payload']['command'], 'toggleItalic');
+    expect(controller.errorMessage, isNull);
+  });
+
+  for (final editable in [true, false]) {
+    test(
+      'opening landscape starts read-only and restores the original editing permission ($editable)',
+      () async {
+        final surface = controller.editor as TrainingSopEngineController;
+        surface.buildDocument(width: 820, textScale: 1, preventTapCursor: true);
+        await controller.initialize(editable: editable);
+        expect(surface.editorState?.editable, isFalse);
+        expect(platform.controller.commands.single['payload']['editable'], isFalse);
+        surface.buildDocument(width: 360, textScale: 1);
+        await Future<void>.delayed(Duration.zero);
+        expect(surface.editorState?.editable, editable);
+        expect(
+          platform.controller.commands.where((command) => command['name'] == 'init'),
+          hasLength(1),
+        );
+        expect(controller.errorMessage, isNull);
+      },
+    );
+  }
+
   Future<TrainingTabNavigationController> mountTabs(WidgetTester tester) async {
     await tester.runAsync(() => controller.initialize());
     final navigation = TrainingTabNavigationController()..selectTab(1);
@@ -189,13 +253,16 @@ class _WebViewController extends PlatformWebViewController {
   _WebViewController(super.params) : super.implementation();
 
   final commands = <Map<String, dynamic>>[];
+  final configurations = <Map<String, dynamic>>[];
   final _channels = <String, JavaScriptChannelParams>{};
   late _NavigationDelegate _navigation;
   bool _sopInstalled = false;
   bool failInit = false;
+  Map<String, dynamic>? _editorState;
+  int keyboardDismissals = 0;
   final pointerTarget = _SopPlatformViewController();
 
-  void sendSurfaceMessage(Map<String, bool> message) => _channels['TrainingSopLinks']!
+  void sendSurfaceMessage(Map<String, Object> message) => _channels['TrainingSopLinks']!
       .onMessageReceived(JavaScriptMessage(message: jsonEncode(message)));
 
   @override
@@ -218,7 +285,15 @@ class _WebViewController extends PlatformWebViewController {
 
   @override
   Future<void> runJavaScript(String javaScript) async {
-    if (javaScript.contains('Adapter injected successfully')) {
+    const configurePrefix = 'window.TrainingSopDocument.configure(';
+    if (javaScript.startsWith(configurePrefix)) {
+      configurations.add(
+        jsonDecode(javaScript.substring(configurePrefix.length, javaScript.length - 2))
+            as Map<String, dynamic>,
+      );
+    } else if (javaScript == 'window.TrainingSopDocument.blur();') {
+      keyboardDismissals += 1;
+    } else if (javaScript.contains('Adapter injected successfully')) {
       _send({'type': 'engineGlobalReady'});
     } else if (javaScript.contains('window.TrainingSopDocument=')) {
       _sopInstalled = true;
@@ -234,24 +309,24 @@ class _WebViewController extends PlatformWebViewController {
         if (failInit) throw StateError('Native init failed');
         _send({'type': 'event', 'name': 'schemaReady', 'payload': <String, dynamic>{}});
         _send({'type': 'event', 'name': 'ready', 'payload': <String, dynamic>{}});
-        _send({
-          'type': 'event',
-          'name': 'stateChanged',
-          'payload': {
-            'editable': (command['payload'] as Map<String, dynamic>)['editable'],
-            'doc': {
-              'type': 'doc',
-              'content': [
-                {
-                  'type': 'paragraph',
-                  'content': [
-                    {'type': 'text', 'text': 'Native SOP'},
-                  ],
-                },
-              ],
-            },
+        _editorState = {
+          'editable': (command['payload'] as Map<String, dynamic>)['editable'],
+          'doc': {
+            'type': 'doc',
+            'content': [
+              {
+                'type': 'paragraph',
+                'content': [
+                  {'type': 'text', 'text': 'Native SOP'},
+                ],
+              },
+            ],
           },
-        });
+        };
+        _send({'type': 'event', 'name': 'stateChanged', 'payload': _editorState});
+      } else if (command['name'] == 'setEditable') {
+        _editorState!['editable'] = command['payload']['editable'];
+        _send({'type': 'event', 'name': 'stateChanged', 'payload': _editorState});
       }
       _send({'type': 'response', 'id': command['id'], 'success': true});
     }

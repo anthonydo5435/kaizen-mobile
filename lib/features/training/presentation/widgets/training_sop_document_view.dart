@@ -12,9 +12,14 @@ import '../controllers/training_sop_engine_controller.dart';
 
 /// Keeps the native A4 surface mounted while initialization is covered by a loader.
 class TrainingSopDocumentView extends StatelessWidget {
-  const TrainingSopDocumentView({super.key, required this.controller});
+  const TrainingSopDocumentView({
+    super.key,
+    required this.controller,
+    this.preventTapCursor = false,
+  });
 
   final TrainingSopEditorController controller;
+  final bool preventTapCursor;
 
   @override
   Widget build(BuildContext context) => ListenableBuilder(
@@ -29,6 +34,7 @@ class TrainingSopDocumentView extends StatelessWidget {
               final TrainingSopSurface surface => surface.buildDocument(
                 width: constraints.maxWidth,
                 textScale: MediaQuery.textScalerOf(context).scale(1),
+                preventTapCursor: preventTapCursor,
               ),
               final editor => TiptapEditor(controller: editor),
             },

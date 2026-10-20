@@ -21,6 +21,8 @@ class TrainingSopEditorController extends ChangeNotifier {
   final EditorController editor;
   StreamSubscription<EditorStatePayload>? _stateSubscription;
   StreamSubscription<String>? _linkSubscription;
+  StreamSubscription<TrainingSopInteraction>? _interactionSubscription;
+  bool _showFormattingToolbar = true;
   bool _isReady = false;
   bool _isEditable = true;
   bool _isDisposed = false;
@@ -30,6 +32,7 @@ class TrainingSopEditorController extends ChangeNotifier {
   String? _errorMessage;
 
   bool get isReady => _isReady;
+  bool get showFormattingToolbar => _showFormattingToolbar;
   String? get errorMessage => _errorMessage;
 
   Future<void> initialize({bool editable = true}) async {
@@ -37,6 +40,7 @@ class TrainingSopEditorController extends ChangeNotifier {
     _stateSubscription = editor.editorStateStream.listen(_handleEditorState);
     if (editor case final TrainingSopSurface surface) {
       _linkSubscription = surface.linkTaps.listen((href) => unawaited(_openLink(href)));
+      _interactionSubscription = surface.interactions.listen(_handleInteraction);
     }
     try {
       // Pass the original HTML directly to Tiptap, including blank paragraphs
@@ -61,6 +65,14 @@ class TrainingSopEditorController extends ChangeNotifier {
     } catch (_) {
       _showError();
     }
+  }
+
+  void _handleInteraction(TrainingSopInteraction interaction) {
+    if (_isDisposed) return;
+    final showToolbar = interaction == TrainingSopInteraction.tap;
+    if (_showFormattingToolbar == showToolbar) return;
+    _showFormattingToolbar = showToolbar;
+    notifyListeners();
   }
 
   Future<void> dismissKeyboard() async {
@@ -127,6 +139,7 @@ class TrainingSopEditorController extends ChangeNotifier {
     _isDisposed = true;
     unawaited(_stateSubscription?.cancel());
     unawaited(_linkSubscription?.cancel());
+    unawaited(_interactionSubscription?.cancel());
     editor.dispose();
     super.dispose();
   }
