@@ -201,6 +201,7 @@ class AppStrings {
   static const String seatProfileCategoryImportanceReached = 'Category Importance Reached';
   static const String seatProfileCategoryImportanceExceeded = 'Category Importance Exceeded';
   static const String seatProfileCategoryNameColumn = 'Category Name';
+  static const String seatProfileCategoryImportanceHint = '0';
   static const String seatProfileDescriptionNameColumn = 'Description Name';
   static const String seatProfileImportancePercentColumn = 'Importance %';
   static const String seatProfileAddSeatCategoryAction = 'Add Seat Category';
@@ -454,6 +455,37 @@ class AppStrings {
   static const String checkInReadOnlyOrganization =
       'Check-ins are view-only in child organisations.';
   static const String reportsTitle = 'Reports';
+  static const String finalCheckInReportTitle = 'Final Audit Report';
+  static const String finalCheckInReportCurrentQuarterYear = 'Current Quarter Year';
+  static const String finalCheckInReportLastFourQuarters = 'Last 4 Quarters';
+  static const String finalCheckInReportAllTime = 'All Time';
+  static const String finalCheckInReportLoadError = 'Unable to load final audit report.';
+  static const String finalCheckInReportEmpty = 'No final audit report found.';
+  static const String finalCheckInReportTryAgain = 'Try Again';
+  static const String finalCheckInReportRefresh = 'Refresh';
+  static const String finalCheckInReportSeat = 'Seat';
+  static const String finalCheckInReportName = 'Name';
+  static const String finalCheckInReportAuditFactor = 'Audit Factor';
+  static const String finalCheckInReportSeatType = 'Seat Type';
+  static const String finalCheckInReportOpenSeat = 'Open Seat';
+  static const String finalCheckInReportAssignedSeat = 'Assigned Seat';
+  static const String finalCheckInReportPercentage = 'Performance Percentage';
+  static const String finalCheckInReportRating = 'Rating';
+  static const String finalCheckInReportDescription = 'Description';
+  static const String finalCheckInReportSpecifics = 'Specifics';
+  static const String finalCheckInReportTrends = 'Performance Trends';
+  static const String finalCheckInReportNoTrends = 'No trend data found.';
+  static const String finalCheckInReportCommentsSubtitle =
+      'All comments with the media evidence from the selected quarter';
+  static const String finalCheckInReportNoComments = 'No check-in comments available.';
+  static const String finalCheckInReportSearchComments = 'Search comments';
+  static const String finalCheckInReportMissingValue = '-';
+  static String finalCheckInReportProfileNames(String first, String second, int remaining) =>
+      remaining > 0 ? '$first, $second +$remaining' : '$first, $second';
+  static String finalCheckInReportWeek(int week) => 'w$week';
+  static String finalCheckInReportQuarter(String quarter, int year) => '$quarter\n$year';
+  static String finalCheckInReportPercentageValue(int value) => '$value%';
+  static String finalCheckInReportMoreProfiles(int count) => '+$count';
   static const String reportsScreenTitle = 'Reports';
   static const String myReportsTitle = 'My Reports';
   static const String certify = 'Certify';
