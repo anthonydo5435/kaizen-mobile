@@ -17,6 +17,8 @@ class AppAiGenerateButton extends StatelessWidget {
     this.textSize,
     this.maxLines = 1,
     this.fontWeight = FontWeight.w700,
+    this.outerPadding = const EdgeInsets.all(6),
+    this.contentPadding = const EdgeInsets.symmetric(horizontal: 20, vertical: 7),
   });
 
   final String label;
@@ -29,6 +31,8 @@ class AppAiGenerateButton extends StatelessWidget {
   final double? textSize;
   final int? maxLines;
   final FontWeight fontWeight;
+  final EdgeInsetsGeometry outerPadding;
+  final EdgeInsetsGeometry contentPadding;
 
   @override
   Widget build(BuildContext context) {
@@ -36,7 +40,7 @@ class AppAiGenerateButton extends StatelessWidget {
 
     return Padding(
       // Keep the glow inside the surrounding scroll view or page clip.
-      padding: const EdgeInsets.all(6),
+      padding: outerPadding,
       child: DecoratedBox(
         decoration: BoxDecoration(
           borderRadius: BorderRadius.circular(12),
@@ -89,7 +93,7 @@ class AppAiGenerateButton extends StatelessWidget {
               disabledBackgroundColor: Colors.transparent,
               disabledForegroundColor: AppColors.textSecondary,
               minimumSize: Size(0, minHeight ?? 38),
-              padding: const EdgeInsets.symmetric(horizontal: 20, vertical: 7),
+              padding: contentPadding,
               tapTargetSize: MaterialTapTargetSize.shrinkWrap,
               side: BorderSide.none,
               shape: const RoundedRectangleBorder(
