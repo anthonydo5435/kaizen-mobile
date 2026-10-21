@@ -1,6 +1,7 @@
 import 'package:flutter/material.dart';
 
 import '../../../../core/constants/app_strings.dart';
+import '../../../../core/managers/app_manager.dart';
 import '../../domain/entities/department.dart';
 import '../../domain/entities/seat_profile_category_draft.dart';
 import '../../domain/entities/seat_profile_creation_result.dart';
@@ -74,6 +75,35 @@ enum SeatContentTone {
 }
 
 class SeatProfileCreateController extends ChangeNotifier {
+  factory SeatProfileCreateController.forCurrentUser(
+    GetSeatProfilesUseCase useCase, {
+    SeatProfileFormInitialData? initialData,
+    AppManager? appManager,
+  }) {
+    final manager = appManager ?? AppManager.instance;
+    return SeatProfileCreateController(
+      useCase,
+      initialData: initialData,
+      canManageDepartment: (department) =>
+          manager.canCurrentUserManageSeatProfileDepartment(
+            departmentId: department.id,
+          ),
+    );
+  }
+
+  static bool canAccessForm({
+    SeatProfileFormInitialData? initialData,
+    AppManager? appManager,
+  }) {
+    final manager = appManager ?? AppManager.instance;
+    if (initialData == null || !initialData.isValid) {
+      return manager.currentUserCanOpenSeatProfileCreateFlow;
+    }
+    return manager.canCurrentUserManageSeatProfileDepartment(
+      departmentId: initialData.department?.id.trim() ?? '',
+    );
+  }
+
   SeatProfileCreateController(
     this._getSeatProfilesUseCase, {
     SeatProfileFormInitialData? initialData,
@@ -109,8 +139,34 @@ class SeatProfileCreateController extends ChangeNotifier {
   SeatContentSpecificity _selectedSpecificity = SeatContentSpecificity.medium;
   SeatContentTone _selectedTone = SeatContentTone.professional;
   bool _didUpdateProfile = false;
+  bool _isDisposed = false;
 
   bool get isLoadingDepartments => _isLoadingDepartments;
+  bool get showInitialLoading => _isLoadingDepartments && _departments.isEmpty;
+  bool get canSelectDepartment =>
+      !areSelectionFieldsLocked && _departments.isNotEmpty;
+  bool get canSelectPaygradeUnit => !areSelectionFieldsLocked;
+  bool get shouldReturnAfterSubmit => isEditMode;
+  String get departmentHint => _departments.isNotEmpty
+      ? AppStrings.seatProfileSelectDepartmentHint
+      : AppStrings.seatProfileNoDepartmentsAvailable;
+  List<SeatProfileCreatedSummaryRow> get createdProfileSummary =>
+      hasCreatedProfile
+      ? [
+          SeatProfileCreatedSummaryRow(
+            AppStrings.seatProfileNameLabel,
+            nameController.text.trim(),
+          ),
+          SeatProfileCreatedSummaryRow(
+            AppStrings.paygradesDepartment,
+            selectedDepartment?.name ?? '',
+          ),
+          SeatProfileCreatedSummaryRow(
+            AppStrings.seatProfilePaygradeLabel,
+            selectedPaygradeUnit?.label ?? '',
+          ),
+        ]
+      : const [];
   bool get isSubmitting => _isSubmitting;
   String? get errorMessage => _errorMessage;
   List<Department> get departments =>
@@ -181,7 +237,7 @@ class SeatProfileCreateController extends ChangeNotifier {
 
     _isLoadingDepartments = true;
     _errorMessage = null;
-    notifyListeners();
+    _notifyIfActive();
 
     try {
       final loadedDepartments = await _getSeatProfilesUseCase.getDepartments();
@@ -196,7 +252,7 @@ class SeatProfileCreateController extends ChangeNotifier {
     }
 
     _isLoadingDepartments = false;
-    notifyListeners();
+    _notifyIfActive();
   }
 
   void selectDepartment(String? departmentId) {
@@ -214,7 +270,7 @@ class SeatProfileCreateController extends ChangeNotifier {
 
     if (selected != null && !_canManageDepartment(selected)) {
       _errorMessage = AppStrings.seatProfileDepartmentAccessDenied;
-      notifyListeners();
+      _notifyIfActive();
       return;
     }
 
@@ -224,7 +280,7 @@ class SeatProfileCreateController extends ChangeNotifier {
 
     _selectedDepartment = selected;
     _errorMessage = null;
-    notifyListeners();
+    _notifyIfActive();
   }
 
   void selectPaygradeUnit(SeatProfilePaygradeUnit? unit) {
@@ -234,7 +290,7 @@ class SeatProfileCreateController extends ChangeNotifier {
 
     _selectedPaygradeUnit = unit;
     _errorMessage = null;
-    notifyListeners();
+    _notifyIfActive();
   }
 
   Future<bool> submit() async {
@@ -245,33 +301,33 @@ class SeatProfileCreateController extends ChangeNotifier {
     final resolvedName = nameController.text.trim();
     if (resolvedName.isEmpty) {
       _errorMessage = AppStrings.seatProfileNameRequired;
-      notifyListeners();
+      _notifyIfActive();
       return false;
     }
 
     final department = _selectedDepartment;
     if (department == null) {
       _errorMessage = AppStrings.seatProfileDepartmentRequired;
-      notifyListeners();
+      _notifyIfActive();
       return false;
     }
 
     if (!_canManageDepartment(department)) {
       _errorMessage = AppStrings.seatProfileDepartmentAccessDenied;
-      notifyListeners();
+      _notifyIfActive();
       return false;
     }
 
     final paygradeUnit = _selectedPaygradeUnit;
     if (paygradeUnit == null) {
       _errorMessage = AppStrings.seatProfilePaygradeRequired;
-      notifyListeners();
+      _notifyIfActive();
       return false;
     }
 
     _isSubmitting = true;
     _errorMessage = null;
-    notifyListeners();
+    _notifyIfActive();
 
     try {
       if (isEditMode) {
@@ -305,7 +361,7 @@ class SeatProfileCreateController extends ChangeNotifier {
       return false;
     } finally {
       _isSubmitting = false;
-      notifyListeners();
+      _notifyIfActive();
     }
   }
 
@@ -315,7 +371,7 @@ class SeatProfileCreateController extends ChangeNotifier {
     }
 
     _hasUnlockedDescriptionActions = true;
-    notifyListeners();
+    _notifyIfActive();
   }
 
   void selectSpecificity(SeatContentSpecificity value) {
@@ -325,7 +381,7 @@ class SeatProfileCreateController extends ChangeNotifier {
 
     _selectedSpecificity = value;
     _seatContentGenerationErrorMessage = null;
-    notifyListeners();
+    _notifyIfActive();
   }
 
   void selectTone(SeatContentTone value) {
@@ -335,7 +391,7 @@ class SeatProfileCreateController extends ChangeNotifier {
 
     _selectedTone = value;
     _seatContentGenerationErrorMessage = null;
-    notifyListeners();
+    _notifyIfActive();
   }
 
   void clearSeatContentGenerationError() {
@@ -344,7 +400,7 @@ class SeatProfileCreateController extends ChangeNotifier {
     }
 
     _seatContentGenerationErrorMessage = null;
-    notifyListeners();
+    _notifyIfActive();
   }
 
   Future<bool> generateSeatContentWithAi() async {
@@ -360,7 +416,7 @@ class SeatProfileCreateController extends ChangeNotifier {
     _isGeneratingSeatContent = true;
     _seatContentGenerationErrorMessage = null;
     _errorMessage = null;
-    notifyListeners();
+    _notifyIfActive();
 
     try {
       await _getSeatProfilesUseCase.generateSeatProfileJobContent(
@@ -381,7 +437,7 @@ class SeatProfileCreateController extends ChangeNotifier {
       return false;
     } finally {
       _isGeneratingSeatContent = false;
-      notifyListeners();
+      _notifyIfActive();
     }
   }
 
@@ -396,7 +452,7 @@ class SeatProfileCreateController extends ChangeNotifier {
     );
     if (hasCreatedProfile) {
       _createdProfile = result;
-      notifyListeners();
+      _notifyIfActive();
     }
 
     return result.categories;
@@ -422,7 +478,7 @@ class SeatProfileCreateController extends ChangeNotifier {
     } else {
       _didUpdateProfile = true;
     }
-    notifyListeners();
+    _notifyIfActive();
   }
 
   void _handleNameChanged() {
@@ -430,7 +486,11 @@ class SeatProfileCreateController extends ChangeNotifier {
       return;
     }
 
-    notifyListeners();
+    _notifyIfActive();
+  }
+
+  void _notifyIfActive() {
+    if (!_isDisposed) notifyListeners();
   }
 
   List<Department> _filterDepartmentsForCurrentMode(
@@ -487,9 +547,17 @@ class SeatProfileCreateController extends ChangeNotifier {
 
   @override
   void dispose() {
+    _isDisposed = true;
     nameController
       ..removeListener(_handleNameChanged)
       ..dispose();
     super.dispose();
   }
+}
+
+class SeatProfileCreatedSummaryRow {
+  const SeatProfileCreatedSummaryRow(this.label, this.value);
+
+  final String label;
+  final String value;
 }

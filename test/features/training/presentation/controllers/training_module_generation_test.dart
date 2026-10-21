@@ -1,5 +1,5 @@
 import 'package:flutter_test/flutter_test.dart';
-import 'package:sparrowkaizen/features/check_in/domain/repositories/audit_repository.dart';
+import 'package:sparrowkaizen/features/training/domain/repositories/training_library_repository.dart';
 import 'package:sparrowkaizen/features/training/domain/entities/seat_description_training.dart';
 import 'package:sparrowkaizen/features/training/presentation/controllers/training_module_controller.dart';
 
@@ -123,7 +123,7 @@ void main() {
   });
 }
 
-class _GenerationRepository extends Fake implements AuditRepository {
+class _GenerationRepository extends Fake implements TrainingLibraryRepository {
   String? transcript;
   final generationRequests = <String>[];
 
@@ -147,27 +147,26 @@ class _GenerationRepository extends Fake implements AuditRepository {
   getSeatDescriptionTrainingModuleDetail({
     required String moduleId,
     bool forceRefresh = false,
-  }) async =>
-      SeatDescriptionTrainingModuleDetail(
-        uuid: moduleId,
-        actualId: moduleId,
-        title: 'Lesson',
-        thumbnails: const [],
-        description: null,
-        assignmentTitle: null,
-        assignmentInstructions: null,
-        questions: const [],
-        thumbnailLink: null,
-        trainingVideo: SeatDescriptionTrainingVideo(
-          uuid: 'video',
-          title: 'Video',
-          url: 'https://example.com/video.mp4',
-          duration: 60,
-          transcript: transcript,
-        ),
-        isPubliclyAvailable: false,
-        learningTrackCount: 0,
-      );
+  }) async => SeatDescriptionTrainingModuleDetail(
+    uuid: moduleId,
+    actualId: moduleId,
+    title: 'Lesson',
+    thumbnails: const [],
+    description: null,
+    assignmentTitle: null,
+    assignmentInstructions: null,
+    questions: const [],
+    thumbnailLink: null,
+    trainingVideo: SeatDescriptionTrainingVideo(
+      uuid: 'video',
+      title: 'Video',
+      url: 'https://example.com/video.mp4',
+      duration: 60,
+      transcript: transcript,
+    ),
+    isPubliclyAvailable: false,
+    learningTrackCount: 0,
+  );
 
   @override
   Future<void> generateSeatDescriptionTrainingModuleSop({

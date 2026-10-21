@@ -1,13 +1,13 @@
 import 'package:flutter/foundation.dart';
 
 import '../../../../core/constants/app_strings.dart';
-import '../../../check_in/domain/repositories/audit_repository.dart';
+import '../../domain/repositories/training_library_repository.dart';
 import '../../domain/entities/training_library_module.dart';
 
 class TrainingLibraryLessonVisibilityController extends ChangeNotifier {
-  TrainingLibraryLessonVisibilityController(this._auditRepository);
+  TrainingLibraryLessonVisibilityController(this._trainingRepository);
 
-  final AuditRepository _auditRepository;
+  final TrainingLibraryRepository _trainingRepository;
   final Map<String, bool> _visibilityOverrides = <String, bool>{};
   final Set<String> _updatingLessonIds = <String>{};
   final Map<String, bool> _pendingVisibility = {};
@@ -71,7 +71,7 @@ class TrainingLibraryLessonVisibilityController extends ChangeNotifier {
     notifyListeners();
 
     try {
-      await _auditRepository.updateSeatDescriptionTrainingModuleVisibility(
+      await _trainingRepository.updateSeatDescriptionTrainingModuleVisibility(
         moduleId: lessonId,
         isPubliclyAvailable: isPubliclyAvailable,
       );

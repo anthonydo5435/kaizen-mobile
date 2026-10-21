@@ -1,5 +1,6 @@
 /* Keep native word selection and pinch zoom without double-tap smart zoom. */
 html { background: #e9e9ef; color: #15131a; touch-action: manipulation; }
+html[data-sop-prevent-tap-cursor="true"] .tiptap { caret-color: transparent; }
 body { margin: 0; padding: 0; width: calc(210mm + 24px); overflow-wrap: anywhere; }
 .sop-a4-sheet {
   box-sizing: border-box;
@@ -88,6 +89,11 @@ body { margin: 0; padding: 0; width: calc(210mm + 24px); overflow-wrap: anywhere
   background: #604b8c;
   color: #fff;
   margin: 0;
+}
+/* Cover fractional-pixel paint seams between the scaled header blocks. */
+.tiptap:where(:has([data-sop-template="reference-v1"])) [data-sop-role="eyebrow"],
+.tiptap:where(:has([data-sop-template="reference-v1"])) [data-sop-role="title"] {
+  box-shadow: 0 1px 0 #604b8c;
 }
 .tiptap:where(:has([data-sop-template="reference-v1"])) [data-sop-role="eyebrow"] {
   border-radius: 12px 12px 0 0;

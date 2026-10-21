@@ -66,6 +66,15 @@ Training tabs. At page-fit size, clearing the selection restores horizontal tab
 swipes. Gesture factories stay mounted while selection and zoom state change so
 an in-progress native gesture is not cancelled.
 
+Edit Training's landscape SOP uses the same mounted document in a focused reading
+layout. A viewport flag prevents short touch and mouse taps from focusing the
+editor or changing its caret. The native controller also switches the mounted
+engine to read-only and blocks formatting commands. The formatting toolbar stays
+hidden, and an exit-fullscreen icon returns to portrait using the shared physical
+orientation wait. Rotating back restores the original editing permission and
+ordinary tap-to-edit behavior. Scroll and pinch gestures remain native, and
+rotation never changes document HTML or flushes pending autosaves.
+
 The layout tests use a locally installed Chromium browser through its DevTools
 protocol, with a temporary profile. Set `CHROME_BIN` if it is installed outside
 the standard macOS/Linux paths. They measure rendered text fragments and page

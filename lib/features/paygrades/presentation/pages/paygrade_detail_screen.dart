@@ -468,6 +468,10 @@ class _PaygradeEntryCard extends StatefulWidget {
 class _PaygradeEntryCardState extends State<_PaygradeEntryCard> {
   final ValueNotifier<bool> _isExpanded = ValueNotifier(false);
 
+  void _toggleExpansion() {
+    _isExpanded.value = !_isExpanded.value;
+  }
+
   @override
   void dispose() {
     _isExpanded.dispose();
@@ -548,7 +552,7 @@ class _PaygradeEntryCardState extends State<_PaygradeEntryCard> {
         label: isExpanded ? AppStrings.paygradesShowLessAction : AppStrings.paygradesShowMoreAction,
         color: AppColors.secondaryColor,
       ),
-      onLeadingActionTap: () => _isExpanded.value = !isExpanded,
+      onLeadingActionTap: _toggleExpansion,
       actionBuilder: canEdit || canDelete
           ? (context, close) => Row(
               crossAxisAlignment: CrossAxisAlignment.stretch,
@@ -585,7 +589,11 @@ class _PaygradeEntryCardState extends State<_PaygradeEntryCard> {
               ],
             )
           : null,
-      child: card,
+      child: InkWell(
+        onTap: widget.isDeleting ? null : _toggleExpansion,
+        borderRadius: BorderRadius.circular(12),
+        child: card,
+      ),
     );
   }
 

@@ -2,7 +2,7 @@ import 'dart:async';
 
 import 'package:flutter_test/flutter_test.dart';
 import 'package:sparrowkaizen/core/constants/app_strings.dart';
-import 'package:sparrowkaizen/features/check_in/domain/repositories/audit_repository.dart';
+import 'package:sparrowkaizen/features/training/domain/repositories/training_library_repository.dart';
 import 'package:sparrowkaizen/features/training/domain/entities/seat_description_training.dart';
 import 'package:sparrowkaizen/features/training/domain/entities/shared_lesson_content.dart';
 import 'package:sparrowkaizen/features/training/presentation/controllers/training_module_controller.dart';
@@ -75,7 +75,8 @@ void main() {
   });
 }
 
-class _SharedLessonRepository extends Fake implements AuditRepository {
+class _SharedLessonRepository extends Fake
+    implements TrainingLibraryRepository {
   _SharedLessonRepository({this.shouldFail = false});
 
   final bool shouldFail;

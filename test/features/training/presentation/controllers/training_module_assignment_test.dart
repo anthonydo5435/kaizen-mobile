@@ -3,7 +3,7 @@ import 'dart:async';
 import 'package:flutter/material.dart';
 import 'package:flutter_test/flutter_test.dart';
 import 'package:sparrowkaizen/core/constants/app_strings.dart';
-import 'package:sparrowkaizen/features/check_in/domain/repositories/audit_repository.dart';
+import 'package:sparrowkaizen/features/training/domain/repositories/training_library_repository.dart';
 import 'package:sparrowkaizen/features/training/domain/entities/seat_description_training.dart';
 import 'package:sparrowkaizen/features/training/presentation/controllers/training_module_controller.dart';
 
@@ -334,7 +334,7 @@ void main() {
   });
 }
 
-class _AssignmentRepository extends Fake implements AuditRepository {
+class _AssignmentRepository extends Fake implements TrainingLibraryRepository {
   final savedAssignments = <SeatDescriptionTrainingAssignment>[];
   final updatedAssignmentIds = <String?>[];
   int assignmentFetchCount = 0;
@@ -366,21 +366,20 @@ class _AssignmentRepository extends Fake implements AuditRepository {
   getSeatDescriptionTrainingModuleDetail({
     required String moduleId,
     bool forceRefresh = false,
-  }) async =>
-      const SeatDescriptionTrainingModuleDetail(
-        uuid: 'module',
-        actualId: 'module',
-        title: 'Lesson',
-        thumbnails: [],
-        description: null,
-        assignmentTitle: null,
-        assignmentInstructions: null,
-        questions: [],
-        thumbnailLink: null,
-        trainingVideo: null,
-        isPubliclyAvailable: false,
-        learningTrackCount: 0,
-      );
+  }) async => const SeatDescriptionTrainingModuleDetail(
+    uuid: 'module',
+    actualId: 'module',
+    title: 'Lesson',
+    thumbnails: [],
+    description: null,
+    assignmentTitle: null,
+    assignmentInstructions: null,
+    questions: [],
+    thumbnailLink: null,
+    trainingVideo: null,
+    isPubliclyAvailable: false,
+    learningTrackCount: 0,
+  );
 
   @override
   Future<SeatDescriptionTrainingAssignment>

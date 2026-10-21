@@ -7,10 +7,48 @@ extension _EditTrainingSectionViewStateHandlers
       return;
     }
     _lastHandledTabIndex = _selectedTabIndex;
-    if (_selectedTabIndex != 0) _cancelVideoPortraitReset();
+    _cancelPortraitReset();
     _updatePreferredOrientations();
     FocusScope.of(context).unfocus();
     unawaited(_syncSelectedTabData(context.read<TrainingModuleController>()));
+  }
+
+  Future<void> _openSopPdf(TrainingModuleController controller) async {
+    final url = await controller.loadDocumentPdfForSelectedModule();
+    if (!mounted ||
+        _selectedTabIndex != 1 ||
+        ModalRoute.of(context)?.isCurrent != true) {
+      return;
+    }
+    if (url == null) {
+      final error = controller.documentPdfErrorMessage;
+      if (error != null) _showApiErrorSnackBar(error);
+      return;
+    }
+
+    FocusScope.of(context).unfocus();
+    try {
+      await SystemChrome.setPreferredOrientations(const [
+        DeviceOrientation.portraitUp,
+      ]);
+      if (!mounted ||
+          _selectedTabIndex != 1 ||
+          ModalRoute.of(context)?.isCurrent != true) {
+        return;
+      }
+      await Navigator.of(context).push<void>(
+        MaterialPageRoute(
+          builder: (_) => ViewFullScreenDoc(
+            title: AppStrings.trainingSopLabel,
+            imageUrl: url,
+          ),
+        ),
+      );
+    } finally {
+      if (mounted && ModalRoute.of(context)?.isCurrent == true) {
+        _updatePreferredOrientations();
+      }
+    }
   }
 
   void _handleTrainingControllerChanged() {

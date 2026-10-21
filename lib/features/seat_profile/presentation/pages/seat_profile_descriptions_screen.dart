@@ -360,22 +360,22 @@ class _DescriptionCardState extends State<_DescriptionCard>
                 close: close,
               )
             : null,
-        child: Container(
-          width: double.infinity,
-          padding: const EdgeInsets.symmetric(horizontal: 16, vertical: 12),
-          decoration: BoxDecoration(
-            color: AppColors.surfaceDark,
-            borderRadius: BorderRadius.circular(12),
-          ),
-          child: Column(
-            crossAxisAlignment: CrossAxisAlignment.start,
-            children: [
-              InkWell(
-                onTap: _toggleExpansion,
-                borderRadius: BorderRadius.circular(12),
-                splashFactory: NoSplash.splashFactory,
-                overlayColor: const WidgetStatePropertyAll(Colors.transparent),
-                child: Padding(
+        child: InkWell(
+          onTap: widget.isDeleting ? null : _toggleExpansion,
+          borderRadius: BorderRadius.circular(12),
+          splashFactory: NoSplash.splashFactory,
+          overlayColor: const WidgetStatePropertyAll(Colors.transparent),
+          child: Container(
+            width: double.infinity,
+            padding: const EdgeInsets.symmetric(horizontal: 16, vertical: 12),
+            decoration: BoxDecoration(
+              color: AppColors.surfaceDark,
+              borderRadius: BorderRadius.circular(12),
+            ),
+            child: Column(
+              crossAxisAlignment: CrossAxisAlignment.start,
+              children: [
+                Padding(
                   padding: const EdgeInsets.symmetric(vertical: 2),
                   child: AppTextView.body2(
                     widget.name,
@@ -383,37 +383,37 @@ class _DescriptionCardState extends State<_DescriptionCard>
                     fontWeight: FontWeight.w700,
                   ),
                 ),
-              ),
-              const SizedBox(height: 8),
-              _DescriptionCheckInTypeRow(
-                auditFactorType: widget.auditFactorType,
-              ),
-              SizeTransition(
-                sizeFactor: _expansion,
-                axisAlignment: -1,
-                child: FadeTransition(
-                  opacity: _expansion,
-                  child: AnimatedBuilder(
-                    animation: _expansionController,
-                    builder: (context, child) {
-                      final canInteract =
-                          isExpanded && _expansionController.isCompleted;
-                      return IgnorePointer(
-                        ignoring: !canInteract,
-                        child: ExcludeSemantics(
-                          excluding: !canInteract,
-                          child: ExcludeFocus(
+                const SizedBox(height: 8),
+                _DescriptionCheckInTypeRow(
+                  auditFactorType: widget.auditFactorType,
+                ),
+                SizeTransition(
+                  sizeFactor: _expansion,
+                  alignment: Alignment.topCenter,
+                  child: FadeTransition(
+                    opacity: _expansion,
+                    child: AnimatedBuilder(
+                      animation: _expansionController,
+                      builder: (context, child) {
+                        final canInteract =
+                            isExpanded && _expansionController.isCompleted;
+                        return IgnorePointer(
+                          ignoring: !canInteract,
+                          child: ExcludeSemantics(
                             excluding: !canInteract,
-                            child: child!,
+                            child: ExcludeFocus(
+                              excluding: !canInteract,
+                              child: child!,
+                            ),
                           ),
-                        ),
-                      );
-                    },
-                    child: widget.details,
+                        );
+                      },
+                      child: widget.details,
+                    ),
                   ),
                 ),
-              ),
-            ],
+              ],
+            ),
           ),
         ),
       ),
@@ -570,56 +570,48 @@ class _DescriptionDetails extends StatelessWidget {
   Widget build(BuildContext context) {
     return Material(
       color: Colors.transparent,
-      child: InkWell(
-        onTap: isDeleting || !canManageContent ? null : onOpenDescription,
-        borderRadius: BorderRadius.circular(12),
-        splashFactory: NoSplash.splashFactory,
-        overlayColor: const WidgetStatePropertyAll(Colors.transparent),
-        child: Column(
-          crossAxisAlignment: CrossAxisAlignment.start,
-          children: [
-            const SizedBox(height: 8),
-            Wrap(
-              spacing: 6,
-              runSpacing: 2,
-              children: [
-                AppTextView.body3(
-                  '${AppStrings.seatProfileMilestoneDays}:',
-                  color: AppColors.textSecondary,
-                ),
-                AppTextView.body3(
-                  seatProfileDescriptionMilestoneLabel(
-                    description.milestoneDays,
-                  ),
-                  color: AppColors.textPrimary,
-                  fontWeight: FontWeight.w700,
-                ),
-              ],
-            ),
-            const SizedBox(height: 12),
-            AppTextView.body3(
-              AppStrings.seatProfileAuditSpecifics,
-              color: AppColors.textSecondary,
-            ),
-            const SizedBox(height: 6),
-            _ExpandableDescriptionText(
-              description: description.auditSpecifics,
-              onSeeAllTap: isDeleting
-                  ? null
-                  : () => _showAuditSpecificsDialog(context),
-            ),
-            if (!isShared) ...[
-              const SizedBox(height: 12),
-              _DescriptionActionRow(
-                canEdit: canManageContent,
-                onEditTap: isDeleting ? null : onOpenDescription,
-                onTrainingTap: isDeleting
-                    ? null
-                    : () => _openTrainingModules(context),
+      child: Column(
+        crossAxisAlignment: CrossAxisAlignment.start,
+        children: [
+          const SizedBox(height: 8),
+          Wrap(
+            spacing: 6,
+            runSpacing: 2,
+            children: [
+              AppTextView.body3(
+                '${AppStrings.seatProfileMilestoneDays}:',
+                color: AppColors.textSecondary,
+              ),
+              AppTextView.body3(
+                seatProfileDescriptionMilestoneLabel(description.milestoneDays),
+                color: AppColors.textPrimary,
+                fontWeight: FontWeight.w700,
               ),
             ],
+          ),
+          const SizedBox(height: 12),
+          AppTextView.body3(
+            AppStrings.seatProfileAuditSpecifics,
+            color: AppColors.textSecondary,
+          ),
+          const SizedBox(height: 6),
+          _ExpandableDescriptionText(
+            description: description.auditSpecifics,
+            onSeeAllTap: isDeleting
+                ? null
+                : () => _showAuditSpecificsDialog(context),
+          ),
+          if (!isShared) ...[
+            const SizedBox(height: 12),
+            _DescriptionActionRow(
+              canEdit: canManageContent,
+              onEditTap: isDeleting ? null : onOpenDescription,
+              onTrainingTap: isDeleting
+                  ? null
+                  : () => _openTrainingModules(context),
+            ),
           ],
-        ),
+        ],
       ),
     );
   }

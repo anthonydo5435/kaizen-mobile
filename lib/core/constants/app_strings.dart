@@ -201,6 +201,7 @@ class AppStrings {
   static const String seatProfileCategoryImportanceReached = 'Category Importance Reached';
   static const String seatProfileCategoryImportanceExceeded = 'Category Importance Exceeded';
   static const String seatProfileCategoryNameColumn = 'Category Name';
+  static const String seatProfileCategoryImportanceHint = '0';
   static const String seatProfileDescriptionNameColumn = 'Description Name';
   static const String seatProfileImportancePercentColumn = 'Importance %';
   static const String seatProfileAddSeatCategoryAction = 'Add Seat Category';
@@ -454,9 +455,69 @@ class AppStrings {
   static const String checkInReadOnlyOrganization =
       'Check-ins are view-only in child organisations.';
   static const String reportsTitle = 'Reports';
+  static const String finalCheckInReportTitle = 'Final Audit Report';
+  static const String finalCheckInReportCurrentQuarterYear = 'Current Quarter Year';
+  static const String finalCheckInReportLastFourQuarters = 'Last 4 Quarters';
+  static const String finalCheckInReportAllTime = 'All Time';
+  static const String finalCheckInReportLoadError = 'Unable to load final audit report.';
+  static const String finalCheckInReportEmpty = 'No final audit report found.';
+  static const String finalCheckInReportTryAgain = 'Try Again';
+  static const String finalCheckInReportRefresh = 'Refresh';
+  static const String finalCheckInReportSeat = 'Seat';
+  static const String finalCheckInReportName = 'Name';
+  static const String finalCheckInReportAuditFactor = 'Audit Factor';
+  static const String finalCheckInReportSeatType = 'Seat Type';
+  static const String finalCheckInReportOpenSeat = 'Open Seat';
+  static const String finalCheckInReportAssignedSeat = 'Assigned Seat';
+  static const String finalCheckInReportPercentage = 'Performance Percentage';
+  static const String finalCheckInReportRating = 'Rating';
+  static const String finalCheckInReportDescription = 'Description';
+  static const String finalCheckInReportSpecifics = 'Specifics';
+  static const String finalCheckInReportTrends = 'Performance Trends';
+  static const String finalCheckInReportNoTrends = 'No trend data found.';
+  static const String finalCheckInReportCommentsSubtitle =
+      'All comments with the media evidence from the selected quarter';
+  static const String finalCheckInReportNoComments = 'No check-in comments available.';
+  static const String finalCheckInReportSearchComments = 'Search comments';
+  static const String finalCheckInReportMissingValue = '-';
+  static String finalCheckInReportProfileNames(String first, String second, int remaining) =>
+      remaining > 0 ? '$first, $second +$remaining' : '$first, $second';
+  static String finalCheckInReportWeek(int week) => 'w$week';
+  static String finalCheckInReportQuarter(String quarter, int year) => '$quarter\n$year';
+  static String finalCheckInReportPercentageValue(int value) => '$value%';
+  static String finalCheckInReportMoreProfiles(int count) => '+$count';
   static const String reportsScreenTitle = 'Reports';
   static const String myReportsTitle = 'My Reports';
   static const String certify = 'Certify';
+  static const String performanceReportThisQuarter = 'This Quarter';
+  static const String performanceReportCustomDateRange = 'Custom Date Range';
+  static const String performanceReportChooseDateRange = 'Choose Date range';
+  static const String performanceReportPaygradeLabel = 'Paygrade: ';
+  static const String performanceReportRunningScore = 'Running Overall Performance Score';
+  static const String performanceReportConfidenceLevel = 'Confidence Level';
+  static const String performanceReportOpenSeatMessage = 'No profile is assigned to this seat yet.';
+  static const String performanceReportOpenSeatTitle = 'No Profile Assigned';
+  static const String performanceReportSelectCertifiedReport = 'Select Certified Report';
+  static const String performanceReportGenerateRemarks = 'Generate Remarks';
+  static const String performanceReportRatings = 'Ratings';
+  static const String performanceReportRemarks = 'Remarks';
+  static const String performanceReportCommitmentTitle = 'For the quarter I commit to working on:';
+  static const String performanceReportCommitmentHint =
+      'Share your goals, plans, and key focus areas for this quarter.';
+  static const String performanceReportEnterComments = 'Enter Comments';
+  static const String performanceReportSignature = 'Signature';
+  static const String performanceReportSignatureHint =
+      'Add the Employee and Facilitator signature to confirm this commitment.';
+  static const String performanceReportEmployeeSignature = 'Employee Signature';
+  static const String performanceReportFacilitatorSignature = 'Facilitator Signature';
+  static const String performanceReportNoSignature = 'No signature added yet';
+  static const String performanceReportAddSignatureHint = 'Add signature to confirm';
+  static const String performanceReportAddSignature = 'Add Signature';
+  static const String performanceReportRetakeSignature = 'Retake Signature';
+  static const String performanceReportCertifiedSuccessfully =
+      'Performance report certified successfully.';
+  static String performanceReportCommitmentCount(int count) => '$count/2000';
+  static String performanceReportCertifiedAt(String date) => 'Certified at: $date';
   static const String performanceReportUnavailable =
       'Performance report is not available right now.';
   static const String performanceReportSelectedCategoryTitle = 'Selected Category';
@@ -842,6 +903,8 @@ class AppStrings {
   static const String trainingSopLabel = 'SOP';
   static const String trainingSopHint = 'Write SOP content for this lesson.';
   static const String trainingSopEditorError = 'Unable to open the SOP editor. Please try again.';
+  static const String trainingViewSopPdf = 'View SOP PDF';
+  static const String trainingSopPdfError = 'Unable to open the SOP PDF. Please try again.';
   static const String trainingSopSavedSuccess = 'SOP updated successfully.';
   static const String trainingAssignmentDescriptionLabel = 'Description';
   static const String trainingAssignmentTitleHint = 'Enter assignment title';
@@ -1008,11 +1071,24 @@ class AppStrings {
   // Date placeholders (if needed for static display)
   static const String defaultDate = "October 1, 25";
   static const String imagePath = "lib/assets/images/";
+  static const String dummyProfileImagePath = '${imagePath}dumy_pic.png';
 
   static const String selectTeamMember = "Select Team Member";
   static const String profile = "Profile";
 
   static const String auditDescriptionDetails = 'Description Details';
+  static const String auditSelectRatings = 'Select Ratings';
+  static const String auditRatingGreat = 'Great';
+  static const String auditRatingAlmostThere = 'Almost There';
+  static const String auditRatingNeedsImprovement = 'Needs Improvement';
+  static const String auditDescriptionsTitle = 'Descriptions';
+  static const String auditDescriptionFilterOptions = 'Filter Options';
+  static const String auditDescriptionCategories = 'Categories';
+  static const String auditDescriptionMilestones = 'Milestons';
+  static const String auditDescriptionTiming = 'Audit Timing';
+  static const String auditDescriptionType = 'Audit Type';
+  static const String auditDescriptionClearFilters = 'Clear All';
+  static const String auditDescriptionShowAuditedOnly = 'Show Audited Only';
   static String auditDescriptionPagePosition(int current, int total) => 'Page $current of $total';
   static const String auditPreviousDescription = 'Previous description';
   static const String auditNextDescription = 'Next description';
@@ -1101,6 +1177,33 @@ class AppStrings {
       'The video was captured, but we could not save it to your gallery.';
 
   static const String auditDelete = 'Delete';
+  static const String auditMediaDeleteTitle = 'Are you sure you want to Delete?';
+  static const String auditMediaDeleteMessage =
+      'This media and the comments will not be able to recover after deletion';
+  static const String auditMediaDeleteNo = 'No';
+  static const String auditMediaDeleteYes = 'Yes';
+  static const String auditMediaUploadTypeTitle = 'Select upload type';
+  static const String auditMediaImage = 'Image';
+  static const String auditMediaImageFormats = 'JPG or PNG';
+  static const String auditMediaVideoFormats = 'MP4, MOV, or H264';
+  static const String auditMediaMaxFileSizeError = 'Max file size is 80 MB.';
+  static const String auditMediaUnsupportedFormat =
+      'Only JPG, PNG, MP4, MOV, and H264 files are supported.';
+  static const String auditMediaPickError =
+      'Unable to pick a media file right now. Please try again.';
+  static const String auditMediaUploadErrorTitle = 'Failed';
+  static const String auditMediaUploadErrorMessage = 'File failed to upload!, Try again later!';
+  static const String auditMediaUploading = 'Uploading media...';
+  static const String auditMediaUploadPrompt = 'Click to upload';
+  static const String auditMediaSupportedFormats = 'File Format: JPG, PNG, MP4, MOV, H264';
+  static const String auditMediaVideoLoadError = 'Video could not be loaded.';
+  static const String auditMediaPause = 'Pause';
+  static const String auditMediaPlay = 'Play';
+  static const String auditMediaHideReplies = 'Hide all replies';
+  static String auditMediaShowReplies(int count) => 'Show all replies ($count)';
+  static const String auditMediaSendMessage = 'Send message';
+  static const String auditMediaReplyingToComment = 'Replying to Comment';
+  static String auditMediaReplyingTo(String name) => 'Replying to $name';
   static const String auditSave = 'Save';
   static const String auditStartRecording = 'Start Recording';
   static const String auditStopRecording = 'Stop Recording';

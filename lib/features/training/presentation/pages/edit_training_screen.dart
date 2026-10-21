@@ -27,11 +27,10 @@ import '../../../../core/widgets/app_overlay_close_button.dart';
 import '../../../../core/widgets/app_dialog_style.dart';
 import '../../../../core/widgets/app_text_view.dart';
 import '../../../../core/widgets/fast_circular_progress.dart';
-import '../../../check_in/data/datasources/audit_remote_data_source.dart';
-import '../../../check_in/data/repositories/audit_repository_impl.dart';
-import '../../../compliance/presentation/widgets/compliance_video_transcript_panel.dart';
 import '../../data/datasources/training_library_remote_data_source.dart';
 import '../../data/repositories/training_library_repository_impl.dart';
+import '../../../compliance/presentation/pages/document/full_screen_doc.dart';
+import '../../../compliance/presentation/widgets/compliance_video_transcript_panel.dart';
 import '../../domain/entities/seat_description_training.dart';
 import '../../domain/entities/seat_description_training_route.dart';
 import '../../domain/repositories/training_library_repository.dart';
@@ -119,44 +118,59 @@ class EditTrainingScreen extends StatelessWidget {
         useNonBlockingVideoUpload: useNonBlockingVideoUpload,
         allowDeviceRotation: true,
         horizontalContentPadding: 8,
-        builder: (context, section, headerActions, isLandscapeVideo) =>
-            Scaffold(
-              backgroundColor: AppColors.mainBg,
-              resizeToAvoidBottomInset: false,
-              body: SafeArea(
-                top: !isLandscapeVideo,
-                left: !isLandscapeVideo,
-                right: !isLandscapeVideo,
-                bottom: false,
-                child: Column(
-                  children: [
-                    Offstage(
-                      offstage: isLandscapeVideo,
-                      child: Padding(
-                        padding: const EdgeInsets.fromLTRB(8, 2, 8, 0),
-                        child: _buildHeader(context, headerActions),
+        builder: (context, section, headerActions, hideScreenHeader) {
+          final isLandscape =
+              MediaQuery.orientationOf(context) == Orientation.landscape;
+          return Scaffold(
+            backgroundColor: AppColors.mainBg,
+            resizeToAvoidBottomInset: false,
+            body: SafeArea(
+              top: !isLandscape,
+              left: !isLandscape,
+              right: !isLandscape,
+              bottom: false,
+              child: Column(
+                children: [
+                  Offstage(
+                    offstage: hideScreenHeader,
+                    child: SafeArea(
+                      left: !isLandscape,
+                      right: !isLandscape,
+                      bottom: false,
+                      minimum: EdgeInsets.fromLTRB(
+                        isLandscape ? 12 : 8,
+                        isLandscape ? 0 : 2,
+                        isLandscape ? 12 : 8,
+                        0,
                       ),
+                      child: _buildHeader(context, headerActions),
                     ),
-                    SizedBox(height: isLandscapeVideo ? 0 : 18),
-                    Expanded(child: section),
-                  ],
-                ),
+                  ),
+                  SizedBox(height: isLandscape ? 0 : 18),
+                  Expanded(child: section),
+                ],
               ),
             ),
+          );
+        },
       ),
     );
   }
 
   Widget _buildHeader(BuildContext context, Widget headerActions) {
+    final isLandscape =
+        MediaQuery.orientationOf(context) == Orientation.landscape;
     return SizedBox(
-      height: MediaQuery.textScalerOf(context).scale(35),
+      height: MediaQuery.textScalerOf(context).scale(isLandscape ? 32 : 35),
       child: NavigationToolbar(
         centerMiddle: true,
         leading: InkWell(
           borderRadius: BorderRadius.circular(20),
           onTap: () => Navigator.of(context).maybePop(),
           child: Padding(
-            padding: const EdgeInsets.fromLTRB(0, 4, 8, 4),
+            padding: isLandscape
+                ? const EdgeInsets.fromLTRB(0, 2, 4, 2)
+                : const EdgeInsets.fromLTRB(0, 4, 8, 4),
             child: SvgPicture.asset(
               '${AppStrings.imagePath}back.svg',
               height: 24,
@@ -214,7 +228,7 @@ class EditTrainingSection extends StatelessWidget {
     BuildContext context,
     Widget section,
     Widget headerActions,
-    bool isLandscapeVideo,
+    bool hideScreenHeader,
   )?
   builder;
 
@@ -235,15 +249,20 @@ class EditTrainingSection extends StatelessWidget {
 
     return MultiProvider(
       providers: [
-        Provider<AuditRemoteDataSource>(create: (_) => AuditRemoteDataSource()),
-        ProxyProvider<AuditRemoteDataSource, AuditRepositoryImpl>(
+        Provider<TrainingLibraryRemoteDataSource>(
+          create: (_) => TrainingLibraryRemoteDataSource(),
+        ),
+        ProxyProvider<
+          TrainingLibraryRemoteDataSource,
+          TrainingLibraryRepositoryImpl
+        >(
           update: (_, remoteDataSource, __) =>
-              AuditRepositoryImpl(remoteDataSource),
+              TrainingLibraryRepositoryImpl(remoteDataSource),
         ),
         ChangeNotifierProvider<TrainingModuleController>(
           create: (context) =>
               TrainingModuleController(
-                context.read<AuditRepositoryImpl>(),
+                context.read<TrainingLibraryRepositoryImpl>(),
                 canManageTraining: resolvedCanManageTraining,
                 sopEditorFactory: context.read<TrainingSopEditorFactory?>(),
                 canViewQuizAndAssignment: AppManager.instance
@@ -302,7 +321,7 @@ class _EditTrainingSectionView extends StatefulWidget {
     BuildContext context,
     Widget section,
     Widget headerActions,
-    bool isLandscapeVideo,
+    bool hideScreenHeader,
   )?
   builder;
 
@@ -343,6 +362,12 @@ class _EditTrainingSectionViewState extends State<_EditTrainingSectionView> {
 
   bool get _isTrainingModalSheetOpen => _activeTrainingModalSheetCount > 0;
 
+  bool get _isLandscapeSop =>
+      widget.allowDeviceRotation &&
+      !widget.isEmbedded &&
+      _selectedTabIndex == 1 &&
+      MediaQuery.orientationOf(context) == Orientation.landscape;
+
   bool get _isLandscapeVideo =>
       widget.allowDeviceRotation &&
       !widget.isEmbedded &&
@@ -365,7 +390,7 @@ class _EditTrainingSectionViewState extends State<_EditTrainingSectionView> {
     }
   }
 
-  void _resetVideoToPortrait() {
+  void _resetToPortrait() {
     if (_isWaitingForDevicePortrait) return;
     _isWaitingForDevicePortrait = true;
     final generation = ++_portraitResetGeneration;
@@ -385,7 +410,7 @@ class _EditTrainingSectionViewState extends State<_EditTrainingSectionView> {
     _updatePreferredOrientations();
   }
 
-  void _cancelVideoPortraitReset() {
+  void _cancelPortraitReset() {
     if (!_isWaitingForDevicePortrait) return;
     _isWaitingForDevicePortrait = false;
     _portraitResetGeneration += 1;
@@ -454,7 +479,7 @@ class _EditTrainingSectionViewState extends State<_EditTrainingSectionView> {
 
   @override
   void dispose() {
-    _cancelVideoPortraitReset();
+    _cancelPortraitReset();
     if (_isLandscapeVideoFullscreen) {
       unawaited(VideoPlaybackService.setFullscreen(false));
     }
@@ -503,18 +528,19 @@ class _EditTrainingSectionViewState extends State<_EditTrainingSectionView> {
       animation: _viewStateListenable,
       builder: (context, _) {
         final isLandscapeVideo = _isLandscapeVideo;
+        final isLandscapeExpanded = isLandscapeVideo || _isLandscapeSop;
         WidgetsBinding.instance.addPostFrameCallback((_) {
           if (mounted) _syncLandscapeVideoDisplay(isLandscapeVideo);
         });
         final section = _buildBody(controller);
         return PopScope<Object?>(
           canPop:
-              !isLandscapeVideo &&
+              !isLandscapeExpanded &&
               !controller.isCreatingModule &&
               (exitsEmptyCreateDraft || !controller.isCreatingNewLessonDraft),
           onPopInvokedWithResult: (didPop, _) {
-            if (!didPop && isLandscapeVideo) {
-              _resetVideoToPortrait();
+            if (!didPop && isLandscapeExpanded) {
+              _resetToPortrait();
               return;
             }
             if (didPop ||
@@ -536,7 +562,7 @@ class _EditTrainingSectionViewState extends State<_EditTrainingSectionView> {
                   onShowAllLessons: () => _showAllLessons(controller),
                   onAddLesson: () => _startNewLesson(controller),
                 ),
-                isLandscapeVideo,
+                isLandscapeExpanded,
               ) ??
               section,
         );

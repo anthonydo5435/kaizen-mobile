@@ -3,8 +3,8 @@ import 'package:shared_preferences/shared_preferences.dart';
 import 'package:sparrowkaizen/core/network/api_endpoints.dart';
 import 'package:sparrowkaizen/core/network/api_processor.dart';
 import 'package:sparrowkaizen/core/preference/app_preference.dart';
-import 'package:sparrowkaizen/features/check_in/data/datasources/audit_remote_data_source.dart';
-import 'package:sparrowkaizen/features/check_in/data/repositories/audit_repository_impl.dart';
+import 'package:sparrowkaizen/features/training/data/datasources/training_library_remote_data_source.dart';
+import 'package:sparrowkaizen/features/training/data/repositories/training_library_repository_impl.dart';
 import 'package:sparrowkaizen/features/training/presentation/controllers/training_module_controller.dart';
 
 void main() {
@@ -24,7 +24,9 @@ void main() {
     ) async {
       final api = _AssignmentApi(identifier);
       final controller = TrainingModuleController(
-        AuditRepositoryImpl(AuditRemoteDataSource(apiCallExecutor: api)),
+        TrainingLibraryRepositoryImpl(
+          TrainingLibraryRemoteDataSource(apiCallExecutor: api),
+        ),
         canManageTraining: true,
       );
       addTearDown(controller.dispose);

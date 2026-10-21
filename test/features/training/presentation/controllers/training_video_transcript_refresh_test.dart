@@ -4,7 +4,7 @@ import 'dart:ui' show Size;
 
 import 'package:flutter_test/flutter_test.dart';
 import 'package:sparrowkaizen/core/services/file_uploader.dart';
-import 'package:sparrowkaizen/features/check_in/domain/repositories/audit_repository.dart';
+import 'package:sparrowkaizen/features/training/domain/repositories/training_library_repository.dart';
 import 'package:sparrowkaizen/features/training/domain/entities/seat_description_training.dart';
 import 'package:sparrowkaizen/features/training/presentation/controllers/training_module_controller.dart';
 // Use the existing native player interface for upload duration inspection.
@@ -200,7 +200,7 @@ SeatDescriptionTrainingModuleDetail _detail(
   learningTrackCount: 0,
 );
 
-class _TranscriptRepository extends Fake implements AuditRepository {
+class _TranscriptRepository extends Fake implements TrainingLibraryRepository {
   final summary = Completer<String?>();
   final videos = <String, SeatDescriptionTrainingVideo?>{
     for (final id in ['first', 'second'])

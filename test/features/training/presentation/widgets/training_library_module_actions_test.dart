@@ -5,14 +5,13 @@ import 'package:sparrowkaizen/core/constants/app_strings.dart';
 import 'package:sparrowkaizen/core/managers/app_manager.dart';
 import 'package:sparrowkaizen/core/widgets/app_confirmation_dialog.dart';
 import 'package:sparrowkaizen/core/widgets/app_overlay_close_button.dart';
-import 'package:sparrowkaizen/features/check_in/domain/repositories/audit_repository.dart';
+import 'package:sparrowkaizen/features/training/domain/repositories/training_library_repository.dart';
 import 'package:sparrowkaizen/features/seat_profile/domain/repositories/seat_profile_repository.dart';
 import 'package:sparrowkaizen/features/seat_profile/domain/usecases/get_seat_profiles_usecase.dart';
 import 'package:sparrowkaizen/features/training/data/models/training_library_module_model.dart';
 import 'package:sparrowkaizen/features/training/domain/entities/training_library_module.dart';
 import 'package:sparrowkaizen/features/training/domain/entities/seat_description_training_route.dart';
 import 'package:sparrowkaizen/features/training/domain/entities/training_library_page.dart';
-import 'package:sparrowkaizen/features/training/domain/repositories/training_library_repository.dart';
 import 'package:sparrowkaizen/features/training/domain/usecases/get_training_library_modules_usecase.dart';
 import 'package:sparrowkaizen/features/training/presentation/controllers/training_library_controller.dart';
 import 'package:sparrowkaizen/features/training/presentation/widgets/training_library_content.dart';
@@ -24,7 +23,7 @@ import '../../fixtures/training_library_fixtures.dart';
 
 void main() {
   late _LibraryRepository library;
-  late _AuditRepository audit;
+  late _TrainingLibraryRepository audit;
   late TrainingLibraryController controller;
   late bool canManage;
   late int detailOpened;
@@ -32,14 +31,14 @@ void main() {
 
   setUp(() async {
     library = _LibraryRepository();
-    audit = _AuditRepository(library);
+    audit = _TrainingLibraryRepository(library);
     canManage = true;
     detailOpened = 0;
     openedLesson = null;
     controller = TrainingLibraryController(
       GetTrainingLibraryModulesUseCase(library),
       getSeatProfilesUseCase: GetSeatProfilesUseCase(_SeatRepository()),
-      auditRepository: audit,
+      trainingRepository: audit,
       canManageSeatTraining: (seatId) =>
           canManage && seatId == _module().seat.id,
     );
@@ -272,8 +271,9 @@ class _LibraryRepository extends Fake implements TrainingLibraryRepository {
   }
 }
 
-class _AuditRepository extends Fake implements AuditRepository {
-  _AuditRepository(this.library);
+class _TrainingLibraryRepository extends Fake
+    implements TrainingLibraryRepository {
+  _TrainingLibraryRepository(this.library);
 
   final _LibraryRepository library;
   final List<String> deletedIds = [];

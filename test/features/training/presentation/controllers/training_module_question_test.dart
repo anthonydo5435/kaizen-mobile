@@ -1,7 +1,7 @@
 import 'dart:io';
 
 import 'package:flutter_test/flutter_test.dart';
-import 'package:sparrowkaizen/features/check_in/domain/repositories/audit_repository.dart';
+import 'package:sparrowkaizen/features/training/domain/repositories/training_library_repository.dart';
 import 'package:sparrowkaizen/features/training/domain/entities/seat_description_training.dart';
 import 'package:sparrowkaizen/features/training/presentation/controllers/training_module_controller.dart';
 
@@ -80,7 +80,7 @@ void main() {
   });
 }
 
-class _QuestionRepository extends Fake implements AuditRepository {
+class _QuestionRepository extends Fake implements TrainingLibraryRepository {
   static const imageId = 'f2a25f92-c7a0-4f0d-8e48-d97b3ee83c20';
   static const imageUrl = 'https://example.com/picture.jpg';
   final calls = <String>[];

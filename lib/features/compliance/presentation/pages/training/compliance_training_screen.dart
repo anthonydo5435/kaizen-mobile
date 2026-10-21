@@ -1,3 +1,5 @@
+import 'dart:async';
+
 import 'package:flutter/material.dart';
 import 'package:provider/provider.dart';
 import 'package:sparrowkaizen/core/managers/app_manager.dart';
@@ -145,10 +147,16 @@ class _ComplianceTrainingScreenViewState
   late final ComplianceQuizController _quizController;
   late final GetComplianceTracksUseCase _getComplianceTracksUseCase;
   late final GetComplianceCertificateUseCase _getComplianceCertificateUseCase;
-  var _selectedTabIndex = 0;
+  int get _selectedTabIndex => _controller.selectedTabIndex;
+  bool get _isCompletingQuizSubmit => _controller.isCompletingQuizSubmit;
+  ScrollPosition? _tabPagePosition;
+  bool _wasLandscapeVideo = false;
+
+  bool get _isLandscapeVideo =>
+      _controller.canRotateVideo &&
+      MediaQuery.orientationOf(context) == Orientation.landscape;
   var _isHandlingQuizTabChange = false;
   var _isIgnoringTabSelection = false;
-  var _isCompletingQuizSubmit = false;
   ComplianceCertificate? _pendingCertificate;
   late String _currentItemUuid;
   LearningTrackModuleDetail? get _currentTrack => _controller.currentTrack;
@@ -160,6 +168,7 @@ class _ComplianceTrainingScreenViewState
     _tabController = TabController(length: 3, vsync: this);
     _tabController.addListener(_handleTabChanged);
     _controller = context.read<ComplianceTrainingController>();
+    _controller.setVideoRotationActive(true);
     _quizController = context.read<ComplianceQuizController>();
     _getComplianceTracksUseCase = context.read<GetComplianceTracksUseCase>();
     _getComplianceCertificateUseCase = context
@@ -204,9 +213,13 @@ class _ComplianceTrainingScreenViewState
   }
 
   void _handleTabChanged() {
-    if (_isIgnoringTabSelection || _tabController.indexIsChanging) {
+    if (_isIgnoringTabSelection) return;
+    if (_isLandscapeVideo && _tabController.index != 0) {
+      _cancelVideoTabSwipe();
       return;
     }
+    _controller.setVideoRotationActive(_tabController.index == 0);
+    if (_tabController.indexIsChanging) return;
 
     if (_selectedTabIndex == _tabController.index) {
       return;
@@ -220,9 +233,7 @@ class _ComplianceTrainingScreenViewState
       return;
     }
 
-    setState(() {
-      _selectedTabIndex = nextTabIndex;
-    });
+    _controller.selectTab(nextTabIndex);
 
     if (previousTabIndex == 2 && nextTabIndex != 2) {
       _quizController.cancelQuizTimer();
@@ -250,9 +261,7 @@ class _ComplianceTrainingScreenViewState
         return;
       }
 
-      setState(() {
-        _isCompletingQuizSubmit = true;
-      });
+      _controller.setCompletingQuizSubmit(true);
 
       try {
         final didSubmit = await _quizController.submitQuiz(
@@ -277,9 +286,7 @@ class _ComplianceTrainingScreenViewState
         );
       } finally {
         if (mounted) {
-          setState(() {
-            _isCompletingQuizSubmit = false;
-          });
+          _controller.setCompletingQuizSubmit(false);
         }
       }
       return;
@@ -579,9 +586,8 @@ class _ComplianceTrainingScreenViewState
 
     _isIgnoringTabSelection = true;
     _tabController.animateTo(index);
-    setState(() {
-      _selectedTabIndex = index;
-    });
+    _controller.selectTab(index);
+    _controller.setVideoRotationActive(index == 0);
     if (index == 2) {
       _quizController.startQuizTimer();
     } else {
@@ -667,6 +673,10 @@ class _ComplianceTrainingScreenViewState
   }
 
   Future<void> _handleBackPressed() async {
+    if (_isLandscapeVideo) {
+      await _controller.exitVideoFullscreen();
+      return;
+    }
     if (!_shouldPromptPauseQuiz) {
       Navigator.of(context).maybePop();
       return;
@@ -711,9 +721,7 @@ class _ComplianceTrainingScreenViewState
       return;
     }
 
-    setState(() {
-      _currentItemUuid = nextItemUuid;
-    });
+    _currentItemUuid = nextItemUuid;
     _selectTab(0);
     await _loadTrainingContent();
   }
@@ -834,8 +842,37 @@ class _ComplianceTrainingScreenViewState
     Navigator.of(context).maybePop(true);
   }
 
+  bool _handlePagerScroll(ScrollNotification notification) {
+    if (notification.depth == 0 &&
+        notification.metrics.axis == Axis.horizontal &&
+        notification.context != null) {
+      _tabPagePosition = Scrollable.maybeOf(notification.context!)?.position;
+    }
+    return false;
+  }
+
+  void _cancelVideoTabSwipe() {
+    _isIgnoringTabSelection = true;
+    _tabController.index = 0;
+    if (!_tabController.indexIsChanging) _tabController.offset = 0;
+    _isIgnoringTabSelection = false;
+    final position = _tabPagePosition;
+    if (position != null && position.hasPixels) position.jumpTo(0);
+  }
+
+  void _syncVideoFullscreen(bool fullscreen) {
+    if (!mounted || ModalRoute.of(context)?.isCurrent != true) return;
+    _controller.updateVideoFullscreen(fullscreen);
+    if (fullscreen && !_wasLandscapeVideo) _cancelVideoTabSwipe();
+    _wasLandscapeVideo = fullscreen;
+  }
+
   @override
   Widget build(BuildContext context) {
+    final isLandscapeVideo = _isLandscapeVideo;
+    WidgetsBinding.instance.addPostFrameCallback(
+      (_) => _syncVideoFullscreen(isLandscapeVideo),
+    );
     final learningTrack = _currentTrack;
     final detail = context.watch<ComplianceTrainingController>().detail;
     final isLoading = context.watch<ComplianceTrainingController>().isLoading;
@@ -849,7 +886,7 @@ class _ComplianceTrainingScreenViewState
         _selectedTabIndex != 2 || quizController.hasAnsweredAllQuestions;
 
     return PopScope(
-      canPop: !_shouldPromptPauseQuiz,
+      canPop: !isLandscapeVideo && !_shouldPromptPauseQuiz,
       onPopInvokedWithResult: (didPop, _) async {
         if (didPop) {
           return;
@@ -859,13 +896,15 @@ class _ComplianceTrainingScreenViewState
       },
       child: Scaffold(
         backgroundColor: AppColors.mainBg,
-        appBar: AppBar(
-          backgroundColor: AppColors.mainBg,
-          foregroundColor: AppColors.textPrimary,
-          elevation: 0,
-          leadingWidth: 40,
-          leading: AppBackButton(onPressed: _handleBackPressed),
-        ),
+        appBar: isLandscapeVideo
+            ? null
+            : AppBar(
+                backgroundColor: AppColors.mainBg,
+                foregroundColor: AppColors.textPrimary,
+                elevation: 0,
+                leadingWidth: 40,
+                leading: AppBackButton(onPressed: _handleBackPressed),
+              ),
         body: isLoading
             ? FastCircularProgressIndicator()
             : learningTrack == null
@@ -884,52 +923,75 @@ class _ComplianceTrainingScreenViewState
               )
             : SafeArea(
                 top: false,
+                left: !isLandscapeVideo,
+                right: !isLandscapeVideo,
+                bottom: !isLandscapeVideo,
                 child: Column(
                   crossAxisAlignment: CrossAxisAlignment.stretch,
                   children: [
-                    Padding(
-                      padding: const EdgeInsets.symmetric(horizontal: 8),
-                      child: _TrainingOverviewCard(
-                        detail: detail,
-                        currentModuleNumber: _controller.currentModuleNumber,
-                        moduleCount: _controller.moduleCount,
+                    Offstage(
+                      offstage: isLandscapeVideo,
+                      child: Padding(
+                        padding: const EdgeInsets.symmetric(horizontal: 8),
+                        child: _TrainingOverviewCard(
+                          detail: detail,
+                          currentModuleNumber: _controller.currentModuleNumber,
+                          moduleCount: _controller.moduleCount,
+                        ),
                       ),
                     ),
-                    const SizedBox(height: 6),
-                    Padding(
-                      padding: const EdgeInsets.symmetric(horizontal: 8),
-                      child: _TrainingTabs(controller: _tabController),
+                    SizedBox(height: isLandscapeVideo ? 0 : 6),
+                    Offstage(
+                      offstage: isLandscapeVideo,
+                      child: Padding(
+                        padding: const EdgeInsets.symmetric(horizontal: 8),
+                        child: _TrainingTabs(controller: _tabController),
+                      ),
                     ),
-                    const SizedBox(height: 8),
+                    SizedBox(height: isLandscapeVideo ? 0 : 8),
                     Expanded(
-                      child: TabBarView(
-                        controller: _tabController,
-                        children: [
-                          Padding(
-                            padding: const EdgeInsets.only(bottom: 24),
-                            child: ComplianceVideoScreen(detail: detail),
-                          ),
-                          Padding(
-                            padding: const EdgeInsets.fromLTRB(8, 10, 8, 24),
-                            child: ComplianceTrainingDocumentScreen(
-                              detail: detail,
+                      child: NotificationListener<ScrollNotification>(
+                        onNotification: _handlePagerScroll,
+                        child: TabBarView(
+                          controller: _tabController,
+                          physics: isLandscapeVideo
+                              ? const NeverScrollableScrollPhysics()
+                              : null,
+                          children: [
+                            Padding(
+                              padding: EdgeInsets.only(
+                                bottom: isLandscapeVideo ? 0 : 24,
+                              ),
+                              child: ComplianceVideoScreen(
+                                detail: detail,
+                                fullscreenInLandscape: true,
+                                onExitLandscapeFullscreen:
+                                    _controller.exitVideoFullscreen,
+                              ),
                             ),
-                          ),
-                          Padding(
-                            padding: const EdgeInsets.fromLTRB(8, 10, 8, 24),
-                            child: ComplianceQuizScreen(
-                              trackAssignmentUuid: widget.trackAssignmentUuid,
-                              trainingModuleUuid: detail.trainingModuleUuid,
-                              isActive: _selectedTabIndex == 2,
+                            Padding(
+                              padding: const EdgeInsets.fromLTRB(8, 10, 8, 24),
+                              child: ComplianceTrainingDocumentScreen(
+                                detail: detail,
+                              ),
                             ),
-                          ),
-                        ],
+                            Padding(
+                              padding: const EdgeInsets.fromLTRB(8, 10, 8, 24),
+                              child: ComplianceQuizScreen(
+                                trackAssignmentUuid: widget.trackAssignmentUuid,
+                                trainingModuleUuid: detail.trainingModuleUuid,
+                                isActive: _selectedTabIndex == 2,
+                              ),
+                            ),
+                          ],
+                        ),
                       ),
                     ),
                   ],
                 ),
               ),
-        bottomNavigationBar: learningTrack == null || isLoading
+        bottomNavigationBar:
+            isLandscapeVideo || learningTrack == null || isLoading
             ? null
             : _BottomActions(
                 onTrackModulesPressed: _handleTrackModulesPressed,

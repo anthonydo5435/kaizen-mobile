@@ -1,8 +1,6 @@
 import 'package:flutter/material.dart';
 
 import '../../../../core/managers/app_manager.dart';
-import '../../../check_in/data/datasources/audit_remote_data_source.dart';
-import '../../../check_in/data/repositories/audit_repository_impl.dart';
 import '../../data/datasources/training_library_remote_data_source.dart';
 import '../../data/repositories/training_library_repository_impl.dart';
 import '../../domain/entities/training_library_module.dart';
@@ -29,13 +27,11 @@ class _TrainingLibraryDetailScreenState extends State<TrainingLibraryDetailScree
   @override
   void initState() {
     super.initState();
-    final auditRepository = AuditRepositoryImpl(AuditRemoteDataSource());
+    final trainingRepository = TrainingLibraryRepositoryImpl(TrainingLibraryRemoteDataSource());
     _detailController = TrainingLibraryDetailController(
       initialModule: widget.module,
-      getTrainingLibraryModules: GetTrainingLibraryModulesUseCase(
-        createTrainingLibraryRepository(createTrainingLibraryRemoteDataSource()),
-      ),
-      auditRepository: auditRepository,
+      getTrainingLibraryModules: GetTrainingLibraryModulesUseCase(trainingRepository),
+      trainingRepository: trainingRepository,
       canManageSeatTraining: (seatProfileId) => AppManager.instance
           .canCurrentUserManageTrainingForSeatProfile(seatProfileId: seatProfileId),
       view: widget.view,
@@ -60,13 +56,17 @@ class _TrainingLibraryDetailScreenState extends State<TrainingLibraryDetailScree
         onSelectLesson: () => controller.selectLesson(
           select: (lessons) => showTrainingLibraryLessonSelectionSheet(context, lessons: lessons),
           openViewer: (route) => Navigator.of(context).push<void>(
-            MaterialPageRoute<void>(builder: (_) => TrainingLessonViewerScreen(trainingRoute: route)),
+            MaterialPageRoute<void>(
+              builder: (_) => TrainingLessonViewerScreen(trainingRoute: route),
+            ),
           ),
         ),
         onLessonTap: (lesson) => controller.openLessonViewer(
           lesson,
           openViewer: (route) => Navigator.of(context).push<void>(
-            MaterialPageRoute<void>(builder: (_) => TrainingLessonViewerScreen(trainingRoute: route)),
+            MaterialPageRoute<void>(
+              builder: (_) => TrainingLessonViewerScreen(trainingRoute: route),
+            ),
           ),
         ),
         onLessonActions: (lesson) =>

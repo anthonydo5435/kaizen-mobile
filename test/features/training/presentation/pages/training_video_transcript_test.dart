@@ -1,6 +1,7 @@
 import 'dart:async';
 import 'dart:convert';
 import 'dart:io';
+import 'dart:ui' as ui;
 
 import 'package:flutter/material.dart';
 import 'package:flutter/rendering.dart';
@@ -31,7 +32,7 @@ import 'package:video_player_platform_interface/video_player_platform_interface.
 void main() {
   for (final screenSize in [const Size(390, 844), const Size(320, 640)]) {
     testWidgets(
-      'Edit Training keeps $screenSize playback below actions and matches LTC',
+      'Edit Training keeps $screenSize thumbnail and playback bounds consistent and matches LTC',
       (tester) async {
         tester.view.physicalSize = screenSize;
         tester.view.devicePixelRatio = 1;
@@ -46,6 +47,35 @@ void main() {
         );
         final videoFile = File('${directory.path}/video.mp4')
           ..writeAsBytesSync([0]);
+        final originalImageClientProvider = debugNetworkImageHttpClientProvider;
+        final thumbnailServer = (await tester.runAsync(() async {
+          final recorder = ui.PictureRecorder();
+          Canvas(recorder).drawColor(Colors.white, BlendMode.src);
+          final picture = recorder.endRecording();
+          final image = await picture.toImage(640, 640);
+          final bytes = (await image.toByteData(
+            format: ui.ImageByteFormat.png,
+          ))!.buffer.asUint8List();
+          image.dispose();
+          picture.dispose();
+          final server = await HttpServer.bind(InternetAddress.loopbackIPv4, 0);
+          server.listen((request) {
+            request.response.headers.contentType = ContentType('image', 'png');
+            request.response.add(bytes);
+            unawaited(request.response.close());
+          });
+          final imageClient = HttpOverrides.runWithHttpOverrides(
+            HttpClient.new,
+            _ThumbnailHttpOverrides(),
+          );
+          debugNetworkImageHttpClientProvider = () => imageClient;
+          addTearDown(() async {
+            debugNetworkImageHttpClientProvider = originalImageClientProvider;
+            imageClient.close(force: true);
+            await server.close(force: true);
+          });
+          return server;
+        }))!;
         addTearDown(() {
           VideoPlayerPlatform.instance = originalPlatform;
           directory.deleteSync(recursive: true);
@@ -79,6 +109,9 @@ void main() {
               'uuid': isNext ? 'next-lesson' : 'lesson',
               'title': isNext ? 'Next lesson' : 'Lesson',
               'description': 'The summary stays available',
+              'thumbnail_link': isNext
+                  ? null
+                  : 'http://127.0.0.1:${thumbnailServer.port}/thumbnail.png',
               'training_video': {
                 'uuid': isNext ? 'next-video' : 'video',
                 'title': 'Video',
@@ -159,9 +192,36 @@ void main() {
           final player = find.byType(ComplianceVideoPlayer);
           final frame = find.byKey(const ValueKey('training-video-frame'));
           final bounds = tester.getRect(frame);
+          final thumbnail = find.descendant(
+            of: find.byKey(const ValueKey('video-thumbnail-preview')),
+            matching: find.byType(RawImage),
+          );
+          for (
+            var attempt = 0;
+            attempt < 100 && tester.widget<RawImage>(thumbnail).image == null;
+            attempt++
+          ) {
+            await tester.runAsync(
+              () => Future<void>.delayed(const Duration(milliseconds: 10)),
+            );
+            await tester.pump();
+          }
+          expect(tester.widget<RawImage>(thumbnail).image, isNotNull);
+          await tester.pump();
+          final thumbnailBounds = tester.getRect(thumbnail);
+          final initialSeekBounds = tester.getRect(find.byType(Slider));
+          expect(find.byType(VideoPlayer), findsNothing);
+          await tester.tap(find.byIcon(Icons.play_arrow_rounded));
+          await tester.pump(const Duration(milliseconds: 300));
+          await tester.pump();
           final video = find.byType(VideoPlayer);
           final nativeController = tester.widget<VideoPlayer>(video).controller;
+          await nativeController.pause();
+          await tester.pump();
+          await tester.pump();
           final mediaBounds = tester.getRect(video);
+          expect(mediaBounds, thumbnailBounds);
+          expect(tester.getRect(find.byType(Slider)), initialSeekBounds);
           final slider = find.byType(Slider);
           final controls = find
               .ancestor(of: slider, matching: find.byType(Column))
@@ -396,10 +456,13 @@ void main() {
           await tester.pump(const Duration(minutes: 3));
           await tester.pump();
         }, () => client);
+        debugNetworkImageHttpClientProvider = originalImageClientProvider;
       },
     );
   }
 }
+
+class _ThumbnailHttpOverrides extends HttpOverrides {}
 
 void _expectGap(WidgetTester tester, Finder above, Finder below, double gap) {
   expect(

@@ -1,7 +1,7 @@
 import 'package:flutter/material.dart';
 import 'package:flutter_test/flutter_test.dart';
 import 'package:sparrowkaizen/core/constants/app_strings.dart';
-import 'package:sparrowkaizen/features/check_in/domain/repositories/audit_repository.dart';
+import 'package:sparrowkaizen/features/training/domain/repositories/training_library_repository.dart';
 import 'package:sparrowkaizen/features/training/domain/entities/seat_description_training.dart';
 import 'package:sparrowkaizen/features/training/presentation/controllers/training_module_controller.dart';
 import 'package:sparrowkaizen/features/training/presentation/controllers/training_tab_navigation_controller.dart';
@@ -48,50 +48,54 @@ void main() {
     });
   }
 
-  testWidgets('Quiz and Assignment look disabled and reject taps and swipes without viewing access', (
-    tester,
-  ) async {
-    final navigation = TrainingTabNavigationController();
-    addTearDown(navigation.dispose);
-    final maxTabIndex = maxTrainingTabIndex(hasSelectedModule: true, canViewQuizAndAssignment: false);
-    await mount(
-      tester,
-      Column(
-        children: [
-          Expanded(
-            child: TrainingTabView(
-              navigation: navigation,
-              maxTabIndex: maxTabIndex,
-              pageBuilder: (_, index) => Center(child: Text('Tab $index')),
-            ),
-          ),
-          TrainingTabs(navigation: navigation, maxTabIndex: maxTabIndex),
-        ],
-      ),
-    );
-    for (final label in [AppStrings.trainingQuizTab, AppStrings.trainingAssignmentTab]) {
-      final tab = find.text(label);
-      final opacity = find.ancestor(of: tab, matching: find.byType(Opacity));
-      expect(tester.widget<Opacity>(opacity).opacity, lessThan(1));
-      final semantics = find.byWidgetPredicate(
-        (widget) => widget is Semantics && widget.properties.label == label,
+  testWidgets(
+    'Quiz and Assignment look disabled and reject taps and swipes without viewing access',
+    (tester) async {
+      final navigation = TrainingTabNavigationController();
+      addTearDown(navigation.dispose);
+      final maxTabIndex = maxTrainingTabIndex(
+        hasSelectedModule: true,
+        canViewQuizAndAssignment: false,
       );
-      expect(tester.widget<Semantics>(semantics).properties.enabled, isFalse);
-      await tester.tap(tab);
+      await mount(
+        tester,
+        Column(
+          children: [
+            Expanded(
+              child: TrainingTabView(
+                navigation: navigation,
+                maxTabIndex: maxTabIndex,
+                pageBuilder: (_, index) => Center(child: Text('Tab $index')),
+              ),
+            ),
+            TrainingTabs(navigation: navigation, maxTabIndex: maxTabIndex),
+          ],
+        ),
+      );
+      for (final label in [AppStrings.trainingQuizTab, AppStrings.trainingAssignmentTab]) {
+        final tab = find.text(label);
+        final opacity = find.ancestor(of: tab, matching: find.byType(Opacity));
+        expect(tester.widget<Opacity>(opacity).opacity, lessThan(1));
+        final semantics = find.byWidgetPredicate(
+          (widget) => widget is Semantics && widget.properties.label == label,
+        );
+        expect(tester.widget<Semantics>(semantics).properties.enabled, isFalse);
+        await tester.tap(tab);
+        await tester.pumpAndSettle();
+        expect(navigation.selectedIndex, 0);
+      }
+      await tester.tap(find.text(AppStrings.trainingSopTab));
       await tester.pumpAndSettle();
-      expect(navigation.selectedIndex, 0);
-    }
-    await tester.tap(find.text(AppStrings.trainingSopTab));
-    await tester.pumpAndSettle();
-    expect(navigation.selectedIndex, 1);
-    await tester.fling(find.byType(PageView), const Offset(-350, 0), 1000);
-    await tester.pumpAndSettle();
-    expect(navigation.selectedIndex, 1);
-    expect(find.text('Tab 1'), findsOneWidget);
-    expect(find.text('Tab 2', skipOffstage: false), findsNothing);
-    expect(find.text('Tab 3', skipOffstage: false), findsNothing);
-    expect(tester.takeException(), isNull);
-  });
+      expect(navigation.selectedIndex, 1);
+      await tester.fling(find.byType(PageView), const Offset(-350, 0), 1000);
+      await tester.pumpAndSettle();
+      expect(navigation.selectedIndex, 1);
+      expect(find.text('Tab 1'), findsOneWidget);
+      expect(find.text('Tab 2', skipOffstage: false), findsNothing);
+      expect(find.text('Tab 3', skipOffstage: false), findsNothing);
+      expect(tester.takeException(), isNull);
+    },
+  );
 
   testWidgets('video and quiz previews never expose editing actions, including for managers', (
     tester,
@@ -262,7 +266,7 @@ class _PreviewController extends TrainingModuleController {
   ];
 }
 
-class _UnusedRepository extends Fake implements AuditRepository {}
+class _UnusedRepository extends Fake implements TrainingLibraryRepository {}
 
 class _EmptyQuizController extends _PreviewController {
   @override

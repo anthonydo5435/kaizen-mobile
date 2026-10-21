@@ -13,6 +13,7 @@ import '../../../../../core/utils/custom_functions.dart';
 import '../../../../../core/widgets/app_text_view.dart';
 import '../../../../../core/widgets/fast_circular_progress.dart';
 import '../../providers/compliance_video_controller.dart';
+import '../../widgets/compliance_video_playback_controls.dart';
 import '../../widgets/compliance_video_transcript_sheet.dart';
 
 class ComplianceFullScreenVideoView extends StatefulWidget {
@@ -357,6 +358,19 @@ class _ComplianceFullScreenVideoViewState
     }
   }
 
+  Future<void> _seekBy(Duration offset) async {
+    final controller = widget.controller;
+    if (!controller.value.isInitialized) return;
+    _revealPlaybackControls();
+    final target = Duration(
+      milliseconds: (controller.value.position + offset).inMilliseconds.clamp(
+        0,
+        controller.value.duration.inMilliseconds,
+      ),
+    );
+    await controller.seekTo(target);
+  }
+
   @override
   Widget build(BuildContext context) {
     return PopScope<void>(
@@ -419,6 +433,8 @@ class _ComplianceFullScreenVideoViewState
   Widget _buildControlsOverlay(VideoPlayerValue controllerValue) {
     final isLandscape =
         MediaQuery.orientationOf(context) == Orientation.landscape;
+    final footerBottomInset = isLandscape ? 8.0 : 24.0;
+    final footerSideInset = isLandscape ? 12.0 : 0.0;
     return ValueListenableBuilder<bool>(
       valueListenable: _showPlaybackControls,
       builder: (context, showControls, _) => SafeArea(
@@ -427,16 +443,22 @@ class _ComplianceFullScreenVideoViewState
           builder: (context, constraints) => Stack(
             children: [
               Positioned(
-                left: 8,
-                right: 8,
-                bottom: (isLandscape ? 0.0 : 24.0) + (showControls ? 0 : 8),
+                left: footerSideInset,
+                right: footerSideInset,
+                bottom: footerBottomInset + (showControls ? 0 : 8),
                 child: _FullScreenVideoFooter(
                   title: widget.title,
                   showControls: showControls,
-                  maxHeight: (constraints.maxHeight - 100).clamp(
-                    0,
-                    double.infinity,
-                  ),
+                  // Reserve the same room below the center buttons in both
+                  // states so caption scrolling never overlaps their targets.
+                  maxHeight:
+                      (constraints.maxHeight / 2 -
+                              ComplianceVideoPlaybackControls
+                                      .playButtonDiameter /
+                                  2 -
+                              8 -
+                              footerBottomInset)
+                          .clamp(0, double.infinity),
                   controls: ValueListenableBuilder<double?>(
                     valueListenable: _scrubPositionMillis,
                     builder: (context, scrubPosition, _) =>
@@ -445,7 +467,6 @@ class _ComplianceFullScreenVideoViewState
                           isReady: controllerValue.isInitialized,
                           isScrubbing: scrubPosition != null,
                           scrubPositionMillis: scrubPosition,
-                          onTogglePlayback: _togglePlayback,
                           onExitFullscreen:
                               widget.onExit ??
                               () => Navigator.of(context).pop(),
@@ -466,6 +487,23 @@ class _ComplianceFullScreenVideoViewState
                   ),
                 ),
               ),
+              if (controllerValue.isInitialized)
+                Positioned.fill(
+                  child: Center(
+                    child: _FullScreenControlsVisibility(
+                      visible: showControls,
+                      child: ComplianceVideoPlaybackControls(
+                        isLoading: false,
+                        isPlaying: controllerValue.isPlaying,
+                        onTogglePlayback: _togglePlayback,
+                        onSkipBackward: () =>
+                            _seekBy(const Duration(seconds: -10)),
+                        onSkipForward: () =>
+                            _seekBy(const Duration(seconds: 10)),
+                      ),
+                    ),
+                  ),
+                ),
             ],
           ),
         ),
@@ -495,6 +533,20 @@ class _FullScreenControlsVisibility extends StatelessWidget {
   );
 }
 
+class _FullScreenControlSurface extends StatelessWidget {
+  const _FullScreenControlSurface({required this.child});
+
+  final Widget child;
+
+  @override
+  Widget build(BuildContext context) => Material(
+    color: AppColors.hex111317.withValues(alpha: 0.85),
+    borderRadius: BorderRadius.circular(12),
+    clipBehavior: Clip.antiAlias,
+    child: child,
+  );
+}
+
 class _FullScreenVideoFooter extends StatelessWidget {
   const _FullScreenVideoFooter({
     required this.title,
@@ -510,6 +562,8 @@ class _FullScreenVideoFooter extends StatelessWidget {
 
   @override
   Widget build(BuildContext context) {
+    final sidePadding =
+        MediaQuery.orientationOf(context) == Orientation.landscape ? 8.0 : 0.0;
     final disableAnimations = MediaQuery.disableAnimationsOf(context);
     final (caption, activeCueIndex) = context
         .select<ComplianceVideoController?, (String?, int?)>(
@@ -526,7 +580,7 @@ class _FullScreenVideoFooter extends StatelessWidget {
       constraints: BoxConstraints(maxHeight: maxHeight),
       child: Padding(
         key: const ValueKey('fullscreen-video-footer'),
-        padding: const EdgeInsets.symmetric(horizontal: 8),
+        padding: EdgeInsets.symmetric(horizontal: sidePadding),
         child: Column(
           mainAxisSize: MainAxisSize.min,
           crossAxisAlignment: CrossAxisAlignment.stretch,
@@ -565,12 +619,18 @@ class _FullScreenVideoFooter extends StatelessWidget {
             ],
             _FullScreenControlsVisibility(
               visible: showControls,
-              child: _FullScreenVideoTitleRow(title: title),
+              child: Padding(
+                padding: const EdgeInsets.symmetric(horizontal: 8),
+                child: _FullScreenVideoTitleRow(title: title),
+              ),
             ),
-            const SizedBox(height: 8),
+            const SizedBox(height: 4),
             _FullScreenControlsVisibility(
               visible: showControls,
-              child: controls,
+              child: Padding(
+                padding: const EdgeInsets.symmetric(horizontal: 8),
+                child: _FullScreenControlSurface(child: controls),
+              ),
             ),
           ],
         ),
@@ -590,21 +650,33 @@ class _FullScreenVideoTitleRow extends StatelessWidget {
       builder: (context, constraints) => Row(
         children: [
           Expanded(
-            child: AppTextView.body1(
-              title,
-              color: AppColors.textPrimary,
-              fontSize: 13,
-              fontWeight: FontWeight.w700,
-              maxLines: 2,
-              overflow: TextOverflow.ellipsis,
+            child: Align(
+              alignment: Alignment.centerLeft,
+              child: _FullScreenControlSurface(
+                child: Padding(
+                  padding: const EdgeInsets.symmetric(
+                    horizontal: 12,
+                    vertical: 4,
+                  ),
+                  child: AppTextView.body1(
+                    title,
+                    color: AppColors.textPrimary,
+                    fontSize: 13,
+                    fontWeight: FontWeight.w700,
+                    maxLines: 2,
+                    overflow: TextOverflow.ellipsis,
+                  ),
+                ),
+              ),
             ),
           ),
           const SizedBox(width: 8),
           ConstrainedBox(
             constraints: BoxConstraints(maxWidth: constraints.maxWidth * 0.6),
-            child: ComplianceVideoTranscriptButton(
-              onPressed: () => showComplianceVideoTranscriptSheet(context),
-              padding: const EdgeInsets.fromLTRB(12, 4, 0, 6),
+            child: _FullScreenControlSurface(
+              child: ComplianceVideoTranscriptButton(
+                onPressed: () => showComplianceVideoTranscriptSheet(context),
+              ),
             ),
           ),
         ],
@@ -619,7 +691,6 @@ class _FullScreenVideoControls extends StatelessWidget {
     required this.isReady,
     required this.isScrubbing,
     required this.scrubPositionMillis,
-    required this.onTogglePlayback,
     required this.onExitFullscreen,
     required this.onScrubStart,
     required this.onScrubChanged,
@@ -630,7 +701,6 @@ class _FullScreenVideoControls extends StatelessWidget {
   final bool isReady;
   final bool isScrubbing;
   final double? scrubPositionMillis;
-  final VoidCallback onTogglePlayback;
   final VoidCallback onExitFullscreen;
   final ValueChanged<double> onScrubStart;
   final ValueChanged<double> onScrubChanged;
@@ -657,18 +727,6 @@ class _FullScreenVideoControls extends StatelessWidget {
     return LayoutBuilder(
       builder: (context, constraints) => Row(
         children: [
-          IconButton(
-            onPressed: isReady ? onTogglePlayback : null,
-            alignment: Alignment.centerLeft,
-            padding: const EdgeInsets.fromLTRB(0, 8, 16, 8),
-            icon: Icon(
-              controllerValue.isPlaying
-                  ? Icons.pause_rounded
-                  : Icons.play_arrow_rounded,
-              color: AppColors.textPrimary,
-              size: 34,
-            ),
-          ),
           Expanded(
             child: SliderTheme(
               data: SliderTheme.of(context).copyWith(
@@ -709,6 +767,11 @@ class _FullScreenVideoControls extends StatelessWidget {
             key: const ValueKey('video-exit-fullscreen-button'),
             tooltip: AppStrings.trainingExitFullscreen,
             onPressed: onExitFullscreen,
+            constraints: const BoxConstraints(minWidth: 36, minHeight: 36),
+            padding: const EdgeInsets.all(6),
+            style: IconButton.styleFrom(
+              tapTargetSize: MaterialTapTargetSize.shrinkWrap,
+            ),
             icon: const Icon(
               Icons.fullscreen_exit_rounded,
               color: Colors.white,

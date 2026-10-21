@@ -236,15 +236,24 @@ void main() {
     );
   }
 
-  for (final thumbnailSize in [const Size(640, 360), const Size(360, 640)]) {
+  for (final preview in [
+    (thumbnail: const Size(640, 360), video: const Size(640, 360)),
+    (thumbnail: const Size(360, 640), video: const Size(640, 360)),
+    (thumbnail: const Size(640, 640), video: const Size(640, 360)),
+    (thumbnail: const Size(800, 300), video: const Size(640, 360)),
+    (thumbnail: const Size(640, 360), video: const Size(360, 640)),
+    (thumbnail: const Size(640, 640), video: const Size(360, 640)),
+  ]) {
+    final thumbnailSize = preview.thumbnail;
     testWidgets(
-      'preserves the whole $thumbnailSize preview below actions and anchors its footer',
+      'centers the whole $thumbnailSize thumbnail in ${preview.video} playback bounds',
       (tester) async {
         tester.view.physicalSize = const Size(390, 844);
         tester.view.devicePixelRatio = 1;
         addTearDown(tester.view.resetPhysicalSize);
         addTearDown(tester.view.resetDevicePixelRatio);
         platform.autoInitialize = false;
+        platform.videoSize = preview.video;
         final originalImageClientProvider = debugNetworkImageHttpClientProvider;
         final releaseThumbnail = Completer<void>();
 
@@ -343,27 +352,24 @@ void main() {
         await tester.pump();
         final rawImage = tester.widget<RawImage>(thumbnail);
         expect(rawImage.fit, BoxFit.contain);
-        final image = rawImage.image!;
-        final thumbnailBox = tester.getRect(thumbnail);
-        final fitted = applyBoxFit(
-          BoxFit.contain,
-          Size(image.width.toDouble(), image.height.toDouble()),
-          thumbnailBox.size,
+        expect(rawImage.alignment, Alignment.center);
+        final thumbnailBounds = tester.getRect(thumbnail);
+        final paintedThumbnailBounds = Alignment.center.inscribe(
+          applyBoxFit(
+            BoxFit.contain,
+            thumbnailSize,
+            thumbnailBounds.size,
+          ).destination,
+          thumbnailBounds,
         );
-        final thumbnailBounds = Alignment.topCenter.inscribe(
-          fitted.destination,
-          thumbnailBox,
-        );
-        if (thumbnailSize.width > thumbnailSize.height) {
-          expect(tester.getRect(surface), initialSurfaceBounds);
-          expect(tester.getRect(find.text('Lesson')), initialTitleBounds);
-        }
+        expect(tester.getRect(surface), initialSurfaceBounds);
+        expect(tester.getRect(find.text('Lesson')), initialTitleBounds);
         expect(thumbnailBounds.left, greaterThanOrEqualTo(frameBounds.left));
         expect(thumbnailBounds.center.dx, closeTo(frameBounds.center.dx, 0.01));
         expect(thumbnailBounds.right, lessThanOrEqualTo(frameBounds.right));
         expect(
           thumbnailBounds.width / thumbnailBounds.height,
-          closeTo(thumbnailSize.width / thumbnailSize.height, 0.01),
+          closeTo(16 / 9, 0.01),
         );
         expect(
           thumbnailBounds.top -
@@ -394,16 +400,29 @@ void main() {
         final captionBounds = tester.getRect(
           find.byKey(const ValueKey('active-video-caption')),
         );
+        final edgePoint = Offset(
+          thumbnailBounds.left + 2,
+          thumbnailBounds.bottom - 4,
+        );
         final colors = await _previewPixelColors(tester, [
-          Offset(thumbnailBounds.center.dx, thumbnailBounds.top + 8),
-          Offset(thumbnailBounds.left + 2, thumbnailBounds.bottom - 4),
+          Offset(
+            paintedThumbnailBounds.center.dx,
+            paintedThumbnailBounds.top + 8,
+          ),
+          edgePoint,
           Offset(captionBounds.left + 4, captionBounds.center.dy),
         ]);
         expect(
           colors,
-          [Colors.white, Colors.white, Colors.black],
+          [
+            Colors.white,
+            paintedThumbnailBounds.contains(edgePoint)
+                ? Colors.white
+                : Colors.black,
+            Colors.black,
+          ],
           reason:
-              'The preview stays bright throughout and its caption blocks light from the image.',
+              'The centered thumbnail stays bright, unused space stays black, and captions remain opaque.',
         );
         captions.updatePlaybackPosition(Duration.zero, animate: false);
         await tester.pump();
@@ -415,10 +434,16 @@ void main() {
         });
         await tester.pump();
         await tester.pump();
+        final readyThumbnailBounds = tester.getRect(thumbnail);
         expect(find.text('Later caption'), findsNothing);
         expect(find.text('01:00'), findsOneWidget);
         expect(
-          tester.getTopLeft(find.text('Lesson')).dy - thumbnailBounds.bottom,
+          readyThumbnailBounds.width / readyThumbnailBounds.height,
+          closeTo(platform.videoSize.width / platform.videoSize.height, 0.01),
+        );
+        expect(
+          tester.getTopLeft(find.text('Lesson')).dy -
+              readyThumbnailBounds.bottom,
           closeTo(10, 0.01),
         );
         await tester.tap(find.byIcon(Icons.play_arrow_rounded));
@@ -427,6 +452,17 @@ void main() {
         expect(find.byType(Slider), findsNothing);
         expect(find.text('Later caption'), findsNothing);
         final runningVideoBounds = tester.getRect(find.byType(VideoPlayer));
+        expect(runningVideoBounds, readyThumbnailBounds);
+        expect(
+          runningVideoBounds.height,
+          closeTo(
+            preview.video.aspectRatio >=
+                    frameBounds.width / (frameBounds.height - 68)
+                ? frameBounds.width / preview.video.aspectRatio
+                : frameBounds.height - 68,
+            0.01,
+          ),
+        );
         expect(
           runningVideoBounds.top -
               tester

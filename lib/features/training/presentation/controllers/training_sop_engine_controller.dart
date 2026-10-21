@@ -9,10 +9,17 @@ import 'package:tiptap_flutter/tiptap_flutter.dart';
 import 'package:webview_flutter/webview_flutter.dart';
 import 'package:webview_flutter_wkwebview/webview_flutter_wkwebview.dart';
 
+enum TrainingSopInteraction { tap, scroll }
+
 /// The document surface is replaceable without changing Tiptap's save contract.
 abstract interface class TrainingSopSurface {
   Stream<String> get linkTaps;
-  Widget buildDocument({required double width, required double textScale});
+  Stream<TrainingSopInteraction> get interactions;
+  Widget buildDocument({
+    required double width,
+    required double textScale,
+    bool preventTapCursor = false,
+  });
   Future<void> dismissKeyboard();
 }
 
@@ -25,6 +32,9 @@ class TrainingSopEngineController extends EditorController implements TrainingSo
     (super.webViewWidget as WebViewWidget).platform.params.controller,
   );
   final _links = StreamController<String>.broadcast();
+  final _interactions = StreamController<TrainingSopInteraction>.broadcast();
+  bool _preventTapCursor = false;
+  bool _canEdit = true;
   bool _isZoomed = false;
   bool _hasSelection = false;
   bool _disposed = false;
@@ -35,9 +45,12 @@ class TrainingSopEngineController extends EditorController implements TrainingSo
 
   @override
   Stream<String> get linkTaps => _links.stream;
+  @override
+  Stream<TrainingSopInteraction> get interactions => _interactions.stream;
 
   @override
   Future<void> initialize({String? content, bool editable = true}) async {
+    _canEdit = editable;
     // Register channels before navigation, then install the SOP schema before
     // initializing any document. Replacing an initialized engine loses replies.
     await _view.addJavaScriptChannel('TrainingSopLinks', onMessageReceived: _handleSurfaceMessage);
@@ -67,12 +80,13 @@ class TrainingSopEngineController extends EditorController implements TrainingSo
     );
     await _configureViewport();
     // Attach the controller to the prepared bridge and initialize it once.
-    final controllerReady = super.initialize(content: content, editable: editable);
+    final initialEditable = editable && !_preventTapCursor;
+    final controllerReady = super.initialize(content: content, editable: initialEditable);
     final initialDocument = editorStateStream
         .firstWhere((state) => state.doc != null)
         .timeout(const Duration(seconds: 10));
     await Future.wait([
-      bridge.initEditor(content: content, editable: editable),
+      bridge.initEditor(content: content, editable: initialEditable),
       controllerReady,
       initialDocument,
     ], eagerError: true);
@@ -97,6 +111,13 @@ class TrainingSopEngineController extends EditorController implements TrainingSo
       _isZoomed = zoomed;
     } else if (data['hasSelection'] case final bool hasSelection) {
       _hasSelection = hasSelection;
+    } else if (_preventTapCursor) {
+      switch (data['interaction']) {
+        case 'tap':
+          _interactions.add(TrainingSopInteraction.tap);
+        case 'scroll':
+          _interactions.add(TrainingSopInteraction.scroll);
+      }
     }
   }
 
@@ -104,10 +125,15 @@ class TrainingSopEngineController extends EditorController implements TrainingSo
   Future<String> getHTML() async => '$_sourceStyles${await super.getHTML()}';
 
   @override
-  Widget buildDocument({required double width, required double textScale}) {
-    if (_width != width || _textScale != textScale) {
+  Widget buildDocument({
+    required double width,
+    required double textScale,
+    bool preventTapCursor = false,
+  }) {
+    if (_width != width || _textScale != textScale || _preventTapCursor != preventTapCursor) {
       _width = width;
       _textScale = textScale;
+      _preventTapCursor = preventTapCursor;
       if (_documentReady) unawaited(_configureViewport());
     }
     return WebViewWidget(
@@ -122,9 +148,20 @@ class TrainingSopEngineController extends EditorController implements TrainingSo
     );
   }
 
-  Future<void> _configureViewport() => _view.runJavaScript(
-    'window.TrainingSopDocument.configure(${jsonEncode({'width': _width, 'textScale': _textScale})});',
-  );
+  Future<void> _configureViewport() async {
+    await _view.runJavaScript(
+      'window.TrainingSopDocument.configure(${jsonEncode({'width': _width, 'textScale': _textScale, 'preventTapCursor': _preventTapCursor})});',
+    );
+    if (_disposed || !_documentReady) return;
+    final editable = _canEdit && !_preventTapCursor;
+    if (editorState?.editable != editable) await super.setEditable(editable);
+  }
+
+  @override
+  Future<void> execCommand(String commandName, [Map<String, dynamic>? args]) async {
+    if (_preventTapCursor) return;
+    await super.execCommand(commandName, args);
+  }
 
   @override
   Future<void> dismissKeyboard() async {
@@ -137,6 +174,7 @@ class TrainingSopEngineController extends EditorController implements TrainingSo
   void dispose() {
     _disposed = true;
     unawaited(_links.close());
+    unawaited(_interactions.close());
     super.dispose();
   }
 }

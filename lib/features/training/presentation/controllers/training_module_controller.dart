@@ -13,7 +13,7 @@ import '../../../../core/services/file_uploader.dart';
 import '../../../../core/utils/custom_functions.dart';
 import '../../domain/entities/seat_description_training.dart';
 import '../../domain/entities/shared_lesson_content.dart';
-import '../../../check_in/domain/repositories/audit_repository.dart';
+import '../../domain/repositories/training_library_repository.dart';
 import '../models/view_training_tab_access.dart';
 import 'training_sop_editor_controller.dart';
 
@@ -889,7 +889,7 @@ String _serializeHtmlDocument(
 
 class TrainingModuleController extends ChangeNotifier {
   TrainingModuleController(
-    this._auditRepository, {
+    this._trainingRepository, {
     FileUploader? fileUploader,
     bool canManageTraining = false,
     bool canViewQuizAndAssignment = false,
@@ -919,8 +919,9 @@ class TrainingModuleController extends ChangeNotifier {
 
   static String generateClientUuid() => _uuidGenerator.v1();
 
-  final AuditRepository _auditRepository;
+  final TrainingLibraryRepository _trainingRepository;
   final TrainingSopEditorFactory? _sopEditorFactory;
+  final Map<String, ({String html, String url})> _documentPdfLinks = {};
   final Future<SharedLessonContent> Function(String publicId)?
   _sharedLessonDetailLoader;
   final FileUploader _fileUploader;
@@ -942,6 +943,9 @@ class TrainingModuleController extends ChangeNotifier {
 
   bool _isLoading = false;
   bool _isDocumentLoading = false;
+  bool _isOpeningDocumentPdf = false;
+  String? _documentPdfErrorMessage;
+  int _documentPdfRequestVersion = 0;
   int _documentRequestVersion = 0;
   bool _isAssignmentLoading = false;
   bool _isQuestionsLoading = false;
@@ -1017,6 +1021,15 @@ class TrainingModuleController extends ChangeNotifier {
 
   bool get isLoading => _isLoading;
   bool get isDocumentLoading => _isDocumentLoading;
+  bool get isOpeningDocumentPdf => _isOpeningDocumentPdf;
+  String? get documentPdfErrorMessage => _documentPdfErrorMessage;
+  bool get canOpenDocumentPdf =>
+      !_isDisposed &&
+      (_selectedModuleDocument?.uuid.trim().isNotEmpty ?? false) &&
+      !_isDocumentLoading &&
+      !_isOpeningDocumentPdf &&
+      !_isSavingDocument &&
+      !_isGeneratingSop;
   bool get hasResolvedSelectedModuleDocument =>
       _selectedModuleDocument != null || _documentErrorMessage != null;
   bool get isAssignmentLoading => _isAssignmentLoading;
@@ -1342,9 +1355,10 @@ class TrainingModuleController extends ChangeNotifier {
     notifyListeners();
 
     try {
-      final modules = await _auditRepository.getSeatDescriptionTrainingModules(
-        descriptionId: resolvedDescriptionId,
-      );
+      final modules = await _trainingRepository
+          .getSeatDescriptionTrainingModules(
+            descriptionId: resolvedDescriptionId,
+          );
       _modules = modules;
 
       if (modules.isEmpty && startNewLessonWhenEmpty && _canManageTraining) {
@@ -1498,13 +1512,13 @@ class TrainingModuleController extends ChangeNotifier {
     notifyListeners();
 
     try {
-      final createdModule = await _auditRepository
+      final createdModule = await _trainingRepository
           .createSeatDescriptionTrainingModule(
             jobId: _jobId,
             descriptionId: _descriptionId,
             title: resolvedTitle,
           );
-      final refreshedModules = await _auditRepository
+      final refreshedModules = await _trainingRepository
           .getSeatDescriptionTrainingModules(descriptionId: _descriptionId);
       final resolvedModules = refreshedModules.isNotEmpty
           ? refreshedModules
@@ -1563,7 +1577,7 @@ class TrainingModuleController extends ChangeNotifier {
     notifyListeners();
 
     try {
-      final document = await _auditRepository
+      final document = await _trainingRepository
           .getSeatDescriptionTrainingModuleDocument(moduleId: moduleId);
       if (requestVersion != _documentRequestVersion) return;
       _selectedModuleDocument = document;
@@ -1575,6 +1589,52 @@ class TrainingModuleController extends ChangeNotifier {
     } finally {
       if (requestVersion == _documentRequestVersion) {
         _isDocumentLoading = false;
+        notifyListeners();
+      }
+    }
+  }
+
+  Future<String?> loadDocumentPdfForSelectedModule() async {
+    if (!canOpenDocumentPdf) return null;
+    final documentId = _selectedModuleDocument!.uuid.trim();
+    final editorVersion = _documentEditorVersion;
+    final requestVersion = ++_documentPdfRequestVersion;
+    bool isCurrentDocument() =>
+        !_isDisposed &&
+        requestVersion == _documentPdfRequestVersion &&
+        editorVersion == _documentEditorVersion;
+    _isOpeningDocumentPdf = true;
+    _documentPdfErrorMessage = null;
+    notifyListeners();
+
+    try {
+      // Export the saved document, including any edit still in the debounce.
+      if (_documentDraftHtml.trim() != _lastSavedDocumentHtml &&
+          !await saveDocumentForSelectedModule()) {
+        if (isCurrentDocument()) {
+          _documentPdfErrorMessage = AppStrings.trainingSopPdfError;
+        }
+        return null;
+      }
+      if (!isCurrentDocument()) return null;
+      final html = _lastSavedDocumentHtml;
+      final cached = _documentPdfLinks[documentId];
+      final url = cached?.html == html
+          ? cached!.url
+          : await _trainingRepository.getTrainingDocumentPdfUrl(
+              documentId: documentId,
+            );
+      if (!isCurrentDocument() || html != _lastSavedDocumentHtml) return null;
+      _documentPdfLinks[documentId] = (html: html, url: url);
+      return url;
+    } catch (_) {
+      if (isCurrentDocument()) {
+        _documentPdfErrorMessage = AppStrings.trainingSopPdfError;
+      }
+      return null;
+    } finally {
+      if (!_isDisposed && requestVersion == _documentPdfRequestVersion) {
+        _isOpeningDocumentPdf = false;
         notifyListeners();
       }
     }
@@ -1606,7 +1666,7 @@ class TrainingModuleController extends ChangeNotifier {
     notifyListeners();
 
     try {
-      final assignment = await _auditRepository
+      final assignment = await _trainingRepository
           .getSeatDescriptionTrainingModuleAssignment(
             moduleId: _selectedModuleId,
           );
@@ -1669,7 +1729,7 @@ class TrainingModuleController extends ChangeNotifier {
     notifyListeners();
 
     try {
-      final questions = await _auditRepository
+      final questions = await _trainingRepository
           .getSeatDescriptionTrainingModuleQuestions(
             moduleId: _selectedModuleId,
           );
@@ -1726,14 +1786,14 @@ class TrainingModuleController extends ChangeNotifier {
     try {
       final imageId = questionImage == null
           ? null
-          : await _auditRepository.uploadTrainingQuestionImage(
+          : await _trainingRepository.uploadTrainingQuestionImage(
               fileName: CustomFunctions.fileNameFromPath(questionImage.path),
               fileBytes: await questionImage.readAsBytes(),
               contentType: CustomFunctions.contentTypeFromPath(
                 questionImage.path,
               ),
             );
-      final createdQuestion = await _auditRepository
+      final createdQuestion = await _trainingRepository
           .addSeatDescriptionTrainingQuestion(
             moduleId: moduleId,
             questionText: resolvedQuestion,
@@ -1827,7 +1887,7 @@ class TrainingModuleController extends ChangeNotifier {
     notifyListeners();
 
     try {
-      await _auditRepository.generateSeatDescriptionTrainingModuleQuiz(
+      await _trainingRepository.generateSeatDescriptionTrainingModuleQuiz(
         moduleId: _selectedModuleId,
         numQuestions: _quizGenerationQuestionCount,
         optionsPerQuestion: _quizGenerationOptionsPerQuestion,
@@ -1857,7 +1917,7 @@ class TrainingModuleController extends ChangeNotifier {
     notifyListeners();
 
     try {
-      final description = await _auditRepository
+      final description = await _trainingRepository
           .generateSeatDescriptionTrainingModuleSummary(moduleId: moduleId);
       if (_isDisposed || editorVersion != _summaryEditorVersion) {
         return false;
@@ -1950,7 +2010,7 @@ class TrainingModuleController extends ChangeNotifier {
     notifyListeners();
 
     try {
-      await _auditRepository.generateSeatDescriptionTrainingModuleSop(
+      await _trainingRepository.generateSeatDescriptionTrainingModuleSop(
         moduleId: _selectedModuleId,
       );
       await refreshDocumentForSelectedModule();
@@ -1975,7 +2035,7 @@ class TrainingModuleController extends ChangeNotifier {
     notifyListeners();
 
     try {
-      await _auditRepository.generateSeatDescriptionTrainingModuleAssignment(
+      await _trainingRepository.generateSeatDescriptionTrainingModuleAssignment(
         moduleId: moduleId,
       );
       await refreshAssignmentForSelectedModule();
@@ -2003,7 +2063,7 @@ class TrainingModuleController extends ChangeNotifier {
     notifyListeners();
 
     try {
-      await _auditRepository.updateSeatDescriptionTrainingModule(
+      await _trainingRepository.updateSeatDescriptionTrainingModule(
         moduleId: resolvedModuleId,
         title: title,
       );
@@ -2052,7 +2112,7 @@ class TrainingModuleController extends ChangeNotifier {
     notifyListeners();
 
     try {
-      await _auditRepository.updateSeatDescriptionTrainingModule(
+      await _trainingRepository.updateSeatDescriptionTrainingModule(
         moduleId: resolvedModuleId,
         description: description,
       );
@@ -2135,7 +2195,7 @@ class TrainingModuleController extends ChangeNotifier {
     try {
       final description = summaryController.text.trim();
       final isPubliclyAvailable = summaryVisibilityValue;
-      await _auditRepository.updateSeatDescriptionTrainingModuleSummary(
+      await _trainingRepository.updateSeatDescriptionTrainingModuleSummary(
         moduleId: resolvedModuleId,
         description: description,
         isPubliclyAvailable: isPubliclyAvailable,
@@ -2185,7 +2245,7 @@ class TrainingModuleController extends ChangeNotifier {
     notifyListeners();
 
     try {
-      await _auditRepository.updateSeatDescriptionTrainingModuleVisibility(
+      await _trainingRepository.updateSeatDescriptionTrainingModuleVisibility(
         moduleId: targetModule.resolvedParentModuleId,
         isPubliclyAvailable: isPubliclyAvailable,
       );
@@ -2229,11 +2289,12 @@ class TrainingModuleController extends ChangeNotifier {
     notifyListeners();
 
     try {
-      await _auditRepository.updateSeatDescriptionTrainingModuleDocument(
+      await _trainingRepository.updateSeatDescriptionTrainingModuleDocument(
         moduleId: resolvedModuleId,
         documentId: documentId,
         text: text,
       );
+      _documentPdfLinks.remove(documentId);
       if (_isDisposed || editorVersion != _documentEditorVersion) return false;
       _selectedModuleDocument = SeatDescriptionTrainingDocument(
         uuid: documentId,
@@ -2302,7 +2363,7 @@ class TrainingModuleController extends ChangeNotifier {
     notifyListeners();
 
     try {
-      await _auditRepository.updateSeatDescriptionTrainingModuleAssignment(
+      await _trainingRepository.updateSeatDescriptionTrainingModuleAssignment(
         moduleId: resolvedModuleId,
         assignmentId: assignmentId.isNotEmpty ? assignmentId : null,
         title: assignmentId.isEmpty || title != _lastSavedAssignmentTitle
@@ -2313,7 +2374,7 @@ class TrainingModuleController extends ChangeNotifier {
       if (editorVersion != _assignmentEditorVersion) return true;
       if (_selectedModuleId == resolvedModuleId) {
         if (assignmentId.isEmpty) {
-          final persistedAssignment = await _auditRepository
+          final persistedAssignment = await _trainingRepository
               .getSeatDescriptionTrainingModuleAssignment(
                 moduleId: resolvedModuleId,
               );
@@ -2452,7 +2513,7 @@ class TrainingModuleController extends ChangeNotifier {
         videoFile,
       );
       final videoTitle = _buildTrainingVideoTitle(fileName);
-      final uploadedVideo = await _auditRepository
+      final uploadedVideo = await _trainingRepository
           .addSeatDescriptionTrainingModuleVideo(
             moduleId: resolvedModuleId,
             videoUuid: generateClientUuid(),
@@ -2524,7 +2585,7 @@ class TrainingModuleController extends ChangeNotifier {
     notifyListeners();
 
     try {
-      await _auditRepository.deleteSeatDescriptionTrainingModuleVideo(
+      await _trainingRepository.deleteSeatDescriptionTrainingModuleVideo(
         videoId: resolvedVideoId,
       );
       _moduleLocalVideoPaths.remove(resolvedModuleId);
@@ -2567,7 +2628,7 @@ class TrainingModuleController extends ChangeNotifier {
         fileBytes: await imageFile.readAsBytes(),
         contentType: contentType,
       );
-      final refreshedModules = await _auditRepository
+      final refreshedModules = await _trainingRepository
           .getSeatDescriptionTrainingModules(
             descriptionId: _descriptionId,
             forceRefresh: true,
@@ -2580,7 +2641,7 @@ class TrainingModuleController extends ChangeNotifier {
         return false;
       }
 
-      await _auditRepository.updateSeatDescriptionTrainingModuleThumbnail(
+      await _trainingRepository.updateSeatDescriptionTrainingModuleThumbnail(
         moduleId: selectedModule.resolvedParentModuleId,
         thumbnailUrl: uploadedImage.image,
       );
@@ -2620,12 +2681,12 @@ class TrainingModuleController extends ChangeNotifier {
     notifyListeners();
 
     try {
-      await _auditRepository.deleteSeatDescriptionTrainingModule(
+      await _trainingRepository.deleteSeatDescriptionTrainingModule(
         moduleId: resolvedModuleId,
       );
       _moduleLocalVideoPaths.remove(resolvedModuleId);
 
-      final refreshedModules = await _auditRepository
+      final refreshedModules = await _trainingRepository
           .getSeatDescriptionTrainingModules(descriptionId: _descriptionId);
       _modules = refreshedModules;
 
@@ -2707,7 +2768,7 @@ class TrainingModuleController extends ChangeNotifier {
     notifyListeners();
 
     try {
-      final updatedQuestion = await _auditRepository
+      final updatedQuestion = await _trainingRepository
           .updateSeatDescriptionTrainingQuestion(
             questionId: resolvedQuestionId,
             questionText: targetQuestion.question,
@@ -2772,7 +2833,7 @@ class TrainingModuleController extends ChangeNotifier {
     notifyListeners();
 
     try {
-      final updatedQuestion = await _auditRepository
+      final updatedQuestion = await _trainingRepository
           .updateSeatDescriptionTrainingQuestion(
             questionId: resolvedQuestionId,
             questionText: targetQuestion.question,
@@ -2808,7 +2869,7 @@ class TrainingModuleController extends ChangeNotifier {
     notifyListeners();
 
     try {
-      await _auditRepository.deleteSeatDescriptionTrainingQuestion(
+      await _trainingRepository.deleteSeatDescriptionTrainingQuestion(
         questionId: resolvedQuestionId,
       );
       final updatedQuestions = _selectedModuleQuestions
@@ -2846,7 +2907,7 @@ class TrainingModuleController extends ChangeNotifier {
         _hasResolvedAssignment = true;
         _syncDocumentEditorText();
       } else {
-        final detail = await _auditRepository
+        final detail = await _trainingRepository
             .getSeatDescriptionTrainingModuleDetail(
               moduleId: _selectedModuleId,
             );
@@ -3196,7 +3257,7 @@ class TrainingModuleController extends ChangeNotifier {
     }
 
     try {
-      final detail = await _auditRepository
+      final detail = await _trainingRepository
           .getSeatDescriptionTrainingModuleDetail(
             moduleId: moduleId,
             forceRefresh: true,
@@ -3484,7 +3545,10 @@ class TrainingModuleController extends ChangeNotifier {
 
   void _resetSelectedModuleExtras() {
     _documentRequestVersion += 1;
+    _documentPdfRequestVersion += 1;
     _isDocumentLoading = false;
+    _isOpeningDocumentPdf = false;
+    _documentPdfErrorMessage = null;
     _selectedModuleDocument = null;
     _selectedModuleAssignment = null;
     _selectedModuleQuestions = const <SeatDescriptionTrainingQuestion>[];
@@ -3704,7 +3768,7 @@ class TrainingModuleController extends ChangeNotifier {
 
   void _generateSelectedModuleSummaryInBackground(String moduleId) {
     unawaited(
-      _auditRepository
+      _trainingRepository
           .generateSeatDescriptionTrainingModuleSummary(moduleId: moduleId)
           .then((generatedDescription) {
             if (_isDisposed || _selectedModuleId != moduleId) {

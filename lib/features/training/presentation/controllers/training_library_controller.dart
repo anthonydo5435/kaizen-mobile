@@ -5,7 +5,7 @@ import 'package:flutter/rendering.dart' show ScrollDirection;
 
 import '../../../../core/constants/app_strings.dart';
 import '../../../../core/utils/custom_functions.dart';
-import '../../../check_in/domain/repositories/audit_repository.dart';
+import '../../domain/repositories/training_library_repository.dart';
 import '../../../seat_profile/domain/entities/seat_profile_detail.dart';
 import '../../../seat_profile/domain/usecases/get_seat_profiles_usecase.dart';
 import '../../data/repositories/training_library_repository_impl.dart';
@@ -31,12 +31,12 @@ class TrainingLibraryController extends ChangeNotifier {
     this._getTrainingLibraryModulesUseCase, {
     required GetSeatProfilesUseCase getSeatProfilesUseCase,
     bool Function()? canCreateTraining,
-    AuditRepository? auditRepository,
+    TrainingLibraryRepository? trainingRepository,
     bool Function(String seatProfileId)? canManageSeatTraining,
     ValueChanged<bool>? onNavigationBarsVisibilityChanged,
   }) : _getSeatProfilesUseCase = getSeatProfilesUseCase,
        _canCreateTraining = canCreateTraining,
-       _auditRepository = auditRepository,
+       _trainingRepository = trainingRepository,
        _onNavigationBarsVisibilityChanged = onNavigationBarsVisibilityChanged,
        _canManageSeatTraining = canManageSeatTraining {
     scrollController.addListener(_handleScroll);
@@ -45,7 +45,7 @@ class TrainingLibraryController extends ChangeNotifier {
   final GetTrainingLibraryModulesUseCase _getTrainingLibraryModulesUseCase;
   final GetSeatProfilesUseCase _getSeatProfilesUseCase;
   final bool Function()? _canCreateTraining;
-  final AuditRepository? _auditRepository;
+  final TrainingLibraryRepository? _trainingRepository;
   final bool Function(String seatProfileId)? _canManageSeatTraining;
   final ValueChanged<bool>? _onNavigationBarsVisibilityChanged;
   bool _navigationBarsVisible = true;
@@ -163,7 +163,7 @@ class TrainingLibraryController extends ChangeNotifier {
 
   bool canShowModuleActions(TrainingLibraryModule module) =>
       !_isDisposed &&
-      _auditRepository != null &&
+      _trainingRepository != null &&
       module.isLessonListing &&
       module.id.trim().isNotEmpty &&
       module.lessons.length == 1 &&
@@ -185,7 +185,7 @@ class TrainingLibraryController extends ChangeNotifier {
     final actionsController = TrainingLibraryDetailController(
       initialModule: module,
       getTrainingLibraryModules: _getTrainingLibraryModulesUseCase,
-      auditRepository: _auditRepository!,
+      trainingRepository: _trainingRepository!,
       canManageSeatTraining: (seatId) =>
           !_isDisposed && (_canManageSeatTraining?.call(seatId) ?? false),
       view: _viewMode.name,

@@ -22,6 +22,7 @@ extension _EditTrainingSectionViewStateView on _EditTrainingSectionViewState {
 
     final fillAvailableSpace = !widget.isEmbedded;
     final isSopTab = _selectedTabIndex == 1;
+    final isLandscapeSop = _isLandscapeSop;
     final isEditingSopWithKeyboard =
         fillAvailableSpace &&
         isSopTab &&
@@ -61,7 +62,7 @@ extension _EditTrainingSectionViewStateView on _EditTrainingSectionViewState {
         children: contentChildren,
       ),
       bottomNavigationBar: Offstage(
-        offstage: _isLandscapeVideo,
+        offstage: _isLandscapeVideo || isLandscapeSop,
         child: SafeArea(
           top: false,
           bottom: false,
@@ -123,7 +124,7 @@ extension _EditTrainingSectionViewStateView on _EditTrainingSectionViewState {
     return TrainingTabView(
       navigation: _tabNavigation,
       maxTabIndex: controller.maxAccessibleTabIndex,
-      isSwipeEnabled: !_isLandscapeVideo,
+      isSwipeEnabled: !_isLandscapeVideo && !_isLandscapeSop,
       onPageApproaching: (index) {
         if (index == 1) {
           unawaited(controller.loadDocumentForSelectedModule());
@@ -136,8 +137,12 @@ extension _EditTrainingSectionViewStateView on _EditTrainingSectionViewState {
           ? EdgeInsets.zero
           : EdgeInsets.symmetric(
               horizontal:
-                  widget.horizontalContentPadding +
-                  (widget.isEmbedded && index != 2 ? 4 : 0),
+                  index == 1 &&
+                      !widget.isEmbedded &&
+                      MediaQuery.orientationOf(context) == Orientation.landscape
+                  ? 4
+                  : widget.horizontalContentPadding +
+                        (widget.isEmbedded && index != 2 ? 4 : 0),
             ),
       pageBuilder: (context, index) {
         final showsLoading =
@@ -238,7 +243,7 @@ extension _EditTrainingSectionViewStateView on _EditTrainingSectionViewState {
         fullscreenInLandscape:
             widget.allowDeviceRotation && _selectedTabIndex == 0,
         onExitLandscapeFullscreen: widget.allowDeviceRotation
-            ? _resetVideoToPortrait
+            ? _resetToPortrait
             : null,
         detail: controller.selectedModuleDetail,
         localVideoPath: controller.selectedModuleLocalVideoPath,
@@ -291,11 +296,18 @@ extension _EditTrainingSectionViewStateView on _EditTrainingSectionViewState {
         isGeneratingSop: controller.isGeneratingSop,
         canEditDocument: controller.canEditSelectedModuleDocument,
         isSavingDocument: controller.isSavingDocument,
+        showPdf: false,
+        canViewPdf: controller.canOpenDocumentPdf,
+        isOpeningPdf: controller.isOpeningDocumentPdf,
         documentHtml: controller.documentHtml,
         editorKey: ValueKey((moduleId, editorVersion)),
         errorMessage: controller.documentErrorMessage,
         editorControllerBuilder: () => controller.sopEditorController,
         onGenerateSopTap: () => _handleGenerateSopTap(controller),
+        onViewPdfTap: () => _openSopPdf(controller),
+        onExitLandscape: widget.allowDeviceRotation && !widget.isEmbedded
+            ? _resetToPortrait
+            : null,
         onDoneTap: () {
           if (MediaQuery.viewInsetsOf(context).bottom > 0) {
             FocusScope.of(context).unfocus();

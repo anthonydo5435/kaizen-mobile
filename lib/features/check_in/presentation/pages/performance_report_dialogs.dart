@@ -364,11 +364,13 @@ class _TimeRangeDialogContentState extends State<_TimeRangeDialogContent> {
                         constraints: const BoxConstraints(),
                       ),
                       const SizedBox(width: 10),
-                      AppTextView.body1(
-                        'Choose Date range',
-                        color: AppColors.textPrimary,
-                        fontSize: 16,
-                        fontWeight: FontWeight.w700,
+                      const Expanded(
+                        child: AppTextView.body1(
+                          AppStrings.performanceReportChooseDateRange,
+                          color: AppColors.textPrimary,
+                          fontSize: 16,
+                          fontWeight: FontWeight.w700,
+                        ),
                       ),
                     ],
                   ),
@@ -1018,7 +1020,10 @@ class _SignatureDialogContentState extends State<_SignatureDialogContent> {
                     ),
                   ),
                 const SizedBox(height: 12),
-                Row(
+                OverflowBar(
+                  alignment: MainAxisAlignment.end,
+                  spacing: 10,
+                  overflowSpacing: 8,
                   children: [
                     if (_selectedOption == _SignatureOption.draw)
                       TextButton(
@@ -1031,7 +1036,6 @@ class _SignatureDialogContentState extends State<_SignatureDialogContent> {
                           style: TextStyle(color: AppColors.textSecondary),
                         ),
                       ),
-                    const Spacer(),
                     OutlinedButton(
                       onPressed: _isSubmitting ? null : () => navigator.pop(),
                       style: OutlinedButton.styleFrom(
@@ -1044,7 +1048,6 @@ class _SignatureDialogContentState extends State<_SignatureDialogContent> {
                     ),
                     if (_selectedOption == _SignatureOption.mySignature ||
                         _selectedOption == _SignatureOption.draw) ...[
-                      const SizedBox(width: 10),
                       FilledButton(
                         onPressed: _isSubmitting
                             ? null

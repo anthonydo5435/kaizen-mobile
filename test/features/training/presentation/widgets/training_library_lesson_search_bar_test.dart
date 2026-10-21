@@ -1,9 +1,8 @@
 import 'package:flutter/material.dart';
 import 'package:flutter_test/flutter_test.dart';
 import 'package:sparrowkaizen/core/constants/app_strings.dart';
-import 'package:sparrowkaizen/features/check_in/domain/repositories/audit_repository.dart';
-import 'package:sparrowkaizen/features/training/domain/entities/training_library_module.dart';
 import 'package:sparrowkaizen/features/training/domain/repositories/training_library_repository.dart';
+import 'package:sparrowkaizen/features/training/domain/entities/training_library_module.dart';
 import 'package:sparrowkaizen/features/training/domain/usecases/get_training_library_modules_usecase.dart';
 import 'package:sparrowkaizen/features/training/presentation/controllers/training_library_detail_controller.dart';
 import 'package:sparrowkaizen/features/training/presentation/widgets/training_library_lesson_search_bar.dart';
@@ -30,7 +29,7 @@ void main() {
         getTrainingLibraryModules: GetTrainingLibraryModulesUseCase(
           _LibraryRepository(),
         ),
-        auditRepository: _AuditRepository(),
+        trainingRepository: _TrainingLibraryRepository(),
         canManageSeatTraining: (_) => false,
         view: 'list',
       );
@@ -71,4 +70,5 @@ void main() {
 
 class _LibraryRepository extends Fake implements TrainingLibraryRepository {}
 
-class _AuditRepository extends Fake implements AuditRepository {}
+class _TrainingLibraryRepository extends Fake
+    implements TrainingLibraryRepository {}

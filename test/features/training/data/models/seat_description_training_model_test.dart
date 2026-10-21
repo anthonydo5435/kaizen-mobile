@@ -1,5 +1,5 @@
 import 'package:flutter_test/flutter_test.dart';
-import 'package:sparrowkaizen/features/check_in/data/models/seat_description_training_model.dart';
+import 'package:sparrowkaizen/features/training/data/models/seat_description_training_model.dart';
 
 void main() {
   test('assignment model reads the API id for PATCH requests', () {

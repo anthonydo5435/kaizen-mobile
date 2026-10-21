@@ -297,7 +297,7 @@ void main() {
       expect(find.text('12.50/hr'), findsOneWidget);
       expect(find.text('20.00/hr'), findsOneWidget);
       expect(find.text('LD1: Learning Designer'), findsOneWidget);
-      expect(find.text('Primary responsibilities'), findsNothing);
+      expect(find.text('Primary responsibilities'), findsOneWidget);
       expect(tester.takeException(), isNull);
     },
   );
@@ -379,6 +379,10 @@ void main() {
     await tester.pumpAndSettle();
     expect(find.byType(TextField), findsNothing);
     expect(find.byType(Dialog), findsNothing);
+    expect(find.text('Primary responsibilities'), findsOneWidget);
+    await tester.tap(find.text(AppStrings.paygradesRate).first);
+    await tester.pumpAndSettle();
+    expect(find.text('Primary responsibilities'), findsNothing);
     await tester.drag(
       find.byType(AppSwipeRevealAction).first,
       const Offset(180, 0),

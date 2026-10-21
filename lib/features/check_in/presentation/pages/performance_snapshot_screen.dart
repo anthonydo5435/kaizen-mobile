@@ -26,21 +26,16 @@ class PerformanceSnapshotScreen extends StatelessWidget {
   Widget build(BuildContext context) {
     return MultiProvider(
       providers: [
-        Provider<AuditRemoteDataSource>(
-          create: (_) => createAuditRemoteDataSource(),
-        ),
+        Provider<AuditRemoteDataSource>(create: (_) => createAuditRemoteDataSource()),
         ProxyProvider<AuditRemoteDataSource, AuditRepositoryImpl>(
-          update: (_, remoteDataSource, __) =>
-              createAuditRepository(remoteDataSource),
+          update: (_, remoteDataSource, __) => createAuditRepository(remoteDataSource),
         ),
         ProxyProvider<AuditRepositoryImpl, GetAuditOverviewUseCase>(
-          update: (_, repository, __) =>
-              createGetAuditOverviewUseCase(repository),
+          update: (_, repository, __) => createGetAuditOverviewUseCase(repository),
         ),
         ChangeNotifierProvider<PerformanceSnapshotController>(
           create: (context) =>
-              PerformanceSnapshotController(context.read<AuditRepositoryImpl>())
-                ..initialize(),
+              PerformanceSnapshotController(context.read<AuditRepositoryImpl>())..initialize(),
         ),
       ],
       child: const _PerformanceSnapshotView(),
@@ -61,22 +56,16 @@ class _PerformanceSnapshotView extends StatelessWidget {
       child: SafeArea(
         top: false,
         bottom: false,
-        child: Builder(
-          builder: (context) => _buildContent(context, controller),
-        ),
+        child: Builder(builder: (context) => _buildContent(context, controller)),
       ),
     );
   }
 
-  Widget _buildContent(
-    BuildContext context,
-    PerformanceSnapshotController controller,
-  ) {
+  Widget _buildContent(BuildContext context, PerformanceSnapshotController controller) {
     final data = controller.currentData;
     final visibleReports = controller.visibleReports;
     final showTeamReportsControls = controller.canAccessTeamReports;
-    final showSelectionTabs =
-        showTeamReportsControls && !controller.isActualOwner;
+    final showSelectionTabs = showTeamReportsControls && !controller.isActualOwner;
 
     return Column(
       children: [
@@ -98,9 +87,7 @@ class _PerformanceSnapshotView extends StatelessWidget {
             onRefresh: controller.refresh,
             child: ListView(
               controller: controller.scrollController,
-              physics: const AlwaysScrollableScrollPhysics(
-                parent: ClampingScrollPhysics(),
-              ),
+              physics: const AlwaysScrollableScrollPhysics(parent: ClampingScrollPhysics()),
               padding: EdgeInsets.fromLTRB(
                 8,
                 showSelectionTabs ? 0 : 8,
@@ -116,8 +103,7 @@ class _PerformanceSnapshotView extends StatelessWidget {
                       controller.resetSearch();
                     },
                     isSearchLoading: controller.isSearchLoading,
-                    onFilterTap: () =>
-                        _openSeatProfileFilter(context, controller),
+                    onFilterTap: () => _openSeatProfileFilter(context, controller),
                   ),
                   if (controller.selectedJobTitle != null) ...[
                     const SizedBox(height: 14),
@@ -143,23 +129,17 @@ class _PerformanceSnapshotView extends StatelessWidget {
                 else if (visibleReports.isEmpty)
                   _EmptyState(message: controller.emptyStateMessage)
                 else ...[
-                  for (
-                    var index = 0;
-                    index < visibleReports.length;
-                    index++
-                  ) ...[
+                  for (var index = 0; index < visibleReports.length; index++) ...[
                     PerformanceSnapshotCard(
                       member: visibleReports[index],
                       actionLabel: 'View',
                       onCheckInTap: () => _openReport(
                         context,
                         visibleReports[index],
-                        controller.selectedTab ==
-                            PerformanceSnapshotTab.myReports,
+                        controller.selectedTab == PerformanceSnapshotTab.myReports,
                       ),
                     ),
-                    if (index != visibleReports.length - 1)
-                      const SizedBox(height: 18),
+                    if (index != visibleReports.length - 1) const SizedBox(height: 18),
                   ],
                   if (data.isLoadingMore) ...[
                     const SizedBox(height: 18),
@@ -188,9 +168,7 @@ class _PerformanceSnapshotView extends StatelessWidget {
       backgroundColor: Colors.transparent,
       isScrollControlled: true,
       builder: (_) => Padding(
-        padding: EdgeInsets.only(
-          bottom: MediaQuery.of(context).viewInsets.bottom,
-        ),
+        padding: EdgeInsets.only(bottom: MediaQuery.of(context).viewInsets.bottom),
         child: CheckInSeatProfileFilterSheet(
           options: controller.jobOptions,
           initialValue: controller.selectedJobTitle,
@@ -213,18 +191,11 @@ class _PerformanceSnapshotView extends StatelessWidget {
     controller.setSelectedJobTitle(result);
   }
 
-  Future<void> _openReport(
-    BuildContext context,
-    AuditProfile profile,
-    bool isMyReport,
-  ) {
+  Future<void> _openReport(BuildContext context, AuditProfile profile, bool isMyReport) {
     return AppRouter.pushNamed(
       context,
       AppRouter.reports,
-      arguments: PerformanceReportRouteArgs(
-        profile: profile,
-        isMyReport: isMyReport,
-      ),
+      arguments: PerformanceReportRouteArgs(profile: profile, isMyReport: isMyReport),
     );
   }
 }
@@ -253,11 +224,7 @@ class _FilterTag extends StatelessWidget {
               InkWell(
                 onTap: onClear,
                 borderRadius: BorderRadius.circular(999),
-                child: const Icon(
-                  Icons.close_outlined,
-                  size: 14,
-                  color: AppColors.purple2,
-                ),
+                child: const Icon(Icons.close_outlined, size: 14, color: AppColors.purple2),
               ),
               const SizedBox(width: 8),
               AppTextView.body3(
@@ -275,10 +242,7 @@ class _FilterTag extends StatelessWidget {
 }
 
 class _PerformanceSnapshotTabs extends StatelessWidget {
-  const _PerformanceSnapshotTabs({
-    required this.selectedTab,
-    required this.onTabSelected,
-  });
+  const _PerformanceSnapshotTabs({required this.selectedTab, required this.onTabSelected});
 
   final PerformanceSnapshotTab selectedTab;
   final ValueChanged<PerformanceSnapshotTab> onTabSelected;

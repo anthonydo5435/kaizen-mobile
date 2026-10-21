@@ -11,7 +11,7 @@ import 'package:sparrowkaizen/core/preference/app_preference.dart';
 import 'package:sparrowkaizen/core/widgets/app_overlay_close_button.dart';
 import 'package:sparrowkaizen/core/widgets/app_gradient_action_button.dart';
 import 'package:sparrowkaizen/core/widgets/fast_circular_progress.dart';
-import 'package:sparrowkaizen/features/check_in/domain/repositories/audit_repository.dart';
+import 'package:sparrowkaizen/features/training/domain/repositories/training_library_repository.dart';
 import 'package:sparrowkaizen/features/login/domain/entities/user.dart';
 import 'package:sparrowkaizen/features/training/domain/entities/lms_public_link.dart';
 import 'package:sparrowkaizen/features/training/domain/entities/seat_description_training.dart';
@@ -173,7 +173,7 @@ void main() {
               description: 'description-id',
               initialModuleId: 'lesson-1',
             ),
-            auditRepository: _AuditRepository(),
+            trainingRepository: _TrainingLibraryRepository(),
             trainingLibraryRepository: repository,
           ),
         ),
@@ -353,7 +353,7 @@ void main() {
             category: 'category-id',
             description: 'description-id',
           ),
-          auditRepository: _AuditRepository(),
+          trainingRepository: _TrainingLibraryRepository(),
           trainingLibraryRepository: repository,
         ),
       ),
@@ -406,7 +406,8 @@ Widget _dialogApp(
   ),
 );
 
-class _AuditRepository extends Fake implements AuditRepository {
+class _TrainingLibraryRepository extends Fake
+    implements TrainingLibraryRepository {
   @override
   Future<List<SeatDescriptionTrainingModule>>
   getSeatDescriptionTrainingModules({
@@ -419,21 +420,20 @@ class _AuditRepository extends Fake implements AuditRepository {
   getSeatDescriptionTrainingModuleDetail({
     required String moduleId,
     bool forceRefresh = false,
-  }) async =>
-      SeatDescriptionTrainingModuleDetail(
-        uuid: moduleId,
-        actualId: 'parent',
-        title: 'Selected lesson',
-        thumbnails: [],
-        description: null,
-        assignmentTitle: null,
-        assignmentInstructions: null,
-        questions: [],
-        thumbnailLink: null,
-        trainingVideo: null,
-        isPubliclyAvailable: false,
-        learningTrackCount: 0,
-      );
+  }) async => SeatDescriptionTrainingModuleDetail(
+    uuid: moduleId,
+    actualId: 'parent',
+    title: 'Selected lesson',
+    thumbnails: [],
+    description: null,
+    assignmentTitle: null,
+    assignmentInstructions: null,
+    questions: [],
+    thumbnailLink: null,
+    trainingVideo: null,
+    isPubliclyAvailable: false,
+    learningTrackCount: 0,
+  );
 
   @override
   Future<SeatDescriptionTrainingDocument>

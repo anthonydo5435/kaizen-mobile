@@ -14,6 +14,7 @@ import '../../../../core/widgets/app_text_view.dart';
 import '../../../../core/widgets/fast_circular_progress.dart';
 import '../pages/training/compliance_full_screen_video_view.dart';
 import '../providers/compliance_video_controller.dart';
+import 'compliance_video_playback_controls.dart';
 
 class ComplianceVideoPlayer extends StatefulWidget {
   static const bottomControlsInset = 30.0;
@@ -762,15 +763,19 @@ class _ComplianceVideoPlayerState extends State<ComplianceVideoPlayer>
       thumbnailUrl,
       key: _thumbnailKey,
       fit: widget.fillBounds ? BoxFit.contain : BoxFit.cover,
-      alignment: widget.fillBounds ? Alignment.topCenter : widget.mediaAlignment,
+      alignment: widget.fillBounds ? Alignment.center : widget.mediaAlignment,
       frameBuilder: (context, child, frame, wasSynchronouslyLoaded) {
         if (frame != null && widget.onVideoBoundsChanged != null) {
-          WidgetsBinding.instance.addPostFrameCallback((_) => _reportVideoBounds());
+          WidgetsBinding.instance.addPostFrameCallback(
+            (_) => _reportVideoBounds(),
+          );
         }
         return child;
       },
-      errorBuilder: (context, error, stackTrace) =>
-          const ColoredBox(key: ValueKey('video-loading-background'), color: Colors.black),
+      errorBuilder: (context, error, stackTrace) => const ColoredBox(
+        key: ValueKey('video-loading-background'),
+        color: Colors.black,
+      ),
     );
     return KeyedSubtree(
       key: const ValueKey('video-thumbnail-preview'),
@@ -783,8 +788,12 @@ class _ComplianceVideoPlayerState extends State<ComplianceVideoPlayer>
     final frame = _videoFrameKey.currentContext?.findRenderObject();
     if (frame is! RenderBox || !frame.hasSize) return;
     final showThumbnail =
-        _showThumbnailPreview && _hasThumbnail && _initializationError == null && _controller?.value.isPlaying != true;
-    var media = (showThumbnail ? _thumbnailKey : _videoKey).currentContext?.findRenderObject();
+        _showThumbnailPreview &&
+        _hasThumbnail &&
+        _initializationError == null &&
+        _controller?.value.isPlaying != true;
+    var media = (showThumbnail ? _thumbnailKey : _videoKey).currentContext
+        ?.findRenderObject();
     // Image wraps its painted image in a semantics render object.
     if (showThumbnail) {
       while (media is RenderProxyBox) {
@@ -797,28 +806,42 @@ class _ComplianceVideoPlayerState extends State<ComplianceVideoPlayer>
       return;
     }
     var visibleBounds = Offset.zero & media.size;
-    if (showThumbnail && media is RenderImage) {
+    // Keep the preview viewport fixed even when its centered image has black bands.
+    if (showThumbnail && !widget.fillBounds && media is RenderImage) {
       final image = media.image;
       if (image == null) {
         // Use the laid-out action row even while the thumbnail is decoding.
-        final fitted = applyBoxFit(BoxFit.contain, const Size(16, 9), media.size);
-        final previewBounds = Alignment.topCenter.inscribe(fitted.destination, visibleBounds);
-        widget.onVideoBoundsChanged?.call(MatrixUtils.transformRect(media.getTransformTo(frame), previewBounds));
+        final fitted = applyBoxFit(
+          BoxFit.contain,
+          const Size(16, 9),
+          media.size,
+        );
+        final previewBounds = Alignment.topCenter.inscribe(
+          fitted.destination,
+          visibleBounds,
+        );
+        widget.onVideoBoundsChanged?.call(
+          MatrixUtils.transformRect(media.getTransformTo(frame), previewBounds),
+        );
         return;
       }
-      // The image widget includes letterboxing; measure its painted image instead.
       final fitted = applyBoxFit(
-        widget.fillBounds ? BoxFit.contain : BoxFit.cover,
+        BoxFit.cover,
         Size(image.width.toDouble(), image.height.toDouble()),
         media.size,
       );
-      visibleBounds = (widget.fillBounds ? Alignment.topCenter : widget.mediaAlignment).inscribe(
+      visibleBounds = widget.mediaAlignment.inscribe(
         fitted.destination,
         visibleBounds,
       );
     }
-    final bounds = MatrixUtils.transformRect(media.getTransformTo(frame), visibleBounds);
-    widget.onVideoBoundsChanged?.call(bounds.intersect(Offset.zero & frame.size));
+    final bounds = MatrixUtils.transformRect(
+      media.getTransformTo(frame),
+      visibleBounds,
+    );
+    widget.onVideoBoundsChanged?.call(
+      bounds.intersect(Offset.zero & frame.size),
+    );
   }
 
   Widget _buildOverlay({
@@ -832,25 +855,12 @@ class _ComplianceVideoPlayerState extends State<ComplianceVideoPlayer>
     bool includeTopControls = true,
   }) {
     final playbackControls = _buildPlaybackControlsVisibility(
-      child: Row(
-        mainAxisAlignment: MainAxisAlignment.center,
-        children: [
-          _CircleIconButton(
-            icon: Icons.replay_10_rounded,
-            onTap: isReady ? () => _seekBy(const Duration(seconds: -10)) : null,
-          ),
-          const SizedBox(width: 8),
-          _PlayButton(
-            isLoading: isLoading,
-            isPlaying: controllerValue?.isPlaying ?? false,
-            onTap: initializationError != null ? null : _togglePlayback,
-          ),
-          const SizedBox(width: 8),
-          _CircleIconButton(
-            icon: Icons.forward_10_rounded,
-            onTap: isReady ? () => _seekBy(const Duration(seconds: 10)) : null,
-          ),
-        ],
+      child: ComplianceVideoPlaybackControls(
+        isLoading: isLoading,
+        isPlaying: controllerValue?.isPlaying ?? false,
+        onTogglePlayback: initializationError != null ? null : _togglePlayback,
+        onSkipBackward: isReady ? () => _seekBy(const Duration(seconds: -10)) : null,
+        onSkipForward: isReady ? () => _seekBy(const Duration(seconds: 10)) : null,
       ),
     );
     return Stack(
@@ -1120,19 +1130,34 @@ class _VideoMediaLayoutDelegate extends MultiChildLayoutDelegate {
   void performLayout(Size size) {
     final controlsSize = layoutChild(
       _VideoMediaSlot.topControls,
-      BoxConstraints.loose(Size((size.width - 20).clamp(0, double.infinity), size.height)),
+      BoxConstraints.loose(
+        Size((size.width - 20).clamp(0, double.infinity), size.height),
+      ),
     );
-    positionChild(_VideoMediaSlot.topControls, Offset(size.width - controlsSize.width - 10, topControlsInset));
+    positionChild(
+      _VideoMediaSlot.topControls,
+      Offset(size.width - controlsSize.width - 10, topControlsInset),
+    );
     final mediaBounds = ComplianceVideoPlayer.previewMediaBounds(
       size,
       alignment: mediaAlignment,
-      mediaSize: showThumbnail ? const Size(16, 9) : videoSize,
+      mediaSize: videoSize,
       minimumTop: topControlsInset + controlsSize.height + 6,
     );
-    final mediaHeight = showThumbnail ? size.height - mediaBounds.top : mediaBounds.height;
-    layoutChild(_VideoMediaSlot.media, BoxConstraints.tight(Size(size.width, mediaHeight)));
-    positionChild(_VideoMediaSlot.media, Offset(0, mediaBounds.top));
-    layoutChild(_VideoMediaSlot.overlay, BoxConstraints.tight(Size(size.width, mediaBounds.height)));
+    // Constrain thumbnails to the playback viewport regardless of image dimensions.
+    final mediaWidth = showThumbnail ? mediaBounds.width : size.width;
+    layoutChild(
+      _VideoMediaSlot.media,
+      BoxConstraints.tight(Size(mediaWidth, mediaBounds.height)),
+    );
+    positionChild(
+      _VideoMediaSlot.media,
+      Offset(showThumbnail ? mediaBounds.left : 0, mediaBounds.top),
+    );
+    layoutChild(
+      _VideoMediaSlot.overlay,
+      BoxConstraints.tight(Size(size.width, mediaBounds.height)),
+    );
     positionChild(_VideoMediaSlot.overlay, Offset(0, mediaBounds.top));
   }
 
@@ -1142,48 +1167,4 @@ class _VideoMediaLayoutDelegate extends MultiChildLayoutDelegate {
       videoSize != oldDelegate.videoSize ||
       mediaAlignment != oldDelegate.mediaAlignment ||
       topControlsInset != oldDelegate.topControlsInset;
-}
-
-class _CircleIconButton extends StatelessWidget {
-  const _CircleIconButton({required this.icon, required this.onTap});
-
-  final IconData icon;
-  final VoidCallback? onTap;
-  static const double _diameter = 36;
-
-  @override
-  Widget build(BuildContext context) {
-    return GestureDetector(
-      onTap: onTap,
-      child: Container(
-        width: _diameter,
-        height: _diameter,
-        decoration: BoxDecoration(color: Colors.black.withValues(alpha: 0.35), shape: BoxShape.circle),
-        child: Icon(icon, color: onTap == null ? AppColors.grey1 : AppColors.textPrimary, size: _diameter * 0.7),
-      ),
-    );
-  }
-}
-
-class _PlayButton extends StatelessWidget {
-  const _PlayButton({required this.isLoading, required this.isPlaying, required this.onTap});
-
-  final bool isLoading;
-  final bool isPlaying;
-  final VoidCallback? onTap;
-
-  @override
-  Widget build(BuildContext context) {
-    return GestureDetector(
-      onTap: onTap,
-      child: Container(
-        width: 52,
-        height: 52,
-        decoration: const BoxDecoration(color: AppColors.secondaryColor, shape: BoxShape.circle),
-        child: isLoading
-            ? FastCircularProgressIndicator(width: 24, height: 24)
-            : Icon(isPlaying ? Icons.pause_rounded : Icons.play_arrow_rounded, color: AppColors.textPrimary, size: 42),
-      ),
-    );
-  }
 }

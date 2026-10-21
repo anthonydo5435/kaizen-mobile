@@ -4,8 +4,8 @@ import 'package:shared_preferences/shared_preferences.dart';
 import 'package:sparrowkaizen/core/network/api_processor.dart';
 import 'package:sparrowkaizen/core/preference/app_preference.dart';
 import 'package:sparrowkaizen/core/services/file_uploader.dart';
-import 'package:sparrowkaizen/features/check_in/data/datasources/audit_remote_data_source.dart';
-import 'package:sparrowkaizen/features/check_in/data/repositories/audit_repository_impl.dart';
+import 'package:sparrowkaizen/features/training/data/datasources/training_library_remote_data_source.dart';
+import 'package:sparrowkaizen/features/training/data/repositories/training_library_repository_impl.dart';
 import 'package:sparrowkaizen/features/training/domain/entities/seat_description_training.dart';
 
 const _imageId = 'f2a25f92-c7a0-4f0d-8e48-d97b3ee83c20';
@@ -18,14 +18,14 @@ const _options = [
 void main() {
   TestWidgetsFlutterBinding.ensureInitialized();
   late _QuestionApi api;
-  late AuditRepositoryImpl repository;
+  late TrainingLibraryRepositoryImpl repository;
 
   setUp(() async {
     SharedPreferences.setMockInitialValues({});
     await AppPreference.init();
     api = _QuestionApi();
-    repository = AuditRepositoryImpl(
-      AuditRemoteDataSource(apiCallExecutor: api, fileUploader: _ImageUploader()),
+    repository = TrainingLibraryRepositoryImpl(
+      TrainingLibraryRemoteDataSource(apiCallExecutor: api, fileUploader: _ImageUploader()),
     );
   });
 

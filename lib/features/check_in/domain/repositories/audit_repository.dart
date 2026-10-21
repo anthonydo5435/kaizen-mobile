@@ -1,4 +1,5 @@
 import '../entities/audit_description_audit.dart';
+import '../entities/description_comments_response.dart';
 import '../entities/audit_details.dart';
 import '../entities/audit_evaluation_chart.dart';
 import '../entities/audit_list.dart';
@@ -9,7 +10,6 @@ import '../entities/performance_report.dart';
 import '../entities/quarterly_audit.dart';
 import '../entities/seat_description_audit_report_comments.dart';
 import '../entities/seat_description_final_audit_report.dart';
-import '../../../training/domain/entities/seat_description_training.dart';
 import '../entities/single_audit_report_category_details.dart';
 
 abstract class AuditRepository {
@@ -149,140 +149,6 @@ abstract class AuditRepository {
     String? timeRange,
   });
 
-  Future<List<SeatDescriptionTrainingModule>>
-  getSeatDescriptionTrainingModules({
-    required String descriptionId,
-    bool forceRefresh = false,
-  });
-
-  Future<SeatDescriptionTrainingModule> createSeatDescriptionTrainingModule({
-    required String jobId,
-    required String descriptionId,
-    required String title,
-  });
-
-  Future<SeatDescriptionTrainingModuleDetail>
-  getSeatDescriptionTrainingModuleDetail({
-    required String moduleId,
-    bool forceRefresh = false,
-  });
-
-  Future<SeatDescriptionTrainingDocument>
-  getSeatDescriptionTrainingModuleDocument({required String moduleId});
-
-  Future<SeatDescriptionTrainingAssignment>
-  getSeatDescriptionTrainingModuleAssignment({required String moduleId});
-
-  Future<List<SeatDescriptionTrainingQuestion>>
-  getSeatDescriptionTrainingModuleQuestions({required String moduleId});
-
-  Future<SeatDescriptionTrainingQuestion> addSeatDescriptionTrainingQuestion({
-    required String moduleId,
-    required String questionText,
-    required List<SeatDescriptionTrainingQuestionOption> options,
-    required String correctOptionUuid,
-    String? imageId,
-  });
-
-  /// Returns the uploaded image UUID to attach when creating a quiz question.
-  Future<String> uploadTrainingQuestionImage({
-    required String fileName,
-    required List<int> fileBytes,
-    required String contentType,
-  });
-
-  Future<void> generateSeatDescriptionTrainingModuleQuiz({
-    required String moduleId,
-    required int numQuestions,
-    required int optionsPerQuestion,
-    required String difficultyLevel,
-    required bool replaceExistingQuestions,
-  });
-
-  Future<void> generateSeatDescriptionTrainingModuleSop({
-    required String moduleId,
-  });
-
-  Future<void> generateSeatDescriptionTrainingModuleAssignment({
-    required String moduleId,
-  });
-
-  Future<String?> generateSeatDescriptionTrainingModuleSummary({
-    required String moduleId,
-  });
-
-  Future<void> updateSeatDescriptionTrainingModule({
-    required String moduleId,
-    String? title,
-    String? description,
-  });
-
-  Future<void> updateSeatDescriptionTrainingModuleSummary({
-    required String moduleId,
-    required String description,
-    required bool isPubliclyAvailable,
-  });
-
-  Future<void> updateSeatDescriptionTrainingModuleVisibility({
-    required String moduleId,
-    required bool isPubliclyAvailable,
-  });
-
-  Future<void> updateSeatDescriptionTrainingModuleDocument({
-    required String moduleId,
-    required String documentId,
-    required String text,
-  });
-
-  Future<void> updateSeatDescriptionTrainingModuleAssignment({
-    required String moduleId,
-    String? assignmentId,
-    String? title,
-    required String instructions,
-  });
-
-  Future<String> generateSeatDescriptionTrainingModuleVideoUploadUrl({
-    required String fileName,
-  });
-
-  Future<void> uploadSeatDescriptionTrainingModuleVideoFile({
-    required String uploadUrl,
-    required String fileName,
-    required List<int> fileBytes,
-    required String contentType,
-  });
-
-  Future<SeatDescriptionTrainingVideo> addSeatDescriptionTrainingModuleVideo({
-    required String moduleId,
-    required String videoUuid,
-    required String title,
-    required String videoUrl,
-    required int duration,
-  });
-
-  Future<void> deleteSeatDescriptionTrainingModuleVideo({
-    required String videoId,
-  });
-
-  Future<void> updateSeatDescriptionTrainingModuleThumbnail({
-    required String moduleId,
-    required String thumbnailUrl,
-  });
-
-  Future<void> deleteSeatDescriptionTrainingModule({required String moduleId});
-
-  Future<SeatDescriptionTrainingQuestion>
-  updateSeatDescriptionTrainingQuestion({
-    required String questionId,
-    required String questionText,
-    required List<SeatDescriptionTrainingQuestionOption> options,
-    String? correctOptionUuid,
-  });
-
-  Future<void> deleteSeatDescriptionTrainingQuestion({
-    required String questionId,
-  });
-
   Future<QuarterlyAudit> getQuarterlyAudit({
     required String quarterlyAuditId,
     required String date,
@@ -322,6 +188,18 @@ abstract class AuditRepository {
     required String mediaUrl,
     required String mediaType,
   });
+
+  Future<DescriptionCommentsResponse> getDescriptionComments({
+    required String auditMediaId,
+  });
+
+  Future<CommentAdditionResponse> addComment({
+    required String auditMediaId,
+    required String comment,
+    String? parent,
+  });
+
+  Future<void> deleteAuditMedia({required String auditMediaId});
 
   Future<void> createAuditDescriptionComment({
     required String descriptionId,

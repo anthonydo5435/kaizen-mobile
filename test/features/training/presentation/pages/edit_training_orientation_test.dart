@@ -20,6 +20,7 @@ import 'package:sparrowkaizen/features/compliance/presentation/widgets/complianc
 import 'package:sparrowkaizen/features/login/domain/entities/user.dart';
 import 'package:sparrowkaizen/features/training/domain/entities/seat_description_training_route.dart';
 import 'package:sparrowkaizen/features/training/presentation/controllers/training_module_controller.dart';
+import 'package:sparrowkaizen/features/training/presentation/controllers/training_sop_engine_controller.dart';
 import 'package:sparrowkaizen/features/training/presentation/pages/edit_training_screen.dart';
 import 'package:sparrowkaizen/features/training/presentation/widgets/training_sop_document_view.dart';
 import 'package:video_player/video_player.dart';
@@ -324,6 +325,7 @@ void main() {
       await tester.pumpAndSettle();
       expect(tester.widget<TrainingTabs>(find.byType(TrainingTabs)).navigation.selectedIndex, 1);
       expect(find.byType(TrainingSopDocumentView), findsOneWidget);
+      expect(find.byTooltip(AppStrings.trainingViewSopPdf), findsNothing);
       await closeTraining(tester);
     }, () => client);
   });
@@ -458,18 +460,61 @@ void main() {
       await tester.pump(const Duration(milliseconds: 350));
       await tester.pump();
       expect(find.byType(TrainingSopDocumentView), findsOneWidget);
+      final navigation = tester.widget<TrainingTabs>(find.byType(TrainingTabs)).navigation;
       final editor = sop.editors.single;
       await tester.tap(find.byTooltip(AppStrings.trainingBoldAction));
       await tester.pump();
       await rotate(tester, landscape);
       expect(find.byType(ComplianceFullScreenVideoView), findsNothing);
       expect(tester.getSize(find.byType(Scaffold).first), landscape);
-      expect(tester.widget<TrainingTabs>(find.byType(TrainingTabs)).navigation.selectedIndex, 1);
+      expect(find.byType(TrainingTabs), findsNothing);
+      expect(find.text(AppStrings.training), findsNothing);
+      expect(find.text(AppStrings.trainingCreateSop), findsNothing);
+      expect(find.text(AppStrings.trainingCreateWithAi), findsNothing);
+      expect(editor.preventTapCursor, isTrue);
+      expect(find.byTooltip(AppStrings.trainingViewSopPdf), findsNothing);
+      expect(tester.getRect(find.byType(PageView)).top, 0);
+      expect(navigation.selectedIndex, 1);
+      expect(tester.getRect(find.byType(PageView)).bottom, landscape.height);
       expect(sop.editors.single, same(editor));
       expect(editor.disposed, isFalse);
       expect(editor.html, '<p><strong>Procedure</strong></p>');
       expect(writes, hasLength(1));
+      final documentHeight = tester.getSize(find.byType(TrainingSopDocumentView)).height;
+      expect(documentHeight, landscape.height);
+      expect(find.byTooltip(AppStrings.trainingBoldAction), findsNothing);
+      expect(find.byTooltip(AppStrings.done), findsNothing);
+      final exit = find.byKey(const ValueKey('sop-exit-fullscreen-button'));
+      final icon = tester.widget<Icon>(find.descendant(of: exit, matching: find.byType(Icon)));
+      expect(icon.icon, Icons.fullscreen_exit_rounded);
+      expect(icon.color, Colors.white);
+      expect(exit.hitTestable(), findsOneWidget);
+      const landscapeInsets = FakeViewPadding(left: 44, right: 44, bottom: 21);
+      tester.view.padding = landscapeInsets;
+      tester.view.viewPadding = landscapeInsets;
+      await tester.pumpAndSettle();
+      expect(tester.getSize(find.byType(TrainingSopDocumentView)).height, documentHeight);
+      editor.emitInteraction(TrainingSopInteraction.scroll);
+      await tester.pumpAndSettle();
+      expect(find.byTooltip(AppStrings.trainingBoldAction), findsNothing);
+      expect(tester.getSize(find.byType(TrainingSopDocumentView)).height, documentHeight);
+      editor.emitInteraction(TrainingSopInteraction.tap);
+      await tester.pumpAndSettle();
+      expect(find.byTooltip(AppStrings.trainingBoldAction), findsNothing);
+      expect(tester.getSize(find.byType(TrainingSopDocumentView)).height, documentHeight);
+      expect(sop.editors.single, same(editor));
+      expect(writes, hasLength(1));
+      tester.view.resetPadding();
+      tester.view.resetViewPadding();
       await rotate(tester, portrait);
+      expect(editor.preventTapCursor, isFalse);
+      expect(find.byTooltip(AppStrings.trainingViewSopPdf), findsNothing);
+      expect(exit, findsNothing);
+      expect(find.byTooltip(AppStrings.trainingBoldAction), findsOneWidget);
+      expect(find.text(AppStrings.training), findsOneWidget);
+      expect(find.text(AppStrings.trainingCreateSop), findsOneWidget);
+      expect(find.byType(TrainingTabs), findsOneWidget);
+      expect(tester.widget<TrainingTabs>(find.byType(TrainingTabs)).navigation, same(navigation));
       await tester.tap(_tab(AppStrings.trainingQuizTab));
       await tester.pump();
       await tester.pump(const Duration(milliseconds: 350));
@@ -479,6 +524,119 @@ void main() {
       await tester.pump(const Duration(milliseconds: 350));
       expect(orientations.last, rotationAllowed);
       expect(fullscreen, isEmpty);
+      await closeTraining(tester);
+    }, () => client);
+  });
+
+  testWidgets('SOP landscape cancels tab drags and restores swipes only in portrait', (
+    tester,
+  ) async {
+    await http.runWithClient(() async {
+      await openTraining(tester);
+      await tester.tap(_tab(AppStrings.trainingSopTab));
+      await tester.pumpAndSettle();
+      final navigation = tester.widget<TrainingTabs>(find.byType(TrainingTabs)).navigation;
+      final pageController = tester.widget<PageView>(find.byType(PageView)).controller!;
+      final editor = sop.editors.single;
+
+      final gesture = await tester.startGesture(const Offset(280, 280));
+      await gesture.moveBy(const Offset(-24, 0));
+      await gesture.moveBy(const Offset(-100, 0));
+      await tester.pump();
+      expect(pageController.page, inExclusiveRange(1, 2));
+      expect(navigation.selectedIndex, 1);
+
+      await rotate(tester, landscape);
+      await gesture.moveBy(const Offset(-500, 0));
+      await gesture.up();
+      await tester.pumpAndSettle();
+      expect(pageController.page, 1);
+      expect(navigation.selectedIndex, 1);
+
+      for (final direction in [-1.0, 1.0]) {
+        await tester.dragFrom(const Offset(422, 120), Offset(direction * 500, 0));
+        await tester.pumpAndSettle();
+        expect(pageController.page, 1);
+        expect(navigation.selectedIndex, 1);
+        expect(sop.editors.single, same(editor));
+        expect(editor.disposed, isFalse);
+      }
+
+      await rotate(tester, portrait);
+      await tester.dragFrom(const Offset(280, 280), const Offset(-300, 0));
+      await tester.pumpAndSettle();
+      expect(navigation.selectedIndex, 2);
+      expect(pageController.page, 2);
+      await tester.dragFrom(const Offset(100, 280), const Offset(300, 0));
+      await tester.pumpAndSettle();
+      expect(navigation.selectedIndex, 1);
+      expect(pageController.page, 1);
+      expect(find.byType(TrainingSopDocumentView), findsOneWidget);
+      await closeTraining(tester);
+    }, () => client);
+  });
+
+  testWidgets('SOP exit icon returns to portrait without replacing the editor or losing edits', (
+    tester,
+  ) async {
+    await http.runWithClient(() async {
+      await openTraining(tester);
+      await tester.tap(_tab(AppStrings.trainingSopTab));
+      await tester.pumpAndSettle();
+      final editor = sop.editors.single;
+      final navigation = tester.widget<TrainingTabs>(find.byType(TrainingTabs)).navigation;
+      final initialPushes = navigationObserver.pushes;
+      await tester.tap(find.byTooltip(AppStrings.trainingBoldAction));
+      await tester.pump();
+
+      for (var repeat = 0; repeat < 2; repeat++) {
+        await rotate(tester, landscape);
+        final exit = find.byKey(const ValueKey('sop-exit-fullscreen-button'));
+        expect(exit.hitTestable(), findsOneWidget);
+        expect(find.byTooltip(AppStrings.trainingBoldAction), findsNothing);
+        await tester.tap(exit);
+        await tester.pumpAndSettle();
+        expect(orientations.last, ['DeviceOrientation.portraitUp']);
+        expect(portraitWait?.isCompleted, isFalse);
+
+        tester.view.physicalSize = portrait;
+        await tester.pumpAndSettle();
+        expect(exit, findsNothing);
+        expect(find.byTooltip(AppStrings.trainingBoldAction), findsOneWidget);
+        expect(tester.widget<TrainingTabs>(find.byType(TrainingTabs)).navigation, same(navigation));
+        expect(navigation.selectedIndex, 1);
+        expect(orientations.last, ['DeviceOrientation.portraitUp']);
+        expect(physicalDevicePortrait, isFalse);
+        expect(sop.editors.single, same(editor));
+        expect(editor.html, '<p><strong>Procedure</strong></p>');
+        expect(writes, hasLength(1));
+
+        await rotate(tester, portrait);
+        expect(orientations.last, rotationAllowed);
+        expect(navigationObserver.pushes, initialPushes);
+      }
+      expect(portraitWaitRequests, 2);
+      await closeTraining(tester);
+    }, () => client);
+  });
+
+  testWidgets('leaving SOP cancels its pending physical portrait wait', (tester) async {
+    await http.runWithClient(() async {
+      await openTraining(tester);
+      await tester.tap(_tab(AppStrings.trainingSopTab));
+      await tester.pumpAndSettle();
+      await rotate(tester, landscape);
+      await tester.tap(find.byKey(const ValueKey('sop-exit-fullscreen-button')));
+      await tester.pumpAndSettle();
+      expect(portraitWait?.isCompleted, isFalse);
+      tester.view.physicalSize = portrait;
+      await tester.pumpAndSettle();
+      await tester.tap(_tab(AppStrings.trainingVideoTab));
+      await tester.pump();
+      await tester.pump(const Duration(milliseconds: 350));
+      expect(portraitWaitCancellations, 1);
+      expect(portraitWait, isNull);
+      expect(orientations.last, rotationAllowed);
       await closeTraining(tester);
     }, () => client);
   });

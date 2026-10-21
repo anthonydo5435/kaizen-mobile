@@ -11,17 +11,14 @@ import '../../../../core/managers/app_manager.dart';
 import '../../../../core/widgets/app_text_view.dart';
 import '../../../../core/widgets/fast_circular_progress.dart';
 import '../../../../routes/app_router.dart';
-import '../../../check_in/data/datasources/audit_remote_data_source.dart';
-import '../../../check_in/data/repositories/audit_repository_impl.dart';
-import '../../../check_in/domain/repositories/audit_repository.dart';
-import '../../data/datasources/shared_lms_remote_data_source.dart';
 import '../../data/datasources/training_library_remote_data_source.dart';
-import '../../data/repositories/shared_lms_repository_impl.dart';
 import '../../data/repositories/training_library_repository_impl.dart';
+import '../../domain/repositories/training_library_repository.dart';
+import '../../data/datasources/shared_lms_remote_data_source.dart';
+import '../../data/repositories/shared_lms_repository_impl.dart';
 import '../../domain/entities/seat_description_training.dart';
 import '../../domain/entities/seat_description_training_route.dart';
 import '../../domain/repositories/shared_lms_repository.dart';
-import '../../domain/repositories/training_library_repository.dart';
 import '../controllers/training_module_controller.dart';
 import '../controllers/training_share_controller.dart';
 import '../controllers/training_tab_navigation_controller.dart';
@@ -58,18 +55,18 @@ class TrainingLessonViewerScreen extends StatelessWidget {
   const TrainingLessonViewerScreen({
     super.key,
     required this.trainingRoute,
-    this.auditRepository,
+    this.trainingRepository,
     this.trainingLibraryRepository,
   });
 
   final SeatDescriptionTrainingRoute trainingRoute;
-  final AuditRepository? auditRepository;
+  final TrainingLibraryRepository? trainingRepository;
   final TrainingLibraryRepository? trainingLibraryRepository;
 
   @override
   Widget build(BuildContext context) => _LessonViewerScope.training(
     trainingRoute: trainingRoute,
-    auditRepository: auditRepository,
+    trainingRepository: trainingRepository,
     trainingLibraryRepository: trainingLibraryRepository,
   );
 }
@@ -77,7 +74,7 @@ class TrainingLessonViewerScreen extends StatelessWidget {
 class _LessonViewerScope extends StatelessWidget {
   const _LessonViewerScope.training({
     required this.trainingRoute,
-    required this.auditRepository,
+    required this.trainingRepository,
     required this.trainingLibraryRepository,
   }) : sharedContentId = null,
        sharedLessonId = null,
@@ -88,33 +85,28 @@ class _LessonViewerScope extends StatelessWidget {
     required this.sharedLessonId,
     required this.sharedLmsRepository,
   }) : trainingRoute = null,
-       auditRepository = null,
+       trainingRepository = null,
        trainingLibraryRepository = null;
 
   final SeatDescriptionTrainingRoute? trainingRoute;
   final String? sharedContentId;
   final String? sharedLessonId;
   final SharedLmsRepository? sharedLmsRepository;
-  final AuditRepository? auditRepository;
+  final TrainingLibraryRepository? trainingRepository;
   final TrainingLibraryRepository? trainingLibraryRepository;
 
   @override
   Widget build(BuildContext context) {
     return MultiProvider(
       providers: [
-        Provider<AuditRemoteDataSource>(create: (_) => AuditRemoteDataSource()),
-        ProxyProvider<AuditRemoteDataSource, AuditRepositoryImpl>(
-          update: (_, remoteDataSource, __) =>
-              AuditRepositoryImpl(remoteDataSource),
+        Provider<TrainingLibraryRepository>(
+          create: (_) =>
+              trainingLibraryRepository ??
+              trainingRepository ??
+              createTrainingLibraryRepository(
+                createTrainingLibraryRemoteDataSource(),
+              ),
         ),
-        if (trainingRoute != null)
-          Provider<TrainingLibraryRepository>(
-            create: (_) =>
-                trainingLibraryRepository ??
-                createTrainingLibraryRepository(
-                  createTrainingLibraryRemoteDataSource(),
-                ),
-          ),
         if (trainingRoute != null)
           ChangeNotifierProvider<TrainingShareController>(
             lazy: false,
@@ -143,7 +135,7 @@ class _LessonViewerScope extends StatelessWidget {
                       context.read<SharedLmsRepositoryImpl>())
                 : null;
             final controller = TrainingModuleController(
-              auditRepository ?? context.read<AuditRepositoryImpl>(),
+              trainingRepository ?? context.read<TrainingLibraryRepository>(),
               canManageTraining: false,
               sharedLessonDetailLoader: sharedRepository == null
                   ? null
