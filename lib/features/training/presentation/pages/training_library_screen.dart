@@ -5,13 +5,11 @@ import '../../../../core/managers/app_manager.dart';
 import '../../../../core/navigation/app_menu_type.dart';
 import '../../../../core/navigation/main_navigation_controller.dart';
 import '../../../../routes/app_router.dart';
-import '../../../check_in/data/datasources/audit_remote_data_source.dart';
-import '../../../check_in/data/repositories/audit_repository_impl.dart';
+import '../../data/datasources/training_library_remote_data_source.dart';
+import '../../data/repositories/training_library_repository_impl.dart';
 import '../../../seat_profile/data/datasources/seat_profile_remote_data_source.dart';
 import '../../../seat_profile/data/repositories/seat_profile_repository_impl.dart';
 import '../../../seat_profile/domain/usecases/get_seat_profiles_usecase.dart';
-import '../../data/datasources/training_library_remote_data_source.dart';
-import '../../data/repositories/training_library_repository_impl.dart';
 import '../../domain/usecases/get_training_library_modules_usecase.dart';
 import '../controllers/training_library_controller.dart';
 import '../widgets/training_library_content.dart';
@@ -62,7 +60,7 @@ class TrainingLibraryScreen extends StatelessWidget {
             onNavigationBarsVisibilityChanged: (visible) => context
                 .read<MainNavigationController?>()
                 ?.setNavigationBarsVisible(AppMenuType.library, visible),
-            auditRepository: AuditRepositoryImpl(AuditRemoteDataSource()),
+            trainingRepository: context.read<TrainingLibraryRepositoryImpl>(),
             canManageSeatTraining: (seatId) =>
                 AppManager.instance.canCurrentUserManageTrainingForSeatProfile(
                   seatProfileId: seatId,

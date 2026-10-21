@@ -1,7 +1,7 @@
 import 'dart:async';
 
 import 'package:flutter_test/flutter_test.dart';
-import 'package:sparrowkaizen/features/check_in/domain/repositories/audit_repository.dart';
+import 'package:sparrowkaizen/features/training/domain/repositories/training_library_repository.dart';
 import 'package:sparrowkaizen/features/training/domain/entities/seat_description_training.dart';
 import 'package:sparrowkaizen/features/training/presentation/controllers/training_module_controller.dart';
 
@@ -49,30 +49,24 @@ void main() {
     expect(repository.createRequests, 1);
   });
 
-  test(
-    'Create entry loads the existing lesson when the description has lessons',
-    () async {
-      final detailRequests = repository.detailRequests;
+  test('Create entry loads the existing lesson when the description has lessons', () async {
+    final detailRequests = repository.detailRequests;
 
-      await controller.initialize(
-        jobId: 'seat',
-        descriptionId: 'description',
-        startNewLessonWhenEmpty: true,
-      );
+    await controller.initialize(
+      jobId: 'seat',
+      descriptionId: 'description',
+      startNewLessonWhenEmpty: true,
+    );
 
-      expect(controller.isCreatingNewLessonDraft, isFalse);
-      expect(controller.modules, hasLength(2));
-      expect(controller.selectedModuleId, 'first');
-      expect(controller.selectedModuleDetail?.uuid, 'first');
-      expect(repository.detailRequests, detailRequests + 1);
-    },
-  );
+    expect(controller.isCreatingNewLessonDraft, isFalse);
+    expect(controller.modules, hasLength(2));
+    expect(controller.selectedModuleId, 'first');
+    expect(controller.selectedModuleDetail?.uuid, 'first');
+    expect(repository.detailRequests, detailRequests + 1);
+  });
 
   test('read-only Create entry loads the lesson without editing controls', () async {
-    final readOnly = TrainingModuleController(
-      repository,
-      canManageTraining: false,
-    );
+    final readOnly = TrainingModuleController(repository, canManageTraining: false);
     addTearDown(readOnly.dispose);
 
     await readOnly.initialize(
@@ -89,10 +83,7 @@ void main() {
 
   test('read-only Create entry cannot draft an empty description', () async {
     repository.modules.clear();
-    final readOnly = TrainingModuleController(
-      repository,
-      canManageTraining: false,
-    );
+    final readOnly = TrainingModuleController(repository, canManageTraining: false);
     addTearDown(readOnly.dispose);
 
     await readOnly.initialize(
@@ -214,7 +205,7 @@ SeatDescriptionTrainingModule _lesson(String id) => SeatDescriptionTrainingModul
   isPubliclyAvailable: false,
 );
 
-class _DraftRepository extends Fake implements AuditRepository {
+class _DraftRepository extends Fake implements TrainingLibraryRepository {
   final modules = [_lesson('first'), _lesson('second')];
   int createRequests = 0;
   int detailRequests = 0;

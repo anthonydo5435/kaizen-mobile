@@ -2,7 +2,7 @@ import 'dart:async';
 
 import 'package:flutter_test/flutter_test.dart';
 import 'package:sparrowkaizen/core/constants/app_strings.dart';
-import 'package:sparrowkaizen/features/check_in/domain/repositories/audit_repository.dart';
+import 'package:sparrowkaizen/features/training/domain/repositories/training_library_repository.dart';
 import 'package:sparrowkaizen/features/training/domain/entities/seat_description_training.dart';
 import 'package:sparrowkaizen/features/training/presentation/controllers/training_module_controller.dart';
 
@@ -340,7 +340,7 @@ void main() {
   });
 }
 
-class _DocumentRepository extends Fake implements AuditRepository {
+class _DocumentRepository extends Fake implements TrainingLibraryRepository {
   final requests = <Completer<SeatDescriptionTrainingDocument>>[];
   final writes = <Map<String, String>>[];
   Future<void>? nextSave;

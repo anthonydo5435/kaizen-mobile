@@ -6,14 +6,13 @@ import 'package:sparrowkaizen/core/constants/app_strings.dart';
 import 'package:sparrowkaizen/core/widgets/app_button.dart';
 import 'package:sparrowkaizen/core/widgets/app_overlay_close_button.dart';
 import 'package:sparrowkaizen/core/widgets/fast_circular_progress.dart';
-import 'package:sparrowkaizen/features/check_in/domain/repositories/audit_repository.dart';
+import 'package:sparrowkaizen/features/training/domain/repositories/training_library_repository.dart';
 import 'package:sparrowkaizen/features/seat_profile/domain/entities/department.dart';
 import 'package:sparrowkaizen/features/seat_profile/domain/entities/seat_profile_detail.dart';
 import 'package:sparrowkaizen/features/seat_profile/domain/repositories/seat_profile_repository.dart';
 import 'package:sparrowkaizen/features/seat_profile/domain/usecases/get_seat_profiles_usecase.dart';
 import 'package:sparrowkaizen/features/training/domain/entities/training_library_module.dart';
 import 'package:sparrowkaizen/features/training/domain/entities/training_library_page.dart';
-import 'package:sparrowkaizen/features/training/domain/repositories/training_library_repository.dart';
 import 'package:sparrowkaizen/features/training/domain/usecases/get_training_library_modules_usecase.dart';
 import 'package:sparrowkaizen/features/training/presentation/controllers/training_library_controller.dart';
 import 'package:sparrowkaizen/features/training/presentation/controllers/training_library_lesson_visibility_controller.dart';
@@ -326,7 +325,7 @@ void main() {
   testWidgets(
     'visibility replaces the clicked radio with progress and closes only after success',
     (tester) async {
-      final repository = _AuditRepository();
+      final repository = _TrainingLibraryRepository();
       final controller = TrainingLibraryLessonVisibilityController(repository);
       addTearDown(controller.dispose);
       const lesson = TrainingLibraryLesson(
@@ -468,7 +467,8 @@ class _SeatRepository extends Fake implements SeatProfileRepository {
       ];
 }
 
-class _AuditRepository extends Fake implements AuditRepository {
+class _TrainingLibraryRepository extends Fake
+    implements TrainingLibraryRepository {
   Future<void>? response;
 
   @override

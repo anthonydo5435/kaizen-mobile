@@ -5,8 +5,8 @@ import 'package:flutter_test/flutter_test.dart';
 import 'package:shared_preferences/shared_preferences.dart';
 import 'package:sparrowkaizen/core/network/api_processor.dart';
 import 'package:sparrowkaizen/core/preference/app_preference.dart';
-import 'package:sparrowkaizen/features/check_in/data/datasources/audit_remote_data_source.dart';
-import 'package:sparrowkaizen/features/check_in/data/repositories/audit_repository_impl.dart';
+import 'package:sparrowkaizen/features/training/data/datasources/training_library_remote_data_source.dart';
+import 'package:sparrowkaizen/features/training/data/repositories/training_library_repository_impl.dart';
 import 'package:sparrowkaizen/features/training/presentation/controllers/training_module_controller.dart';
 
 void main() {
@@ -19,7 +19,7 @@ void main() {
     await AppPreference.init();
     api = _DescriptionApi();
     controller = TrainingModuleController(
-      AuditRepositoryImpl(AuditRemoteDataSource(apiCallExecutor: api)),
+      TrainingLibraryRepositoryImpl(TrainingLibraryRemoteDataSource(apiCallExecutor: api)),
       canManageTraining: true,
     );
     await controller.initialize(jobId: 'seat', descriptionId: 'description');
@@ -159,7 +159,7 @@ void main() {
 
   test('read-only accounts cannot generate a summary', () async {
     final readOnly = TrainingModuleController(
-      AuditRepositoryImpl(AuditRemoteDataSource(apiCallExecutor: api)),
+      TrainingLibraryRepositoryImpl(TrainingLibraryRemoteDataSource(apiCallExecutor: api)),
     );
     addTearDown(readOnly.dispose);
     await readOnly.initialize(jobId: 'seat', descriptionId: 'description');

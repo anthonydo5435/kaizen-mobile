@@ -167,6 +167,10 @@ class ApiEndPoints {
     return 'training_document/$documentId/';
   }
 
+  static String trainingDocumentPdf(String documentId) {
+    return '${trainingDocument(Uri.encodeComponent(documentId))}pdf/';
+  }
+
   static String trainingModuleQuestions(String moduleId) {
     return 'training_modules/$moduleId/questions/';
   }
