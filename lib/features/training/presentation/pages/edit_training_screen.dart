@@ -27,12 +27,10 @@ import '../../../../core/widgets/app_overlay_close_button.dart';
 import '../../../../core/widgets/app_dialog_style.dart';
 import '../../../../core/widgets/app_text_view.dart';
 import '../../../../core/widgets/fast_circular_progress.dart';
-import '../../../check_in/data/datasources/audit_remote_data_source.dart';
-import '../../../check_in/data/repositories/audit_repository_impl.dart';
-import '../../../compliance/presentation/pages/document/full_screen_doc.dart';
-import '../../../compliance/presentation/widgets/compliance_video_transcript_panel.dart';
 import '../../data/datasources/training_library_remote_data_source.dart';
 import '../../data/repositories/training_library_repository_impl.dart';
+import '../../../compliance/presentation/pages/document/full_screen_doc.dart';
+import '../../../compliance/presentation/widgets/compliance_video_transcript_panel.dart';
 import '../../domain/entities/seat_description_training.dart';
 import '../../domain/entities/seat_description_training_route.dart';
 import '../../domain/repositories/training_library_repository.dart';
@@ -251,15 +249,20 @@ class EditTrainingSection extends StatelessWidget {
 
     return MultiProvider(
       providers: [
-        Provider<AuditRemoteDataSource>(create: (_) => AuditRemoteDataSource()),
-        ProxyProvider<AuditRemoteDataSource, AuditRepositoryImpl>(
+        Provider<TrainingLibraryRemoteDataSource>(
+          create: (_) => TrainingLibraryRemoteDataSource(),
+        ),
+        ProxyProvider<
+          TrainingLibraryRemoteDataSource,
+          TrainingLibraryRepositoryImpl
+        >(
           update: (_, remoteDataSource, __) =>
-              AuditRepositoryImpl(remoteDataSource),
+              TrainingLibraryRepositoryImpl(remoteDataSource),
         ),
         ChangeNotifierProvider<TrainingModuleController>(
           create: (context) =>
               TrainingModuleController(
-                context.read<AuditRepositoryImpl>(),
+                context.read<TrainingLibraryRepositoryImpl>(),
                 canManageTraining: resolvedCanManageTraining,
                 sopEditorFactory: context.read<TrainingSopEditorFactory?>(),
                 canViewQuizAndAssignment: AppManager.instance
