@@ -209,6 +209,46 @@ test('template formatting, nested lists, images and read-only documents use the 
   }
 });
 
+test('reference header backgrounds have no light seams at mobile fit scales', async () => {
+  const content = '<p data-sop-role="eyebrow">STANDARD OPERATING PROCEDURE</p>' +
+    '<h1 data-sop-template="reference-v1" data-sop-role="title">' +
+    'Code Reviews for System Architecture - Senior Full Stack Developer</h1>' +
+    '<p data-sop-role="overview">This SOP provides a structured process for conducting code reviews ' +
+    'within the system architecture team of the dental practice. Effective code reviews ensure ' +
+    'code quality, maintainability, and alignment with design standards.</p><h2>Procedure</h2>';
+  try {
+    for (const [width, height, deviceScaleFactor] of [[320, 844, 2], [390, 844, 3], [844, 390, 2]]) {
+      await call('Emulation.setDeviceMetricsOverride', { width, height, deviceScaleFactor, mobile: true });
+      await open(content, false);
+      const html = await evaluate("command('getContent',{format:'html'}).content");
+      const screenshot = await call('Page.captureScreenshot', { format: 'png' });
+      const seams = await evaluate(`(async () => {
+        const image=await createImageBitmap(await (await fetch('data:image/png;base64,${screenshot.data}')).blob());
+        const canvas=document.createElement('canvas');canvas.width=image.width;canvas.height=image.height;
+        const context=canvas.getContext('2d');context.drawImage(image,0,0);
+        const scale=visualViewport.scale*devicePixelRatio;
+        return ['eyebrow','title'].map(role=>{
+          const element=document.querySelector('[data-sop-role="'+role+'"]'), rect=element.getBoundingClientRect();
+          const next=element.nextElementSibling.getBoundingClientRect();
+          const x=Math.round((rect.left+5)*scale), y=Math.round(rect.bottom*scale);
+          return {role,gap:next.top-rect.bottom,pixels:Array.from({length:7},(_,i)=>
+            Array.from(context.getImageData(x,y-3+i,1,1).data))};
+        });
+      })()`);
+      for (const seam of seams) {
+        assert.ok(Math.abs(seam.gap) < 0.02, 'Header blocks must retain their adjoining layout');
+        for (const pixel of seam.pixels) {
+          assert.ok(pixel.slice(0, 3).every((channel, index) => Math.abs(channel - [96, 75, 140][index]) <= 4),
+            `${width}px/${deviceScaleFactor}x ${seam.role}: unexpected seam colour ${pixel}`);
+        }
+      }
+      assert.equal(await evaluate("command('getContent',{format:'html'}).content"), html);
+    }
+  } finally {
+    await call('Emulation.clearDeviceMetricsOverride');
+  }
+});
+
 test('oversized table cells flow across pages and edits retain their selection', async () => {
   await open('<h2>Long instructions</h2><table><tbody><tr><td><p>' +
     'Detailed content in the first cell. '.repeat(250) + '</p></td><td><p>' +
@@ -344,6 +384,67 @@ test('a mobile tap replaces selected text with the tapped caret and typing prese
     await settle();
     assert.equal(await evaluate('document.querySelectorAll("p")[0].textContent'), 'Alpha beta');
     assert.match(await evaluate('document.querySelectorAll("p")[1].textContent'), /CHECK /);
+  } finally {
+    await call('Emulation.setTouchEmulationEnabled', { enabled: false });
+    await call('Emulation.clearDeviceMetricsOverride');
+  }
+});
+
+test('landscape reading blocks editing and caret movement, while scrolling and portrait editing still work', async () => {
+  await call('Emulation.setDeviceMetricsOverride', { width: 844, height: 390, deviceScaleFactor: 1, mobile: true });
+  await call('Emulation.setTouchEmulationEnabled', { enabled: true, maxTouchPoints: 2 });
+  try {
+    await open(Array.from({ length: 70 }, (_, index) => `<p>Step ${index + 1}: Read this procedure without moving the cursor.</p>`).join(''));
+    await evaluate(`command('setTextSelection',{anchor:8});
+      __tiptapEngineInstance.editor.view.focus();
+      TrainingSopDocument.configure({width:820,textScale:1,preventTapCursor:true});
+      command('setEditable',{editable:false});`);
+    await settle();
+    assert.equal(await evaluate('document.querySelector(".tiptap").isContentEditable'), false);
+    const original = await evaluate('({html:command("getContent",{format:"html"}).content,from:__tiptapEngineInstance.editor.state.selection.from,scale:visualViewport.scale})');
+    await call('Input.insertText', { text: 'MUST NOT EDIT ' });
+    assert.equal(await evaluate('command("getContent",{format:"html"}).content'), original.html);
+    const point = await evaluate(`(() => {
+      const rect=document.querySelector('p').getBoundingClientRect();
+      return {x:rect.left+25,y:rect.top+rect.height/2};
+    })()`);
+    await call('Input.dispatchTouchEvent', { type: 'touchStart', touchPoints: [point] });
+    await call('Input.dispatchTouchEvent', { type: 'touchEnd', touchPoints: [] });
+    await settle();
+    assert.equal(await evaluate('__tiptapEngineInstance.editor.view.hasFocus()'), false);
+    assert.equal(await evaluate('__tiptapEngineInstance.editor.state.selection.from'), original.from);
+    assert.equal(await evaluate('links.filter(message=>message.interaction==="tap").length'), 1);
+
+    await call('Input.dispatchMouseEvent', { type: 'mousePressed', button: 'left', clickCount: 1, ...point });
+    await call('Input.dispatchMouseEvent', { type: 'mouseReleased', button: 'left', clickCount: 1, ...point });
+    await settle();
+    assert.equal(await evaluate('__tiptapEngineInstance.editor.view.hasFocus()'), false);
+    assert.equal(await evaluate('__tiptapEngineInstance.editor.state.selection.from'), original.from);
+    assert.ok(await evaluate('links.filter(message=>message.interaction==="tap").length') >= 2);
+
+    await call('Input.synthesizeScrollGesture', { x: 400, y: 250, yDistance: -200, gestureSourceType: 'touch' });
+    await settle();
+    assert.ok(await evaluate('window.scrollY') > 0, 'Landscape documents must still scroll natively');
+    assert.ok(await evaluate('links.some(message=>message.interaction==="scroll")'));
+    await call('Input.synthesizePinchGesture', { x: 400, y: 200, scaleFactor: 1.5, gestureSourceType: 'touch' });
+    await settle();
+    assert.ok(await evaluate('visualViewport.scale') > original.scale + 0.05);
+    assert.equal(await evaluate('command("getContent",{format:"html"}).content'), original.html);
+
+    await call('Emulation.setDeviceMetricsOverride', { width: 390, height: 844, deviceScaleFactor: 1, mobile: true });
+    await evaluate('TrainingSopDocument.configure({width:390,textScale:1,preventTapCursor:false});command("setEditable",{editable:true});window.scrollTo(0,0)');
+    await settle();
+    const portraitPoint = await evaluate(`(() => {
+      const rect=document.querySelector('p').getBoundingClientRect();
+      return {x:rect.left+25,y:rect.top+rect.height/2};
+    })()`);
+    await call('Input.dispatchTouchEvent', { type: 'touchStart', touchPoints: [portraitPoint] });
+    await call('Input.dispatchTouchEvent', { type: 'touchEnd', touchPoints: [] });
+    await settle();
+    assert.equal(await evaluate('__tiptapEngineInstance.editor.view.hasFocus()'), true);
+    await call('Input.insertText', {text:'EDITED '});
+    await settle();
+    assert.match(await evaluate('document.querySelector("p").textContent'), /EDITED /);
   } finally {
     await call('Emulation.setTouchEmulationEnabled', { enabled: false });
     await call('Emulation.clearDeviceMetricsOverride');

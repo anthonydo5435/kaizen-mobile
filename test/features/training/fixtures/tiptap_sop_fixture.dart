@@ -25,6 +25,7 @@ class TiptapSopFixture {
 
 class TestSopEditor extends Fake implements EditorController, TrainingSopSurface {
   final _states = StreamController<EditorStatePayload>.broadcast();
+  final _interactions = StreamController<TrainingSopInteraction>.broadcast();
   final _engineStates = StreamController<EngineState>.broadcast();
   final _metrics = BridgeMetrics();
   EditorStatePayload? _state;
@@ -32,6 +33,7 @@ class TestSopEditor extends Fake implements EditorController, TrainingSopSurface
   bool disposed = false;
   int initializationCount = 0;
   bool editable = true;
+  bool preventTapCursor = false;
   int keyboardDismissals = 0;
   Future<String>? nextHtml;
 
@@ -56,12 +58,22 @@ class TestSopEditor extends Fake implements EditorController, TrainingSopSurface
   @override
   Stream<String> get linkTaps => const Stream.empty();
   @override
-  Widget buildDocument({required double width, required double textScale}) =>
-      StreamBuilder<EditorStatePayload>(
-        stream: _states.stream,
-        initialData: _state,
-        builder: (_, _) => SingleChildScrollView(child: Html(data: html)),
-      );
+  Stream<TrainingSopInteraction> get interactions => _interactions.stream;
+  void emitInteraction(TrainingSopInteraction interaction) => _interactions.add(interaction);
+  @override
+  Widget buildDocument({
+    required double width,
+    required double textScale,
+    bool preventTapCursor = false,
+  }) {
+    this.preventTapCursor = preventTapCursor;
+    return StreamBuilder<EditorStatePayload>(
+      stream: _states.stream,
+      initialData: _state,
+      builder: (_, _) => SingleChildScrollView(child: Html(data: html)),
+    );
+  }
+
   @override
   Future<void> dismissKeyboard() async => keyboardDismissals += 1;
 
@@ -124,6 +136,7 @@ class TestSopEditor extends Fake implements EditorController, TrainingSopSurface
   void dispose() {
     disposed = true;
     unawaited(_states.close());
+    unawaited(_interactions.close());
     unawaited(_engineStates.close());
   }
 }

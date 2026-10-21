@@ -1,6 +1,9 @@
 import { Extension } from '@tiptap/core';
 import { Plugin, TextSelection } from '@tiptap/pm/state';
 
+const preventsTapCursor = (document: Document) =>
+  document.documentElement.dataset.sopPreventTapCursor === 'true';
+
 export const SopInteraction = Extension.create({
   name: 'sopInteraction',
   addCommands() {
@@ -32,11 +35,17 @@ export const SopInteraction = Extension.create({
     let tap: {
       x: number; y: number; time: number; previousPosition?: number;
       nativeSelection: ReturnType<typeof nativeSelection>; moved: boolean;
+      preventTapCursor: boolean;
     } | undefined;
     const words = new Intl.Segmenter(undefined, { granularity: 'word' });
     return [new Plugin({
       props: {
         handleDOMEvents: {
+          mousedown(view, event) {
+            if (!preventsTapCursor(view.dom.ownerDocument)) return false;
+            event.preventDefault();
+            return true;
+          },
           touchstart(view, event) {
             const target = event.target instanceof Element ? event.target : undefined;
             const touch = event.touches[0];
@@ -44,11 +53,13 @@ export const SopInteraction = Extension.create({
             const selectWord = !!(touch && focusTap && view.hasFocus() && view.state.selection.empty &&
               view.state.selection.from === focusTap.position && now - focusTap.time < 400 &&
               Math.hypot(touch.screenX - focusTap.x, touch.screenY - focusTap.y) < 20);
-            tap = view.editable && event.touches.length === 1 &&
-              !target?.closest('a, input, button, label, img') ?
+            const preventTapCursor = preventsTapCursor(view.dom.ownerDocument);
+            tap = (view.editable || preventTapCursor) && event.touches.length === 1 &&
+              (preventTapCursor || !target?.closest('a, input, button, label, img')) ?
               { x: touch.screenX, y: touch.screenY, time: now,
                 previousPosition: selectWord ? focusTap?.position : undefined,
-                nativeSelection: nativeSelection(view.dom.ownerDocument), moved: false } : undefined;
+                nativeSelection: nativeSelection(view.dom.ownerDocument), moved: false,
+                preventTapCursor } : undefined;
             focusTap = undefined;
             return false;
           },
@@ -64,11 +75,17 @@ export const SopInteraction = Extension.create({
           touchend(view, event) {
             const start = tap;
             tap = undefined;
-            if (!start || event.touches.length || Date.now() - start.time > 500 || !view.editable) return false;
+            if (!start || event.touches.length || Date.now() - start.time > 500) return false;
             // Keep normal tap tolerance for finger jitter. A handle can extend
             // selection within that distance, before ProseMirror receives it.
             if (start.moved && nativeSelection(view.dom.ownerDocument)
               .some((value, index) => value !== start.nativeSelection[index])) return false;
+            if (start.preventTapCursor || preventsTapCursor(view.dom.ownerDocument)) {
+              event.preventDefault();
+              window.TrainingSopLinks?.postMessage(JSON.stringify({ interaction: 'tap' }));
+              return true;
+            }
+            if (!view.editable) return false;
             const touch = event.changedTouches[0];
             if (!touch) return false;
             const hit = view.posAtCoords({ left: touch.clientX, top: touch.clientY });

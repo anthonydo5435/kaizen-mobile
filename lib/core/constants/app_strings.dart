@@ -903,6 +903,8 @@ class AppStrings {
   static const String trainingSopLabel = 'SOP';
   static const String trainingSopHint = 'Write SOP content for this lesson.';
   static const String trainingSopEditorError = 'Unable to open the SOP editor. Please try again.';
+  static const String trainingViewSopPdf = 'View SOP PDF';
+  static const String trainingSopPdfError = 'Unable to open the SOP PDF. Please try again.';
   static const String trainingSopSavedSuccess = 'SOP updated successfully.';
   static const String trainingAssignmentDescriptionLabel = 'Description';
   static const String trainingAssignmentTitleHint = 'Enter assignment title';

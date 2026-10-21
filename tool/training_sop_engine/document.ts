@@ -1,6 +1,7 @@
 interface SopViewport {
   width: number;
   textScale: number;
+  preventTapCursor?: boolean;
 }
 declare global {
   interface Window {
@@ -17,11 +18,17 @@ const pageWidth = 210 * 96 / 25.4;
 const canvasWidth = pageWidth + 24;
 let fitScale = 1;
 window.TrainingSopDocument = {
-  configure({ width, textScale }) {
+  configure({ width, textScale, preventTapCursor = false }) {
+    const wasPreventingTapCursor = document.documentElement.dataset.sopPreventTapCursor === 'true';
+    document.documentElement.dataset.sopPreventTapCursor = String(preventTapCursor);
+    if (preventTapCursor && !wasPreventingTapCursor) {
+      (document.activeElement as HTMLElement | null)?.blur();
+      document.getSelection()?.removeAllRanges();
+    }
     document.querySelectorAll('meta[name="viewport"]').forEach(meta => meta.remove());
     const viewport = document.createElement('meta');
     viewport.name = 'viewport';
-    const fit = Math.min(1, width / canvasWidth);
+    const fit = width / canvasWidth;
     fitScale = fit;
     viewport.content = `width=${Math.ceil(canvasWidth)},initial-scale=${fit},minimum-scale=${fit},maximum-scale=4,user-scalable=yes`;
     document.head.append(viewport);
@@ -66,6 +73,12 @@ document.addEventListener('selectionchange', () => {
 
 // Keep links inside the document from replacing the editor or its JS bridge.
 document.addEventListener('click', event => {
+  if (document.documentElement.dataset.sopPreventTapCursor === 'true') {
+    event.preventDefault();
+    event.stopImmediatePropagation();
+    window.TrainingSopLinks?.postMessage(JSON.stringify({ interaction: 'tap' }));
+    return;
+  }
   const link = (event.target as Element | null)?.closest<HTMLAnchorElement>('a[href]');
   if (!link) return;
   event.preventDefault();
@@ -77,3 +90,9 @@ document.addEventListener('click', event => {
     window.TrainingSopLinks?.postMessage(JSON.stringify({ href }));
   }
 }, true);
+
+document.addEventListener('scroll', () => {
+  if (document.documentElement.dataset.sopPreventTapCursor === 'true') {
+    window.TrainingSopLinks?.postMessage(JSON.stringify({ interaction: 'scroll' }));
+  }
+}, { capture: true, passive: true });
