@@ -124,7 +124,7 @@ extension _EditTrainingSectionViewStateView on _EditTrainingSectionViewState {
     return TrainingTabView(
       navigation: _tabNavigation,
       maxTabIndex: controller.maxAccessibleTabIndex,
-      isSwipeEnabled: !_isLandscapeVideo,
+      isSwipeEnabled: !_isLandscapeVideo && !_isLandscapeSop,
       onPageApproaching: (index) {
         if (index == 1) {
           unawaited(controller.loadDocumentForSelectedModule());
@@ -296,11 +296,15 @@ extension _EditTrainingSectionViewStateView on _EditTrainingSectionViewState {
         isGeneratingSop: controller.isGeneratingSop,
         canEditDocument: controller.canEditSelectedModuleDocument,
         isSavingDocument: controller.isSavingDocument,
+        showPdf: false,
+        canViewPdf: controller.canOpenDocumentPdf,
+        isOpeningPdf: controller.isOpeningDocumentPdf,
         documentHtml: controller.documentHtml,
         editorKey: ValueKey((moduleId, editorVersion)),
         errorMessage: controller.documentErrorMessage,
         editorControllerBuilder: () => controller.sopEditorController,
         onGenerateSopTap: () => _handleGenerateSopTap(controller),
+        onViewPdfTap: () => _openSopPdf(controller),
         onExitLandscape: widget.allowDeviceRotation && !widget.isEmbedded
             ? _resetToPortrait
             : null,

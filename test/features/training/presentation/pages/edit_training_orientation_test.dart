@@ -325,6 +325,7 @@ void main() {
       await tester.pumpAndSettle();
       expect(tester.widget<TrainingTabs>(find.byType(TrainingTabs)).navigation.selectedIndex, 1);
       expect(find.byType(TrainingSopDocumentView), findsOneWidget);
+      expect(find.byTooltip(AppStrings.trainingViewSopPdf), findsNothing);
       await closeTraining(tester);
     }, () => client);
   });
@@ -471,6 +472,7 @@ void main() {
       expect(find.text(AppStrings.trainingCreateSop), findsNothing);
       expect(find.text(AppStrings.trainingCreateWithAi), findsNothing);
       expect(editor.preventTapCursor, isTrue);
+      expect(find.byTooltip(AppStrings.trainingViewSopPdf), findsNothing);
       expect(tester.getRect(find.byType(PageView)).top, 0);
       expect(navigation.selectedIndex, 1);
       expect(tester.getRect(find.byType(PageView)).bottom, landscape.height);
@@ -506,6 +508,7 @@ void main() {
       tester.view.resetViewPadding();
       await rotate(tester, portrait);
       expect(editor.preventTapCursor, isFalse);
+      expect(find.byTooltip(AppStrings.trainingViewSopPdf), findsNothing);
       expect(exit, findsNothing);
       expect(find.byTooltip(AppStrings.trainingBoldAction), findsOneWidget);
       expect(find.text(AppStrings.training), findsOneWidget);
@@ -521,6 +524,54 @@ void main() {
       await tester.pump(const Duration(milliseconds: 350));
       expect(orientations.last, rotationAllowed);
       expect(fullscreen, isEmpty);
+      await closeTraining(tester);
+    }, () => client);
+  });
+
+  testWidgets('SOP landscape cancels tab drags and restores swipes only in portrait', (
+    tester,
+  ) async {
+    await http.runWithClient(() async {
+      await openTraining(tester);
+      await tester.tap(_tab(AppStrings.trainingSopTab));
+      await tester.pumpAndSettle();
+      final navigation = tester.widget<TrainingTabs>(find.byType(TrainingTabs)).navigation;
+      final pageController = tester.widget<PageView>(find.byType(PageView)).controller!;
+      final editor = sop.editors.single;
+
+      final gesture = await tester.startGesture(const Offset(280, 280));
+      await gesture.moveBy(const Offset(-24, 0));
+      await gesture.moveBy(const Offset(-100, 0));
+      await tester.pump();
+      expect(pageController.page, inExclusiveRange(1, 2));
+      expect(navigation.selectedIndex, 1);
+
+      await rotate(tester, landscape);
+      await gesture.moveBy(const Offset(-500, 0));
+      await gesture.up();
+      await tester.pumpAndSettle();
+      expect(pageController.page, 1);
+      expect(navigation.selectedIndex, 1);
+
+      for (final direction in [-1.0, 1.0]) {
+        await tester.dragFrom(const Offset(422, 120), Offset(direction * 500, 0));
+        await tester.pumpAndSettle();
+        expect(pageController.page, 1);
+        expect(navigation.selectedIndex, 1);
+        expect(sop.editors.single, same(editor));
+        expect(editor.disposed, isFalse);
+      }
+
+      await rotate(tester, portrait);
+      await tester.dragFrom(const Offset(280, 280), const Offset(-300, 0));
+      await tester.pumpAndSettle();
+      expect(navigation.selectedIndex, 2);
+      expect(pageController.page, 2);
+      await tester.dragFrom(const Offset(100, 280), const Offset(300, 0));
+      await tester.pumpAndSettle();
+      expect(navigation.selectedIndex, 1);
+      expect(pageController.page, 1);
+      expect(find.byType(TrainingSopDocumentView), findsOneWidget);
       await closeTraining(tester);
     }, () => client);
   });

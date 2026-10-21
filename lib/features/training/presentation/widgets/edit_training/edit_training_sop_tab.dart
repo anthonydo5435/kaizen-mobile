@@ -8,10 +8,14 @@ class _SopTabContent extends StatelessWidget {
     required this.isGeneratingSop,
     required this.canEditDocument,
     required this.isSavingDocument,
+    required this.showPdf,
+    required this.canViewPdf,
+    required this.isOpeningPdf,
     required this.documentHtml,
     required this.editorKey,
     required this.editorControllerBuilder,
     required this.onGenerateSopTap,
+    required this.onViewPdfTap,
     required this.onDoneTap,
     this.onExitLandscape,
     this.errorMessage,
@@ -23,11 +27,15 @@ class _SopTabContent extends StatelessWidget {
   final bool isGeneratingSop;
   final bool canEditDocument;
   final bool isSavingDocument;
+  final bool showPdf;
+  final bool canViewPdf;
+  final bool isOpeningPdf;
   final String documentHtml;
   final Key editorKey;
   final String? errorMessage;
   final TrainingSopEditorController Function() editorControllerBuilder;
   final VoidCallback onGenerateSopTap;
+  final VoidCallback onViewPdfTap;
   final VoidCallback onDoneTap;
   final VoidCallback? onExitLandscape;
 
@@ -106,22 +114,31 @@ class _SopTabContent extends StatelessWidget {
             child: Stack(
               fit: StackFit.expand,
               children: [
-                _buildDocument(),
+                _buildDocument(isLandscape: isLandscape),
                 if (isLandscape && onExitLandscape != null)
                   Positioned(
                     right: 8,
                     bottom: 8,
                     child: Material(
-                      color: AppColors.surfaceDark2,
-                      borderRadius: BorderRadius.circular(12),
+                      type: MaterialType.transparency,
                       child: IconButton(
                         key: const ValueKey('sop-exit-fullscreen-button'),
                         tooltip: AppStrings.trainingExitFullscreen,
                         onPressed: onExitLandscape,
-                        icon: const Icon(
-                          Icons.fullscreen_exit_rounded,
-                          color: Colors.white,
-                          size: 24,
+                        iconSize: 36,
+                        padding: const EdgeInsets.all(6),
+                        icon: Ink(
+                          width: 30,
+                          height: 30,
+                          decoration: BoxDecoration(
+                            color: AppColors.surfaceDark2,
+                            borderRadius: BorderRadius.circular(8),
+                          ),
+                          child: const Icon(
+                            Icons.fullscreen_exit_rounded,
+                            color: Colors.white,
+                            size: 24,
+                          ),
                         ),
                       ),
                     ),
@@ -134,7 +151,7 @@ class _SopTabContent extends StatelessWidget {
     ],
   );
 
-  Widget _buildDocument() {
+  Widget _buildDocument({required bool isLandscape}) {
     if (isLoading) {
       return const Center(child: FastCircularProgressIndicator(color: AppColors.secondaryColor));
     }
@@ -146,26 +163,91 @@ class _SopTabContent extends StatelessWidget {
         ),
       );
     }
+    final pdfButton = showPdf
+        ? _SopPdfButton(isEnabled: canViewPdf, isLoading: isOpeningPdf, onTap: onViewPdfTap)
+        : null;
     if (!canEditDocument) {
       if (documentHtml.isEmpty) {
         return const Center(
           child: AppTextView.body1(AppStrings.trainingNoSopAvailable, color: AppColors.mainBg),
         );
       }
-      return TrainingSopReader(html: documentHtml);
+      return Column(
+        children: [
+          Expanded(child: TrainingSopReader(html: documentHtml)),
+          if (pdfButton != null)
+            Offstage(
+              offstage: isLandscape,
+              child: Padding(
+                padding: const EdgeInsets.symmetric(horizontal: 10, vertical: 12),
+                child: Align(alignment: Alignment.centerRight, child: pdfButton),
+              ),
+            ),
+        ],
+      );
     }
     return ChangeNotifierProvider<TrainingSopEditorController>.value(
       key: editorKey,
       value: editorControllerBuilder(),
-      child: _TrainingSopEditor(onDoneTap: onDoneTap, errorMessage: errorMessage),
+      child: _TrainingSopEditor(
+        onDoneTap: onDoneTap,
+        pdfButton: pdfButton,
+        errorMessage: errorMessage,
+      ),
     );
   }
 }
 
+class _SopPdfButton extends StatelessWidget {
+  const _SopPdfButton({required this.isEnabled, required this.isLoading, required this.onTap});
+
+  final bool isEnabled;
+  final bool isLoading;
+  final VoidCallback onTap;
+
+  @override
+  Widget build(BuildContext context) => SizedBox.square(
+    dimension: 44,
+    child: Material(
+      color: AppColors.lightPurple3.withAlpha(899),
+      borderRadius: BorderRadius.circular(12),
+      child: IconButton(
+        key: const ValueKey('sop-view-pdf-button'),
+        tooltip: AppStrings.trainingViewSopPdf,
+        onPressed: isEnabled ? onTap : null,
+        padding: EdgeInsets.zero,
+        icon: SizedBox.square(
+          dimension: 28,
+          child: Stack(
+            alignment: Alignment.center,
+            children: [
+              Opacity(
+                opacity: isLoading ? 0 : 1,
+                child: const Icon(
+                  Icons.picture_as_pdf_outlined,
+                  size: 28,
+                  color: AppColors.purple2,
+                ),
+              ),
+              if (isLoading)
+                const FastCircularProgressIndicator(
+                  width: 18,
+                  height: 18,
+                  color: AppColors.purple2,
+                ),
+            ],
+          ),
+        ),
+      ),
+    ),
+  );
+}
+
 class _TrainingSopEditor extends StatelessWidget {
-  const _TrainingSopEditor({required this.onDoneTap, this.errorMessage});
+  const _TrainingSopEditor({required this.onDoneTap, this.pdfButton, this.errorMessage});
 
   final VoidCallback onDoneTap;
+  final Widget? pdfButton;
   final String? errorMessage;
 
   @override
@@ -189,7 +271,11 @@ class _TrainingSopEditor extends StatelessWidget {
             top: false,
             bottom: false,
             minimum: const EdgeInsets.symmetric(horizontal: 10, vertical: 12),
-            child: _TrainingSopFormattingToolbar(controller: controller, onDoneTap: onDoneTap),
+            child: _TrainingSopFormattingToolbar(
+              controller: controller,
+              onDoneTap: onDoneTap,
+              pdfButton: pdfButton,
+            ),
           ),
         ),
       ],
@@ -199,10 +285,15 @@ class _TrainingSopEditor extends StatelessWidget {
 
 /// Keeps the existing compact toolbar while routing formatting through Tiptap.
 class _TrainingSopFormattingToolbar extends StatelessWidget {
-  const _TrainingSopFormattingToolbar({required this.controller, required this.onDoneTap});
+  const _TrainingSopFormattingToolbar({
+    required this.controller,
+    required this.onDoneTap,
+    this.pdfButton,
+  });
 
   final TrainingSopEditorController controller;
   final VoidCallback onDoneTap;
+  final Widget? pdfButton;
 
   @override
   Widget build(BuildContext context) => Focus(
@@ -228,6 +319,7 @@ class _TrainingSopFormattingToolbar extends StatelessWidget {
             ),
           ),
         ),
+        if (pdfButton != null) ...[const SizedBox(width: 8), pdfButton!],
         const SizedBox(width: 8),
         SizedBox.square(
           dimension: 44,

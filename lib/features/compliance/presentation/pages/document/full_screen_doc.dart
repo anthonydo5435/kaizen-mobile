@@ -37,7 +37,7 @@ class _ViewFullScreenDocState extends State<ViewFullScreenDoc> {
             child: SizedBox.expand(
               child: InteractiveViewer(
                 minScale: 1,
-                maxScale: 4,  
+                maxScale: 4,
                 child: CachedNetworkImage(
                   imageUrl: widget.imageUrl,
                   fit: BoxFit.contain,
@@ -55,21 +55,23 @@ class _ViewFullScreenDocState extends State<ViewFullScreenDoc> {
     return Scaffold(
       backgroundColor: AppColors.mainBg,
       body: SafeArea(
+        bottom: false,
         child: Column(
           children: [
             Padding(
-              padding: const EdgeInsets.fromLTRB(8, 0, 8, 12),
+              padding: const EdgeInsets.fromLTRB(8, 0, 2, 12),
               child: Row(
                 children: [
-                  IconButton(
-                    onPressed: () => Navigator.of(context).pop(),
-                    icon: SvgPicture.asset(
+                  InkWell(
+                    onTap: () => Navigator.of(context).pop(),
+                    child: SvgPicture.asset(
                       '${AppStrings.imagePath}back.svg',
                       width: 22,
                       height: 22,
                       colorFilter: const ColorFilter.mode(Colors.white, BlendMode.srcIn),
                     ),
                   ),
+                  const SizedBox(width: 6),
                   Expanded(
                     child: Text(
                       widget.title,
@@ -114,11 +116,7 @@ class _ViewFullScreenDocState extends State<ViewFullScreenDoc> {
             return ColoredBox(
               color: AppColors.mainBg,
               child: Center(
-                child: SizedBox(
-                  width: 36,
-                  height: 36,
-                  child: FastCircularProgressIndicator(),
-                ),
+                child: SizedBox(width: 36, height: 36, child: FastCircularProgressIndicator()),
               ),
             );
           },

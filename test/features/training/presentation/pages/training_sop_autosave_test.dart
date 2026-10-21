@@ -87,6 +87,7 @@ void main() {
     await tester.pump(const Duration(milliseconds: 300));
     await tester.pump();
     expect(find.byType(TrainingSopDocumentView), findsOneWidget);
+    expect(find.byTooltip(AppStrings.trainingViewSopPdf), findsNothing);
     expect(fixture.editors.single.html, '<p>Procedure</p>');
     expect(writes, isEmpty);
     return fixture;

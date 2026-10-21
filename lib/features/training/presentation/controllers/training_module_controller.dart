@@ -921,6 +921,7 @@ class TrainingModuleController extends ChangeNotifier {
 
   final AuditRepository _auditRepository;
   final TrainingSopEditorFactory? _sopEditorFactory;
+  final Map<String, ({String html, String url})> _documentPdfLinks = {};
   final Future<SharedLessonContent> Function(String publicId)?
   _sharedLessonDetailLoader;
   final FileUploader _fileUploader;
@@ -942,6 +943,9 @@ class TrainingModuleController extends ChangeNotifier {
 
   bool _isLoading = false;
   bool _isDocumentLoading = false;
+  bool _isOpeningDocumentPdf = false;
+  String? _documentPdfErrorMessage;
+  int _documentPdfRequestVersion = 0;
   int _documentRequestVersion = 0;
   bool _isAssignmentLoading = false;
   bool _isQuestionsLoading = false;
@@ -1017,6 +1021,15 @@ class TrainingModuleController extends ChangeNotifier {
 
   bool get isLoading => _isLoading;
   bool get isDocumentLoading => _isDocumentLoading;
+  bool get isOpeningDocumentPdf => _isOpeningDocumentPdf;
+  String? get documentPdfErrorMessage => _documentPdfErrorMessage;
+  bool get canOpenDocumentPdf =>
+      !_isDisposed &&
+      (_selectedModuleDocument?.uuid.trim().isNotEmpty ?? false) &&
+      !_isDocumentLoading &&
+      !_isOpeningDocumentPdf &&
+      !_isSavingDocument &&
+      !_isGeneratingSop;
   bool get hasResolvedSelectedModuleDocument =>
       _selectedModuleDocument != null || _documentErrorMessage != null;
   bool get isAssignmentLoading => _isAssignmentLoading;
@@ -1575,6 +1588,52 @@ class TrainingModuleController extends ChangeNotifier {
     } finally {
       if (requestVersion == _documentRequestVersion) {
         _isDocumentLoading = false;
+        notifyListeners();
+      }
+    }
+  }
+
+  Future<String?> loadDocumentPdfForSelectedModule() async {
+    if (!canOpenDocumentPdf) return null;
+    final documentId = _selectedModuleDocument!.uuid.trim();
+    final editorVersion = _documentEditorVersion;
+    final requestVersion = ++_documentPdfRequestVersion;
+    bool isCurrentDocument() =>
+        !_isDisposed &&
+        requestVersion == _documentPdfRequestVersion &&
+        editorVersion == _documentEditorVersion;
+    _isOpeningDocumentPdf = true;
+    _documentPdfErrorMessage = null;
+    notifyListeners();
+
+    try {
+      // Export the saved document, including any edit still in the debounce.
+      if (_documentDraftHtml.trim() != _lastSavedDocumentHtml &&
+          !await saveDocumentForSelectedModule()) {
+        if (isCurrentDocument()) {
+          _documentPdfErrorMessage = AppStrings.trainingSopPdfError;
+        }
+        return null;
+      }
+      if (!isCurrentDocument()) return null;
+      final html = _lastSavedDocumentHtml;
+      final cached = _documentPdfLinks[documentId];
+      final url = cached?.html == html
+          ? cached!.url
+          : await _auditRepository.getTrainingDocumentPdfUrl(
+              documentId: documentId,
+            );
+      if (!isCurrentDocument() || html != _lastSavedDocumentHtml) return null;
+      _documentPdfLinks[documentId] = (html: html, url: url);
+      return url;
+    } catch (_) {
+      if (isCurrentDocument()) {
+        _documentPdfErrorMessage = AppStrings.trainingSopPdfError;
+      }
+      return null;
+    } finally {
+      if (!_isDisposed && requestVersion == _documentPdfRequestVersion) {
+        _isOpeningDocumentPdf = false;
         notifyListeners();
       }
     }
@@ -2234,6 +2293,7 @@ class TrainingModuleController extends ChangeNotifier {
         documentId: documentId,
         text: text,
       );
+      _documentPdfLinks.remove(documentId);
       if (_isDisposed || editorVersion != _documentEditorVersion) return false;
       _selectedModuleDocument = SeatDescriptionTrainingDocument(
         uuid: documentId,
@@ -3484,7 +3544,10 @@ class TrainingModuleController extends ChangeNotifier {
 
   void _resetSelectedModuleExtras() {
     _documentRequestVersion += 1;
+    _documentPdfRequestVersion += 1;
     _isDocumentLoading = false;
+    _isOpeningDocumentPdf = false;
+    _documentPdfErrorMessage = null;
     _selectedModuleDocument = null;
     _selectedModuleAssignment = null;
     _selectedModuleQuestions = const <SeatDescriptionTrainingQuestion>[];

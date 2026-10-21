@@ -29,6 +29,7 @@ import '../../../../core/widgets/app_text_view.dart';
 import '../../../../core/widgets/fast_circular_progress.dart';
 import '../../../check_in/data/datasources/audit_remote_data_source.dart';
 import '../../../check_in/data/repositories/audit_repository_impl.dart';
+import '../../../compliance/presentation/pages/document/full_screen_doc.dart';
 import '../../../compliance/presentation/widgets/compliance_video_transcript_panel.dart';
 import '../../data/datasources/training_library_remote_data_source.dart';
 import '../../data/repositories/training_library_repository_impl.dart';
