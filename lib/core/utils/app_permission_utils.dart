@@ -38,6 +38,17 @@ class AppPermissionUtils {
     return !isChildOrganization(currentOrganization);
   }
 
+  static bool canEditDepartments({
+    required User? user,
+    required Organization? currentOrganization,
+  }) {
+    // Department editing allows explicit owners in child organisations too.
+    return user?.isOwner == true ||
+        canModifyCurrentOrganizationContent(
+          currentOrganization: currentOrganization,
+        );
+  }
+
   static bool canManagePublicLinks({
     required User? user,
     required Organization? currentOrganization,

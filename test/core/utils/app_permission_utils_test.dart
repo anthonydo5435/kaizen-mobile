@@ -10,6 +10,51 @@ import 'package:sparrowkaizen/features/login/domain/entities/user_hierarchy_memb
 import 'package:sparrowkaizen/features/organizations/domain/entities/organization.dart';
 
 void main() {
+  group('AppPermissionUtils.canEditDepartments', () {
+    test('allows explicit owners to edit in child organisations', () {
+      for (final type in ['child', ' ChIlD ']) {
+        expect(
+          AppPermissionUtils.canEditDepartments(
+            user: User(isOwner: true, roles: const ['team_member']),
+            currentOrganization: _organization(type),
+          ),
+          isTrue,
+        );
+      }
+    });
+
+    test('keeps child departments read-only without the owner flag', () {
+      for (final user in <User?>[
+        null,
+        User(isOwner: false, roles: const ['owner']),
+        User(roles: const ['owner', 'csuite']),
+        User(hasSandboxAccess: true),
+      ]) {
+        expect(
+          AppPermissionUtils.canEditDepartments(
+            user: user,
+            currentOrganization: _organization('child'),
+          ),
+          isFalse,
+        );
+      }
+    });
+
+    test('preserves existing access outside child organisations', () {
+      for (final type in ['parent', 'sandbox']) {
+        for (final user in <User?>[null, User(), User(isOwner: true)]) {
+          expect(
+            AppPermissionUtils.canEditDepartments(
+              user: user,
+              currentOrganization: _organization(type),
+            ),
+            isTrue,
+          );
+        }
+      }
+    });
+  });
+
   group('AppPermissionUtils.canManagePublicLinks', () {
     test('requires the explicit owner flag regardless of role names', () {
       for (final isOwner in <bool?>[null, false, true]) {

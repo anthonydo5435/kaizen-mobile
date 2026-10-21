@@ -79,6 +79,11 @@ class AppManager extends ChangeNotifier {
       AppPermissionUtils.canModifyCurrentOrganizationContent(
         currentOrganization: currentOrganization,
       );
+  bool get currentUserCanEditDepartments =>
+      AppPermissionUtils.canEditDepartments(
+        user: _currentUser,
+        currentOrganization: currentOrganization,
+      );
   bool get currentUserCanManageAnySeatProfileDepartments =>
       AppPermissionUtils.canManageAnySeatProfileDepartments(
         user: _currentUser,
