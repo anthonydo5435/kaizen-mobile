@@ -1,7 +1,7 @@
 import 'package:flutter/material.dart';
 
 import '../../../../core/constants/app_strings.dart';
-import '../../../check_in/domain/repositories/audit_repository.dart';
+import '../../domain/repositories/training_library_repository.dart';
 import '../../domain/entities/seat_description_training_route.dart';
 import '../../domain/entities/training_library_module.dart';
 import '../../domain/usecases/get_training_library_modules_usecase.dart';
@@ -21,16 +21,16 @@ class TrainingLibraryDetailController extends ChangeNotifier {
   TrainingLibraryDetailController({
     required TrainingLibraryModule initialModule,
     required GetTrainingLibraryModulesUseCase getTrainingLibraryModules,
-    required AuditRepository auditRepository,
+    required TrainingLibraryRepository trainingRepository,
     required bool Function(String seatProfileId) canManageSeatTraining,
     required String view,
   }) : _module = initialModule,
        _getTrainingLibraryModules = getTrainingLibraryModules,
-       _auditRepository = auditRepository,
+       _trainingRepository = trainingRepository,
        _canManageSeatTraining = canManageSeatTraining,
        _view = view.trim().isEmpty ? 'list' : view.trim(),
        visibilityController = TrainingLibraryLessonVisibilityController(
-         auditRepository,
+         trainingRepository,
        ) {
     visibilityController.addListener(_handleVisibilityChanged);
   }
@@ -38,7 +38,7 @@ class TrainingLibraryDetailController extends ChangeNotifier {
   static const int _pageSize = 25;
 
   final GetTrainingLibraryModulesUseCase _getTrainingLibraryModules;
-  final AuditRepository _auditRepository;
+  final TrainingLibraryRepository _trainingRepository;
   final bool Function(String seatProfileId) _canManageSeatTraining;
   final String _view;
   final TrainingLibraryLessonVisibilityController visibilityController;
@@ -299,7 +299,7 @@ class TrainingLibraryDetailController extends ChangeNotifier {
     _errorMessage = null;
     notifyListeners();
     try {
-      await _auditRepository.deleteSeatDescriptionTrainingModule(
+      await _trainingRepository.deleteSeatDescriptionTrainingModule(
         moduleId: resolvedId,
       );
       if (_isDisposed) {

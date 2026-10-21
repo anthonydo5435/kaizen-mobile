@@ -2,11 +2,10 @@ import 'dart:async';
 
 import 'package:flutter_test/flutter_test.dart';
 import 'package:sparrowkaizen/core/constants/app_strings.dart';
-import 'package:sparrowkaizen/features/check_in/domain/repositories/audit_repository.dart';
+import 'package:sparrowkaizen/features/training/domain/repositories/training_library_repository.dart';
 import 'package:sparrowkaizen/features/training/data/models/training_library_module_model.dart';
 import 'package:sparrowkaizen/features/training/domain/entities/training_library_module.dart';
 import 'package:sparrowkaizen/features/training/domain/entities/training_library_page.dart';
-import 'package:sparrowkaizen/features/training/domain/repositories/training_library_repository.dart';
 import 'package:sparrowkaizen/features/training/domain/usecases/get_training_library_modules_usecase.dart';
 import 'package:sparrowkaizen/features/training/presentation/controllers/training_library_detail_controller.dart';
 import 'package:sparrowkaizen/features/training/presentation/models/training_library_lesson_action.dart';
@@ -16,12 +15,12 @@ import '../../fixtures/training_library_fixtures.dart';
 void main() {
   late _LibraryRepository repository;
   late TrainingLibraryDetailController controller;
-  late _AuditRepository auditRepository;
+  late _TrainingLibraryRepository trainingRepository;
   late bool canManage;
 
   setUp(() {
     repository = _LibraryRepository();
-    auditRepository = _AuditRepository();
+    trainingRepository = _TrainingLibraryRepository();
     canManage = true;
     controller = TrainingLibraryDetailController(
       initialModule: _module([
@@ -29,7 +28,7 @@ void main() {
         _lesson('two', 'Patient Safety'),
       ]),
       getTrainingLibraryModules: GetTrainingLibraryModulesUseCase(repository),
-      auditRepository: auditRepository,
+      trainingRepository: trainingRepository,
       canManageSeatTraining: (_) => canManage,
       view: 'list',
     );
@@ -45,7 +44,7 @@ void main() {
           lessonListingJson(),
         ),
         getTrainingLibraryModules: GetTrainingLibraryModulesUseCase(repository),
-        auditRepository: auditRepository,
+        trainingRepository: trainingRepository,
         canManageSeatTraining: (_) => canManage,
         view: 'list',
       );
@@ -96,9 +95,9 @@ void main() {
         ),
         isTrue,
       );
-      expect(auditRepository.visibilityIds, [lesson.id]);
+      expect(trainingRepository.visibilityIds, [lesson.id]);
       expect(await controller.deleteLesson(lesson.id), isTrue);
-      expect(auditRepository.deletedIds, [lesson.id]);
+      expect(trainingRepository.deletedIds, [lesson.id]);
       expect(controller.module.lessons, isEmpty);
       expect(
         controller.module.trainingDescriptionId,
@@ -215,8 +214,8 @@ void main() {
       confirmDelete: (_) async => fail('Deletion must remain restricted.'),
       showMessage: (message) => fail(message),
     );
-    expect(auditRepository.visibilityIds, isEmpty);
-    expect(auditRepository.deletedIds, isEmpty);
+    expect(trainingRepository.visibilityIds, isEmpty);
+    expect(trainingRepository.deletedIds, isEmpty);
     expect(controller.navigationResult, isNull);
   });
 
@@ -242,7 +241,7 @@ void main() {
           showMessage: (message) => fail(message),
         );
       }
-      expect(auditRepository.deletedIds, isEmpty);
+      expect(trainingRepository.deletedIds, isEmpty);
       expect(controller.navigationResult, isNull);
     },
   );
@@ -259,10 +258,10 @@ void main() {
         ),
         isFalse,
       );
-      expect(auditRepository.visibilityIds, isEmpty);
+      expect(trainingRepository.visibilityIds, isEmpty);
 
       canManage = true;
-      auditRepository.onVisibility = () =>
+      trainingRepository.onVisibility = () =>
           Future.error(Exception('API failure'));
       expect(
         await controller.updateLessonVisibility(
@@ -281,7 +280,7 @@ void main() {
         AppStrings.trainingLibraryUnableToUpdateVisibility,
       );
 
-      auditRepository.onVisibility = null;
+      trainingRepository.onVisibility = null;
       expect(
         await controller.updateLessonVisibility(
           lesson: lesson,
@@ -305,7 +304,7 @@ void main() {
       expect(await controller.deleteLesson('one'), isFalse);
       canManage = true;
       expect(await controller.deleteLesson('unknown'), isFalse);
-      expect(auditRepository.deletedIds, isEmpty);
+      expect(trainingRepository.deletedIds, isEmpty);
       expect(controller.module.lessons, hasLength(2));
     },
   );
@@ -314,7 +313,7 @@ void main() {
     'delete removes only the saved lesson and prevents duplicate requests',
     () async {
       final deletion = Completer<void>();
-      auditRepository.onDelete = () => deletion.future;
+      trainingRepository.onDelete = () => deletion.future;
       final result = controller.deleteLesson(' one ');
       expect(controller.isDeletingLesson, isTrue);
       expect(controller.module.lessons, hasLength(2));
@@ -322,12 +321,12 @@ void main() {
 
       deletion.complete();
       expect(await result, isTrue);
-      expect(auditRepository.deletedIds, ['one']);
+      expect(trainingRepository.deletedIds, ['one']);
       expect(controller.module.lessons.map((lesson) => lesson.id), ['two']);
       expect(controller.isDeletingLesson, isFalse);
       expect(controller.navigationResult, isTrue);
 
-      auditRepository.onDelete = null;
+      trainingRepository.onDelete = null;
       expect(await controller.deleteLesson('two'), isTrue);
       expect(controller.module.lessons, isEmpty);
       expect(controller.visibleLessons, isEmpty);
@@ -335,14 +334,14 @@ void main() {
   );
 
   test('failed deletes retain the lesson and can be retried', () async {
-    auditRepository.onDelete = () => Future.error(Exception('API failure'));
+    trainingRepository.onDelete = () => Future.error(Exception('API failure'));
     expect(await controller.deleteLesson('one'), isFalse);
     expect(controller.errorMessage, isNotNull);
     expect(controller.module.lessons, hasLength(2));
     expect(controller.isDeletingLesson, isFalse);
     expect(controller.navigationResult, isNull);
 
-    auditRepository.onDelete = null;
+    trainingRepository.onDelete = null;
     expect(await controller.deleteLesson('one'), isTrue);
     expect(controller.errorMessage, isNull);
     expect(controller.visibleLessons.map((lesson) => lesson.id), ['two']);
@@ -410,7 +409,8 @@ class _LibraryRepository extends Fake implements TrainingLibraryRepository {
   }
 }
 
-class _AuditRepository extends Fake implements AuditRepository {
+class _TrainingLibraryRepository extends Fake
+    implements TrainingLibraryRepository {
   final List<String> deletedIds = [];
   Future<void> Function()? onDelete;
   final List<String> visibilityIds = [];
