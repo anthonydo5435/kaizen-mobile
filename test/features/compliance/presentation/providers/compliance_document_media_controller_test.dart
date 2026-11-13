@@ -1,5 +1,6 @@
 import 'dart:async';
 
+import 'package:file_picker/file_picker.dart';
 import 'package:flutter/services.dart';
 import 'package:flutter_test/flutter_test.dart';
 import 'package:image_picker/image_picker.dart';
@@ -11,14 +12,19 @@ import 'package:sparrowkaizen/features/compliance/presentation/providers/complia
 
 void main() {
   late _ImagePicker picker;
+  late _FilePicker filePicker;
   late ComplianceDocumentMediaController controller;
   var isDisposed = false;
   setUp(() {
     isDisposed = false;
     picker = _ImagePicker();
+    filePicker = _FilePicker();
     controller = ComplianceDocumentMediaController(
       PickComplianceDocumentFileUseCase(
-        ComplianceDocumentMediaRepositoryImpl(imagePicker: picker),
+        ComplianceDocumentMediaRepositoryImpl(
+          imagePicker: picker,
+          filePicker: filePicker,
+        ),
       ),
     );
   });
@@ -35,6 +41,8 @@ void main() {
       await controller.pickFile(ComplianceDocumentFileSource.camera);
       expect(picker.sources, [ImageSource.camera]);
       expect(controller.selectedFile!.path, '/tmp/captured.png');
+      expect(controller.selectedFileName, 'captured.png');
+      expect(controller.isSelectedFileImage, isTrue);
       expect(controller.isPicking, isFalse);
       expect(controller.errorMessage, isNull);
     },
@@ -43,12 +51,15 @@ void main() {
   test(
     'cancelling camera replacement keeps the gallery image selected',
     () async {
-      picker.load = () async => XFile('/tmp/gallery.png');
+      filePicker.file = _PickedFile('/tmp/cache.png', 'Gallery image.png');
       await controller.pickFile(ComplianceDocumentFileSource.gallery);
       picker.load = () async => null;
       await controller.pickFile(ComplianceDocumentFileSource.camera);
-      expect(picker.sources, [ImageSource.gallery, ImageSource.camera]);
-      expect(controller.selectedFile!.path, '/tmp/gallery.png');
+      expect(picker.sources, [ImageSource.camera]);
+      expect(filePicker.type, FileType.image);
+      expect(controller.selectedFile!.path, '/tmp/cache.png');
+      expect(controller.selectedFileName, 'Gallery image.png');
+      expect(controller.isSelectedFileImage, isTrue);
       expect(controller.isPicking, isFalse);
       expect(controller.errorMessage, isNull);
     },
@@ -85,6 +96,42 @@ void main() {
       expect(controller.selectedFile, isNull);
     },
   );
+}
+
+class _FilePicker extends FilePickerPlatform {
+  PlatformFile? file;
+  FileType? type;
+
+  @override
+  Future<PlatformFile?> pickFile({
+    String? dialogTitle,
+    String? initialDirectory,
+    FileType type = FileType.any,
+    List<String>? allowedExtensions,
+    Function(FilePickerStatus)? onFileLoading,
+    int compressionQuality = 0,
+    AndroidOptions androidOptions = const AndroidOptions(),
+    DarwinOptions darwinOptions = const DarwinOptions(),
+    WindowsOptions windowsOptions = const WindowsOptions(),
+    LinuxOptions linuxOptions = const LinuxOptions(),
+    WebOptions webOptions = const WebOptions(),
+  }) async {
+    this.type = type;
+    return file;
+  }
+}
+
+final class _PickedFile extends PlatformFile {
+  _PickedFile(String path, this.name) : uri = Uri.file(path);
+
+  @override
+  final String name;
+
+  @override
+  final Uri uri;
+
+  @override
+  dynamic noSuchMethod(Invocation invocation) => super.noSuchMethod(invocation);
 }
 
 class _ImagePicker extends ImagePicker {

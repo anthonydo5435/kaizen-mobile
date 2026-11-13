@@ -12,6 +12,7 @@ import '../../../../../core/managers/app_manager.dart';
 import '../../../../../core/utils/custom_functions.dart';
 import '../../../../../core/widgets/app_button.dart';
 import '../../../../../core/widgets/app_dialog_style.dart';
+import '../../../../../core/widgets/app_keyboard_bottom_sheet_surface.dart';
 import '../../../../../core/widgets/app_overlay_close_button.dart';
 import '../../../../../core/widgets/app_text_view.dart';
 import '../../../../../core/widgets/fast_circular_progress.dart';
@@ -22,6 +23,7 @@ import '../../../domain/usecases/pick_compliance_document_file_usecase.dart';
 import '../../../domain/usecases/upload_compliance_document_usecase.dart';
 import '../../providers/compliance_document_expiry_controller.dart';
 import '../../providers/compliance_document_media_controller.dart';
+import '../../providers/compliance_document_upload_controller.dart';
 import 'compliance_document_full_screen_image.dart';
 
 class ComplianceDocumentUploadSheet extends StatefulWidget {
@@ -37,18 +39,22 @@ class ComplianceDocumentUploadSheet extends StatefulWidget {
   final PickComplianceDocumentFileUseCase pickComplianceDocumentFileUseCase;
 
   @override
-  State<ComplianceDocumentUploadSheet> createState() => _ComplianceDocumentUploadSheetState();
+  State<ComplianceDocumentUploadSheet> createState() =>
+      _ComplianceDocumentUploadSheetState();
 }
 
-class _ComplianceDocumentUploadSheetState extends State<ComplianceDocumentUploadSheet> {
+class _ComplianceDocumentUploadSheetState
+    extends State<ComplianceDocumentUploadSheet> {
   static const double _uploadPanelHeight = 260;
   static const double _uploadPanelExpandedHeight = 340;
 
   late final ComplianceDocumentExpiryController _expiryController;
   late final ComplianceDocumentMediaController _mediaController;
-  bool _isUploading = false;
-  bool _isSubmittingRecord = false;
-  double _uploadProgress = 0;
+  late final ComplianceDocumentUploadController _uploadController;
+  final _expiryFieldKey = GlobalKey();
+
+  bool get _isUploading => _uploadController.isUploading;
+  double get _uploadProgress => _uploadController.uploadProgress;
 
   @override
   void initState() {
@@ -56,17 +62,27 @@ class _ComplianceDocumentUploadSheetState extends State<ComplianceDocumentUpload
     _expiryController = ComplianceDocumentExpiryController(
       initialExpiryDate: widget.document.latestDocumentExpiryDate,
     );
-    _mediaController = ComplianceDocumentMediaController(widget.pickComplianceDocumentFileUseCase);
+    _mediaController = ComplianceDocumentMediaController(
+      widget.pickComplianceDocumentFileUseCase,
+    );
+    _uploadController = ComplianceDocumentUploadController(
+      document: widget.document,
+      uploadUseCase: widget.uploadComplianceDocumentUseCase,
+      mediaController: _mediaController,
+      expiryController: _expiryController,
+    );
   }
 
   @override
   void dispose() {
+    _uploadController.dispose();
     _expiryController.dispose();
     _mediaController.dispose();
     super.dispose();
   }
 
   File? get _selectedFile => _mediaController.selectedFile;
+  String get _selectedFileName => _mediaController.selectedFileName ?? '';
   bool get _isPickingMedia => _mediaController.isPicking;
 
   Future<void> _pickDocument(ComplianceDocumentFileSource source) async {
@@ -154,11 +170,7 @@ class _ComplianceDocumentUploadSheetState extends State<ComplianceDocumentUpload
   }
 
   Future<void> _submitUpload() async {
-    final selectedFile = _selectedFile;
-    if (selectedFile == null || _isUploading) {
-      return;
-    }
-
+    if (_selectedFile == null || _isUploading || !_canUploadDocument) return;
     if (context.read<AppManager>().showBillingBanner) {
       await showDialog<void>(
         context: context,
@@ -167,71 +179,17 @@ class _ComplianceDocumentUploadSheetState extends State<ComplianceDocumentUpload
       );
       return;
     }
-
-    if (widget.document.hasExpiry && !_expiryController.validate()) {
-      return;
-    }
-
-    setState(() {
-      _isUploading = true;
-      _isSubmittingRecord = false;
-      _uploadProgress = 0;
-    });
-
-    try {
-      final fileName = CustomFunctions.fileNameFromPath(selectedFile.path);
-      await widget.uploadComplianceDocumentUseCase.call(
-        complianceDocumentId: widget.document.id,
-        fileName: fileName,
-        fileBytes: await selectedFile.readAsBytes(),
-        contentType: CustomFunctions.contentTypeFromPath(
-          selectedFile.path,
-          fallback: 'application/pdf',
-        ),
-        expiryDate: widget.document.hasExpiry ? _expiryController.apiExpiryDate : null,
-        onUploadProgress: (progress) {
-          if (!mounted) {
-            return;
-          }
-
-          setState(() {
-            _uploadProgress = progress;
-          });
-        },
-        onRecordUploadStarted: () {
-          if (!mounted) {
-            return;
-          }
-
-          setState(() {
-            _uploadProgress = 1;
-            _isSubmittingRecord = true;
-          });
-        },
-      );
-      if (!mounted) {
-        return;
-      }
-
+    FocusManager.instance.primaryFocus?.unfocus();
+    final didUpload = await _uploadController.submit();
+    if (!mounted) return;
+    if (didUpload) {
       Navigator.of(context).pop(true);
-    } catch (error) {
-      debugPrint('Compliance document upload failed: $error');
-      if (!mounted) {
-        return;
-      }
-
-      CustomFunctions.showCustomAlert(
+    } else if (_uploadController.errorMessage != null) {
+      await CustomFunctions.showCustomAlert(
         context,
-        'Failed',
-        'Unable to upload document, please try again!',
+        AppStrings.complianceDocumentUploadFailedTitle,
+        _uploadController.errorMessage!,
       );
-    } finally {
-      if (mounted) {
-        setState(() {
-          _isUploading = false;
-          _isSubmittingRecord = false;
-        });
-      }
     }
   }
 
@@ -243,8 +201,10 @@ class _ComplianceDocumentUploadSheetState extends State<ComplianceDocumentUpload
 
     final shouldReupload = await Navigator.of(context).push<bool>(
       MaterialPageRoute(
-        builder: (_) =>
-            ComplianceDocumentFullScreenImage(title: widget.document.title, image: selectedFile),
+        builder: (_) => ComplianceDocumentFullScreenImage(
+          title: widget.document.title,
+          image: selectedFile,
+        ),
       ),
     );
 
@@ -264,7 +224,9 @@ class _ComplianceDocumentUploadSheetState extends State<ComplianceDocumentUpload
     final selectedDate = _expiryController.selectedDate;
     final date = await showDatePicker(
       context: context,
-      initialDate: selectedDate != null && !selectedDate.isBefore(today) ? selectedDate : today,
+      initialDate: selectedDate != null && !selectedDate.isBefore(today)
+          ? selectedDate
+          : today,
       firstDate: today,
       lastDate: DateTime(9999, 12, 31),
       initialEntryMode: DatePickerEntryMode.calendarOnly,
@@ -278,20 +240,30 @@ class _ComplianceDocumentUploadSheetState extends State<ComplianceDocumentUpload
             shape: AppDialogStyle.shape(radius: 28),
             dayShape: WidgetStateProperty.resolveWith<OutlinedBorder?>(
               (states) => states.contains(WidgetState.selected)
-                  ? RoundedRectangleBorder(borderRadius: BorderRadius.circular(8))
+                  ? RoundedRectangleBorder(
+                      borderRadius: BorderRadius.circular(8),
+                    )
                   : null,
             ),
             dayBackgroundColor: WidgetStateProperty.resolveWith<Color?>(
-              (states) => states.contains(WidgetState.selected) ? AppColors.secondaryColor : null,
+              (states) => states.contains(WidgetState.selected)
+                  ? AppColors.secondaryColor
+                  : null,
             ),
             dayForegroundColor: WidgetStateProperty.resolveWith<Color?>(
-              (states) => states.contains(WidgetState.selected) ? AppColors.textPrimary : null,
+              (states) => states.contains(WidgetState.selected)
+                  ? AppColors.textPrimary
+                  : null,
             ),
             todayBackgroundColor: WidgetStateProperty.resolveWith<Color?>(
-              (states) => states.contains(WidgetState.selected) ? AppColors.secondaryColor : null,
+              (states) => states.contains(WidgetState.selected)
+                  ? AppColors.secondaryColor
+                  : null,
             ),
             todayForegroundColor: WidgetStateProperty.resolveWith<Color?>(
-              (states) => states.contains(WidgetState.selected) ? AppColors.textPrimary : null,
+              (states) => states.contains(WidgetState.selected)
+                  ? AppColors.textPrimary
+                  : null,
             ),
           ),
         ),
@@ -305,22 +277,18 @@ class _ComplianceDocumentUploadSheetState extends State<ComplianceDocumentUpload
 
   bool get _hasSelectedFile => _selectedFile != null;
   bool get _canUploadDocument => !_isPendingApproval;
-  bool get _isUploadingToStorage => _isUploading && !_isSubmittingRecord;
   bool get _hasRejectionReason => !_hasSelectedFile && _rejectionReason != null;
   bool get _showExpiryField => widget.document.hasExpiry;
   double get _resolvedUploadPanelHeight {
-    final height = _hasRejectionReason ? _uploadPanelHeight : _uploadPanelExpandedHeight;
-    return _hasSelectedFile ? height : height + 48;
+    final height = _hasRejectionReason
+        ? _uploadPanelHeight
+        : _uploadPanelExpandedHeight;
+    return _hasSelectedFile
+        ? (_isSelectedFileImage ? 200 : _uploadPanelHeight)
+        : height + 48;
   }
 
-  bool get _isSelectedFileImage {
-    final path = _selectedFile?.path.toLowerCase();
-    if (path == null) {
-      return false;
-    }
-
-    return path.endsWith('.png') || path.endsWith('.jpg') || path.endsWith('.jpeg');
-  }
+  bool get _isSelectedFileImage => _mediaController.isSelectedFileImage;
 
   bool get _isPendingApproval {
     final latestStatus = widget.document.latestDocumentStatus;
@@ -362,12 +330,13 @@ class _ComplianceDocumentUploadSheetState extends State<ComplianceDocumentUpload
   @override
   Widget build(BuildContext context) {
     return ListenableBuilder(
-      listenable: _mediaController,
+      listenable: _uploadController,
       builder: (context, _) => _buildSheet(context),
     );
   }
 
   Widget _buildSheet(BuildContext context) {
+    final keyboardOpen = MediaQuery.viewInsetsOf(context).bottom > 0;
     final uploadContent = Column(
       crossAxisAlignment: CrossAxisAlignment.stretch,
       mainAxisSize: MainAxisSize.min,
@@ -381,23 +350,33 @@ class _ComplianceDocumentUploadSheetState extends State<ComplianceDocumentUpload
             fontSize: 16,
           ),
           const SizedBox(height: 8),
-          _RejectionReasonCard(reason: _rejectionReason!, onShowMore: _showRejectionReasonDialog),
+          _RejectionReasonCard(
+            reason: _rejectionReason!,
+            onShowMore: _showRejectionReasonDialog,
+          ),
           const SizedBox(height: 16),
         ],
-        if (_showExpiryField) const Spacer(),
         SizedBox(
           height: _resolvedUploadPanelHeight,
           child: _hasSelectedFile
-              ? _isUploadingToStorage
+              ? _isUploading
                     ? _UploadProgressPanel(
-                        fileName: CustomFunctions.fileNameFromPath(_selectedFile!.path),
-                        fileSizeLabel: CustomFunctions.formatFileSize(_selectedFile!.lengthSync()),
+                        fileName: _selectedFileName,
+                        fileSizeLabel: CustomFunctions.formatFileSize(
+                          _selectedFile!.lengthSync(),
+                        ),
                         progress: _uploadProgress,
                       )
                     : _SelectedDocumentPreview(
+                        key: const ValueKey(
+                          'compliance-selected-document-preview',
+                        ),
                         file: _selectedFile!,
+                        fileName: _selectedFileName,
                         isImage: _isSelectedFileImage,
-                        onTap: _isSelectedFileImage ? _openFullScreenImage : null,
+                        onTap: _isSelectedFileImage
+                            ? _openFullScreenImage
+                            : null,
                       )
               : _UploadDropZone(
                   enabled: _canUploadDocument,
@@ -406,9 +385,46 @@ class _ComplianceDocumentUploadSheetState extends State<ComplianceDocumentUpload
                 ),
         ),
         if (_hasSelectedFile) ...[
-          if (_showExpiryField) const Spacer(),
+          if (_canUploadDocument) ...[
+            const SizedBox(height: 4),
+            Align(
+              alignment: Alignment.centerRight,
+              child: TextButton(
+                onPressed: _isUploading || _isPickingMedia
+                    ? null
+                    : _showUploadOptions,
+                style: TextButton.styleFrom(
+                  foregroundColor: AppColors.secondaryColor,
+                  textStyle: const TextStyle(
+                    fontSize: 12,
+                    fontWeight: FontWeight.w600,
+                  ),
+                  padding: const EdgeInsets.symmetric(
+                    horizontal: 8,
+                    vertical: 4,
+                  ),
+                  minimumSize: const Size(48, 36),
+                ),
+                child: const Text(AppStrings.complianceChangeFile),
+              ),
+            ),
+          ],
           const SizedBox(height: 16),
           const AppDotDivider(),
+          const SizedBox(height: 16),
+          _DocumentMetadataFields(
+            controller: _uploadController,
+            enabled: !_isUploading && _canUploadDocument,
+          ),
+        ],
+        if (_showExpiryField && keyboardOpen) ...[
+          const SizedBox(height: 24),
+          _ExpiryDateField(
+            key: _expiryFieldKey,
+            controller: _expiryController,
+            enabled: !_isUploading && _canUploadDocument,
+            onPickDate: _pickExpiryDate,
+          ),
         ],
       ],
     );
@@ -416,60 +432,223 @@ class _ComplianceDocumentUploadSheetState extends State<ComplianceDocumentUpload
       top: false,
       bottom: false,
       minimum: EdgeInsets.only(bottom: MediaQuery.viewInsetsOf(context).bottom),
-      child: Container(
-        height: _showExpiryField ? MediaQuery.sizeOf(context).height * 0.80 : null,
-        constraints: BoxConstraints(maxHeight: MediaQuery.sizeOf(context).height * 0.80),
-        decoration: const BoxDecoration(
-          color: AppColors.mainBg,
-          borderRadius: BorderRadius.vertical(top: Radius.circular(24)),
-        ),
-        child: Padding(
-          padding: const EdgeInsets.fromLTRB(22, 10, 22, 24),
-          child: Column(
-            crossAxisAlignment: CrossAxisAlignment.stretch,
-            mainAxisSize: _showExpiryField ? MainAxisSize.max : MainAxisSize.min,
-            children: [
-              const SizedBox(height: 12),
-              const _SheetHeader(),
-              const SizedBox(height: 16),
-              const AppDotDivider(),
-              Flexible(
-                fit: _showExpiryField ? FlexFit.tight : FlexFit.loose,
-                child: CustomScrollView(
-                  shrinkWrap: !_showExpiryField,
-                  slivers: [
-                    if (_showExpiryField)
-                      SliverFillRemaining(hasScrollBody: false, child: uploadContent)
-                    else
-                      SliverToBoxAdapter(child: uploadContent),
-                  ],
+      child: LayoutBuilder(
+        builder: (context, constraints) => AnimatedSize(
+          key: const ValueKey('compliance-document-upload-sheet'),
+          duration: const Duration(milliseconds: 280),
+          curve: Curves.easeInOutCubic,
+          alignment: Alignment.bottomCenter,
+          child: ConstrainedBox(
+            constraints: BoxConstraints(maxHeight: constraints.maxHeight * 0.9),
+            child: SizedBox(
+              height: _hasSelectedFile ? constraints.maxHeight * 0.9 : null,
+              child: _UploadSheetSurface(
+                child: Padding(
+                  padding: const EdgeInsets.fromLTRB(22, 10, 22, 24),
+                  child: Column(
+                    mainAxisSize: MainAxisSize.min,
+                    crossAxisAlignment: CrossAxisAlignment.stretch,
+                    children: [
+                      const SizedBox(height: 12),
+                      const _SheetHeader(),
+                      const SizedBox(height: 16),
+                      const AppDotDivider(),
+                      Flexible(
+                        fit: _hasSelectedFile ? FlexFit.tight : FlexFit.loose,
+                        child: SingleChildScrollView(child: uploadContent),
+                      ),
+                      if (_showExpiryField && !keyboardOpen) ...[
+                        const SizedBox(height: 24),
+                        _ExpiryDateField(
+                          key: _expiryFieldKey,
+                          controller: _expiryController,
+                          enabled: !_isUploading && _canUploadDocument,
+                          onPickDate: _pickExpiryDate,
+                        ),
+                      ],
+                      const SizedBox(height: 20),
+                      AppButton(
+                        text: _hasSelectedFile
+                            ? AppStrings.submit
+                            : AppStrings.cancelUpload,
+                        onPressed:
+                            _hasSelectedFile &&
+                                !_isUploading &&
+                                !_isPickingMedia &&
+                                _canUploadDocument
+                            ? _submitUpload
+                            : null,
+                        isLoading: _isUploading,
+                        backgroundColor: _hasSelectedFile
+                            ? AppColors.secondaryColor
+                            : AppColors.grey1,
+                        textColor: _hasSelectedFile
+                            ? AppColors.textPrimary
+                            : AppColors.grey2,
+                        minimumHeight: 40,
+                        textSize: 16,
+                      ),
+                    ],
+                  ),
                 ),
               ),
-              if (_showExpiryField) ...[
-                const SizedBox(height: 24),
-                _ExpiryDateField(
-                  controller: _expiryController,
-                  enabled: !_isUploading && _canUploadDocument,
-                  onPickDate: _pickExpiryDate,
-                ),
-              ],
-              const SizedBox(height: 20),
-              AppButton(
-                text: _hasSelectedFile ? AppStrings.submit : AppStrings.cancelUpload,
-                onPressed:
-                    _hasSelectedFile && !_isUploading && !_isPickingMedia && _canUploadDocument
-                    ? _submitUpload
-                    : null,
-                isLoading: _isSubmittingRecord,
-                backgroundColor: _hasSelectedFile ? AppColors.secondaryColor : AppColors.grey1,
-                textColor: _hasSelectedFile ? AppColors.textPrimary : AppColors.grey2,
-                minimumHeight: 40,
-                textSize: 16,
-              ),
-            ],
+            ),
           ),
         ),
       ),
+    );
+  }
+}
+
+class _UploadSheetSurface extends StatelessWidget {
+  const _UploadSheetSurface({required this.child});
+
+  final Widget child;
+
+  @override
+  Widget build(BuildContext context) {
+    return AppKeyboardBottomSheetSurface(
+      color: AppColors.mainBg,
+      borderRadius: const BorderRadius.vertical(top: Radius.circular(24)),
+      child: GestureDetector(
+        behavior: HitTestBehavior.opaque,
+        onTap: () => FocusManager.instance.primaryFocus?.unfocus(),
+        child: child,
+      ),
+    );
+  }
+}
+
+class _DocumentMetadataFields extends StatelessWidget {
+  const _DocumentMetadataFields({
+    required this.controller,
+    required this.enabled,
+  });
+
+  final ComplianceDocumentUploadController controller;
+  final bool enabled;
+
+  @override
+  Widget build(BuildContext context) {
+    final keyboardOpen = MediaQuery.viewInsetsOf(context).bottom > 0;
+    return Column(
+      children: [
+        _DocumentMetadataField(
+          fieldKey: const ValueKey('compliance-document-name'),
+          controller: controller.nameController,
+          label: AppStrings.complianceDocumentName,
+          maxLength: ComplianceDocumentUploadController.nameMaxLength,
+          errorText: controller.nameError,
+          enabled: enabled,
+        ),
+        const SizedBox(height: 16),
+        _DocumentMetadataField(
+          fieldKey: const ValueKey('compliance-document-description'),
+          controller: controller.descriptionController,
+          label: AppStrings.complianceDocumentDescription,
+          maxLength: ComplianceDocumentUploadController.descriptionMaxLength,
+          errorText: controller.descriptionError,
+          hintText: AppStrings.complianceDocumentDescriptionHint,
+          enabled: enabled,
+          minLines: keyboardOpen ? 2 : 5,
+          maxLines: keyboardOpen ? 3 : 5,
+        ),
+      ],
+    );
+  }
+}
+
+class _DocumentMetadataField extends StatelessWidget {
+  const _DocumentMetadataField({
+    required this.fieldKey,
+    required this.controller,
+    required this.label,
+    required this.enabled,
+    required this.maxLength,
+    this.hintText,
+    this.errorText,
+    this.minLines = 1,
+    this.maxLines = 1,
+  });
+
+  final Key fieldKey;
+  final TextEditingController controller;
+  final String label;
+  final bool enabled;
+  final int maxLength;
+  final String? hintText;
+  final String? errorText;
+  final int minLines;
+  final int maxLines;
+
+  @override
+  Widget build(BuildContext context) {
+    final border = OutlineInputBorder(
+      borderRadius: BorderRadius.circular(16),
+      borderSide: BorderSide(
+        color: AppColors.fieldBorder.withValues(alpha: 0.28),
+      ),
+    );
+    return Column(
+      crossAxisAlignment: CrossAxisAlignment.stretch,
+      children: [
+        AppTextView.body2(
+          label,
+          color: AppColors.textPrimary,
+          fontWeight: FontWeight.w600,
+        ),
+        const SizedBox(height: 10),
+        TextField(
+          key: fieldKey,
+          controller: controller,
+          enabled: enabled,
+          minLines: minLines,
+          maxLines: maxLines,
+          maxLength: maxLength,
+          maxLengthEnforcement: MaxLengthEnforcement.enforced,
+          cursorHeight: 16,
+          keyboardType: maxLines > 1
+              ? TextInputType.multiline
+              : TextInputType.text,
+          textInputAction: maxLines > 1
+              ? TextInputAction.newline
+              : TextInputAction.next,
+          style: const TextStyle(
+            color: AppColors.textPrimary,
+            fontSize: 14,
+            fontWeight: FontWeight.w500,
+            height: 1.45,
+          ),
+          decoration: InputDecoration(
+            hintText: hintText,
+            hintStyle: const TextStyle(
+              color: AppColors.textSecondary,
+              fontSize: 14,
+            ),
+            filled: true,
+            fillColor: AppColors.fieldFill,
+            isDense: true,
+            counterStyle: const TextStyle(
+              color: AppColors.textSecondary,
+              fontSize: 12,
+            ),
+            errorText: errorText,
+            errorMaxLines: 2,
+            contentPadding: const EdgeInsets.symmetric(
+              horizontal: 16,
+              vertical: 14,
+            ),
+            border: border,
+            enabledBorder: border,
+            focusedBorder: border.copyWith(
+              borderSide: const BorderSide(
+                color: AppColors.secondaryColor,
+                width: 2,
+              ),
+            ),
+          ),
+        ),
+      ],
     );
   }
 }
@@ -484,7 +663,9 @@ class _SheetHeader extends StatelessWidget {
       children: [
         Align(
           alignment: Alignment.centerRight,
-          child: AppOverlayCloseButton(onTap: () => Navigator.of(context).pop()),
+          child: AppOverlayCloseButton(
+            onTap: () => Navigator.of(context).pop(),
+          ),
         ),
         const AppTextView.title1(
           AppStrings.uploadDocumentTitle,
@@ -519,7 +700,9 @@ class _RejectionReasonCard extends StatelessWidget {
       fontWeight: FontWeight.w500,
     );
     return Container(
-      height: (textScaler.scale(14) * 1.45 * 2 + 24).clamp(72, double.infinity).toDouble(),
+      height: (textScaler.scale(14) * 1.45 * 2 + 24)
+          .clamp(72, double.infinity)
+          .toDouble(),
       padding: const EdgeInsets.all(12),
       decoration: BoxDecoration(
         color: AppColors.surfaceDark,
@@ -553,14 +736,21 @@ class _RejectionReasonCard extends StatelessWidget {
     )..layout(maxWidth: width);
     if (!previewPainter.didExceedMaxLines) {
       previewPainter.dispose();
-      return Text(reason, style: reasonStyle, maxLines: 2, textScaler: TextScaler.noScaling);
+      return Text(
+        reason,
+        style: reasonStyle,
+        maxLines: 2,
+        textScaler: TextScaler.noScaling,
+      );
     }
     const suffix = AppStrings.complianceRejectionPreviewEllipsis;
     final suffixPainter = TextPainter(
       text: TextSpan(
         style: reasonStyle,
         text: suffix,
-        children: [TextSpan(text: AppStrings.complianceShowMore, style: linkStyle)],
+        children: [
+          TextSpan(text: AppStrings.complianceShowMore, style: linkStyle),
+        ],
       ),
       textDirection: direction,
       locale: locale,
@@ -604,7 +794,9 @@ class _RejectionReasonCard extends StatelessWidget {
           size: suffixPainter.size,
           alignment: PlaceholderAlignment.baseline,
           baseline: TextBaseline.alphabetic,
-          baselineOffset: suffixPainter.computeDistanceToActualBaseline(TextBaseline.alphabetic),
+          baselineOffset: suffixPainter.computeDistanceToActualBaseline(
+            TextBaseline.alphabetic,
+          ),
         ),
       ]);
       previewPainter.layout(maxWidth: width);
@@ -625,7 +817,11 @@ class _RejectionReasonCard extends StatelessWidget {
     final preview = characters.take(low).join().trimRight();
     suffixPainter.dispose();
     previewPainter.dispose();
-    return Text.rich(span(preview), maxLines: 2, textScaler: TextScaler.noScaling);
+    return Text.rich(
+      span(preview),
+      maxLines: 2,
+      textScaler: TextScaler.noScaling,
+    );
   }
 }
 
@@ -654,9 +850,16 @@ class _RejectionReasonDialog extends StatelessWidget {
         ],
       ),
       content: ConstrainedBox(
-        constraints: BoxConstraints(maxHeight: MediaQuery.sizeOf(context).height * 0.5),
+        constraints: BoxConstraints(
+          maxHeight: MediaQuery.sizeOf(context).height * 0.5,
+        ),
         child: SingleChildScrollView(
-          child: AppTextView.body(reason, color: AppColors.textPrimary, fontSize: 14, height: 1.45),
+          child: AppTextView.body(
+            reason,
+            color: AppColors.textPrimary,
+            fontSize: 14,
+            height: 1.45,
+          ),
         ),
       ),
       actions: [
@@ -673,7 +876,11 @@ class _RejectionReasonDialog extends StatelessWidget {
 }
 
 class _UploadDropZone extends StatelessWidget {
-  const _UploadDropZone({required this.enabled, required this.isPickingMedia, required this.onTap});
+  const _UploadDropZone({
+    required this.enabled,
+    required this.isPickingMedia,
+    required this.onTap,
+  });
 
   final bool enabled;
   final bool isPickingMedia;
@@ -687,7 +894,9 @@ class _UploadDropZone extends StatelessWidget {
         onTap: enabled && !isPickingMedia ? onTap : null,
         child: CustomPaint(
           painter: _DashedBorderPainter(
-            color: AppColors.fieldBorder.withValues(alpha: enabled ? 0.4 : 0.18),
+            color: AppColors.fieldBorder.withValues(
+              alpha: enabled ? 0.4 : 0.18,
+            ),
             radius: 12,
           ),
           child: Container(
@@ -702,7 +911,9 @@ class _UploadDropZone extends StatelessWidget {
                       width: 64,
                       height: 64,
                       decoration: BoxDecoration(
-                        color: enabled ? AppColors.secondaryColor : AppColors.grey2,
+                        color: enabled
+                            ? AppColors.secondaryColor
+                            : AppColors.grey2,
                         shape: BoxShape.circle,
                       ),
                       alignment: Alignment.center,
@@ -771,7 +982,9 @@ class _UploadOptionTile extends StatelessWidget {
           decoration: BoxDecoration(
             color: AppColors.mainBg,
             borderRadius: BorderRadius.circular(12),
-            border: Border.all(color: AppColors.fieldBorder.withValues(alpha: 0.18)),
+            border: Border.all(
+              color: AppColors.fieldBorder.withValues(alpha: 0.18),
+            ),
           ),
           child: Row(
             children: [
@@ -812,9 +1025,16 @@ class _UploadOptionTile extends StatelessWidget {
 }
 
 class _SelectedDocumentPreview extends StatelessWidget {
-  const _SelectedDocumentPreview({required this.file, required this.isImage, this.onTap});
+  const _SelectedDocumentPreview({
+    super.key,
+    required this.file,
+    required this.fileName,
+    required this.isImage,
+    this.onTap,
+  });
 
   final File file;
+  final String fileName;
   final bool isImage;
   final VoidCallback? onTap;
 
@@ -844,12 +1064,19 @@ class _SelectedDocumentPreview extends StatelessWidget {
             Container(
               width: 64,
               height: 64,
-              decoration: const BoxDecoration(color: AppColors.red, shape: BoxShape.circle),
-              child: const Icon(Icons.picture_as_pdf_rounded, color: Colors.white, size: 32),
+              decoration: const BoxDecoration(
+                color: AppColors.red,
+                shape: BoxShape.circle,
+              ),
+              child: const Icon(
+                Icons.picture_as_pdf_rounded,
+                color: Colors.white,
+                size: 32,
+              ),
             ),
             const SizedBox(height: 20),
             AppTextView.body(
-              CustomFunctions.fileNameFromPath(file.path),
+              fileName,
               color: AppColors.textPrimary,
               fontWeight: FontWeight.w600,
               textAlign: TextAlign.center,
@@ -884,7 +1111,9 @@ class _UploadProgressPanel extends StatelessWidget {
   @override
   Widget build(BuildContext context) {
     final safeProgress = progress.clamp(0, 1).toDouble();
-    final progressLabel = '${(safeProgress * 100).round()}%';
+    final progressLabel = AppStrings.complianceDocumentUploadPercentage(
+      (safeProgress * 100).round(),
+    );
     final displayFileName = _shortFileName(fileName);
 
     return Container(
@@ -924,12 +1153,12 @@ class _UploadProgressPanel extends StatelessWidget {
           ),
           const SizedBox(height: 8),
           ClipRRect(
-            borderRadius: BorderRadius.circular(999),
+            borderRadius: BorderRadius.circular(6),
             child: LinearProgressIndicator(
               value: safeProgress,
-              minHeight: 8,
-              backgroundColor: AppColors.textPrimary,
-              valueColor: const AlwaysStoppedAnimation<Color>(AppColors.progressColor),
+              minHeight: 6,
+              backgroundColor: AppColors.fieldBorder.withValues(alpha: 0.20),
+              valueColor: const AlwaysStoppedAnimation(AppColors.progressColor),
             ),
           ),
         ],
@@ -961,6 +1190,7 @@ class _UploadProgressPanel extends StatelessWidget {
 
 class _ExpiryDateField extends StatelessWidget {
   const _ExpiryDateField({
+    super.key,
     required this.controller,
     required this.enabled,
     required this.onPickDate,
@@ -982,14 +1212,18 @@ class _ExpiryDateField extends StatelessWidget {
         textInputAction: TextInputAction.done,
         autocorrect: false,
         enableSuggestions: false,
-        inputFormatters: [TextInputFormatter.withFunction(controller.formatEditUpdate)],
+        inputFormatters: [
+          TextInputFormatter.withFunction(controller.formatEditUpdate),
+        ],
         onTap: controller.selectSegmentAtCursor,
         onSubmitted: (_) => controller.validate(),
         cursorHeight: 16,
         style: const TextStyle(color: AppColors.textPrimary, fontSize: 15),
         decoration: InputDecoration(
           hintText: AppStrings.enterExpiryDate,
-          labelText: controller.focusNode.hasFocus || controller.textController.text.isNotEmpty
+          labelText:
+              controller.focusNode.hasFocus ||
+                  controller.textController.text.isNotEmpty
               ? AppStrings.enterExpirationDate
               : AppStrings.expirationDateWithFormat,
           floatingLabelStyle: const TextStyle(color: AppColors.secondaryColor),
@@ -998,10 +1232,16 @@ class _ExpiryDateField extends StatelessWidget {
           suffixIcon: IconButton(
             tooltip: AppStrings.selectExpiryDate,
             onPressed: enabled ? onPickDate : null,
-            icon: const Icon(Icons.calendar_month_outlined, color: AppColors.secondaryColor),
+            icon: const Icon(
+              Icons.calendar_month_outlined,
+              color: AppColors.secondaryColor,
+            ),
           ),
           hintStyle: const TextStyle(color: AppColors.grey1, fontSize: 15),
-          contentPadding: const EdgeInsets.symmetric(horizontal: 16, vertical: 14),
+          contentPadding: const EdgeInsets.symmetric(
+            horizontal: 16,
+            vertical: 14,
+          ),
           border: OutlineInputBorder(
             borderRadius: BorderRadius.circular(12),
             borderSide: const BorderSide(color: AppColors.grey1),
@@ -1012,7 +1252,10 @@ class _ExpiryDateField extends StatelessWidget {
           ),
           focusedBorder: OutlineInputBorder(
             borderRadius: BorderRadius.circular(12),
-            borderSide: const BorderSide(color: AppColors.secondaryColor, width: 2),
+            borderSide: const BorderSide(
+              color: AppColors.secondaryColor,
+              width: 2,
+            ),
           ),
         ),
       ),
@@ -1028,7 +1271,10 @@ class _DashedBorderPainter extends CustomPainter {
 
   @override
   void paint(Canvas canvas, Size size) {
-    final rect = RRect.fromRectAndRadius(Offset.zero & size, Radius.circular(radius));
+    final rect = RRect.fromRectAndRadius(
+      Offset.zero & size,
+      Radius.circular(radius),
+    );
     final paint = Paint()
       ..color = color
       ..style = PaintingStyle.stroke

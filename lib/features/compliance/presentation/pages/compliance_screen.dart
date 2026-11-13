@@ -32,66 +32,40 @@ class ComplianceScreen extends StatelessWidget {
         Provider<ComplianceDocumentMediaRepository>(
           create: (_) => ComplianceDocumentMediaRepositoryImpl(),
         ),
-        ProxyProvider<
-          ComplianceDocumentMediaRepository,
-          PickComplianceDocumentFileUseCase
-        >(
-          update: (_, repository, __) =>
-              PickComplianceDocumentFileUseCase(repository),
+        ProxyProvider<ComplianceDocumentMediaRepository, PickComplianceDocumentFileUseCase>(
+          update: (_, repository, __) => PickComplianceDocumentFileUseCase(repository),
         ),
-        Provider<ComplianceRemoteDataSource>(
-          create: (_) => createComplianceRemoteDataSource(),
-        ),
+        Provider<ComplianceRemoteDataSource>(create: (_) => createComplianceRemoteDataSource()),
         ProxyProvider<ComplianceRemoteDataSource, ComplianceRepositoryImpl>(
-          update: (_, remoteDataSource, __) =>
-              createComplianceRepository(remoteDataSource),
+          update: (_, remoteDataSource, __) => createComplianceRepository(remoteDataSource),
         ),
         ProxyProvider<ComplianceRepositoryImpl, GetComplianceOverviewUseCase>(
-          update: (_, repository, __) =>
-              createGetComplianceOverviewUseCase(repository),
+          update: (_, repository, __) => createGetComplianceOverviewUseCase(repository),
         ),
         ProxyProvider<ComplianceRepositoryImpl, GetComplianceDocumentsUseCase>(
-          update: (_, repository, __) =>
-              GetComplianceDocumentsUseCase(repository),
+          update: (_, repository, __) => GetComplianceDocumentsUseCase(repository),
         ),
-        ProxyProvider<
-          ComplianceRepositoryImpl,
-          UploadComplianceDocumentUseCase
-        >(
-          update: (_, repository, __) =>
-              UploadComplianceDocumentUseCase(repository),
+        ProxyProvider<ComplianceRepositoryImpl, UploadComplianceDocumentUseCase>(
+          update: (_, repository, __) => UploadComplianceDocumentUseCase(repository),
         ),
         ChangeNotifierProvider<ComplianceController>(
-          create: (context) => ComplianceController(
-            context.read<GetComplianceOverviewUseCase>(),
-          ),
+          create: (context) => ComplianceController(context.read<GetComplianceOverviewUseCase>()),
         ),
-        ChangeNotifierProxyProvider<
-          ComplianceController,
-          ComplianceLearningTrackController
-        >(
-          create: (context) => ComplianceLearningTrackController(
-            context.read<GetComplianceOverviewUseCase>(),
-          ),
+        ChangeNotifierProxyProvider<ComplianceController, ComplianceLearningTrackController>(
+          create: (context) =>
+              ComplianceLearningTrackController(context.read<GetComplianceOverviewUseCase>()),
           update: (context, complianceController, tabController) {
             final controller =
                 tabController ??
-                ComplianceLearningTrackController(
-                  context.read<GetComplianceOverviewUseCase>(),
-                );
-            controller.updateDependencies(
-              context.read<GetComplianceOverviewUseCase>(),
-            );
-            controller.setTracks(
-              complianceController.state.overview?.learningTracks ?? const [],
-            );
+                ComplianceLearningTrackController(context.read<GetComplianceOverviewUseCase>());
+            controller.updateDependencies(context.read<GetComplianceOverviewUseCase>());
+            controller.setTracks(complianceController.state.overview?.learningTracks ?? const []);
             return controller;
           },
         ),
         ChangeNotifierProvider<ComplianceDocumentController>(
-          create: (context) => ComplianceDocumentController(
-            context.read<GetComplianceDocumentsUseCase>(),
-          ),
+          create: (context) =>
+              ComplianceDocumentController(context.read<GetComplianceDocumentsUseCase>()),
         ),
       ],
       child: _ComplianceScreenView(module: module),
@@ -127,28 +101,19 @@ class _ComplianceScreenViewState extends State<_ComplianceScreenView> {
 
   @override
   Widget build(BuildContext context) {
-    final isLearningTrackModule =
-        widget.module == ComplianceTabType.learningTrack;
+    final isLearningTrackModule = widget.module == ComplianceTabType.learningTrack;
     final isOverviewLoading = isLearningTrackModule
-        ? context.select<ComplianceController, bool>(
-            (controller) => controller.state.isLoading,
-          )
+        ? context.select<ComplianceController, bool>((controller) => controller.state.isLoading)
         : false;
 
     return DrawerMainScreen(
-      title: isLearningTrackModule
-          ? AppStrings.homeLearningTracks
-          : AppStrings.homeCompliance,
-      selectedMenu: isLearningTrackModule
-          ? AppMenuType.learningTracks
-          : AppMenuType.compliance,
+      title: isLearningTrackModule ? AppStrings.homeLearningTracks : AppStrings.homeDocumentCenter,
+      selectedMenu: isLearningTrackModule ? AppMenuType.learningTracks : AppMenuType.compliance,
       centerTitle: true,
       child: SafeArea(
         top: false,
         bottom: false,
-        child: isOverviewLoading
-            ? FastCircularProgressIndicator()
-            : _buildContent(),
+        child: isOverviewLoading ? FastCircularProgressIndicator() : _buildContent(),
       ),
     );
   }
