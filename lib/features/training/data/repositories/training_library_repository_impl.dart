@@ -155,6 +155,7 @@ class TrainingLibraryRepositoryImpl implements TrainingLibraryRepository {
     required int numQuestions,
     required int optionsPerQuestion,
     required String difficultyLevel,
+    required String source,
     required bool replaceExistingQuestions,
   }) {
     return _remoteDataSource.generateSeatDescriptionTrainingModuleQuiz(
@@ -162,6 +163,7 @@ class TrainingLibraryRepositoryImpl implements TrainingLibraryRepository {
       numQuestions: numQuestions,
       optionsPerQuestion: optionsPerQuestion,
       difficultyLevel: difficultyLevel,
+      source: source,
       replaceExistingQuestions: replaceExistingQuestions,
     );
   }

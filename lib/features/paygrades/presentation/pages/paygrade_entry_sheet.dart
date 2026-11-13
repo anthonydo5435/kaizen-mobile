@@ -4,6 +4,7 @@ import '../../../../core/constants/app_colors.dart';
 import '../../../../core/constants/app_strings.dart';
 import '../../../../core/widgets/app_button.dart';
 import '../../../../core/widgets/app_dot_divider.dart';
+import '../../../../core/widgets/app_keyboard_bottom_sheet_surface.dart';
 import '../../../../core/widgets/app_overlay_close_button.dart';
 import '../../../../core/widgets/app_text_view.dart';
 import '../../domain/entities/paygrade_detail.dart';
@@ -99,10 +100,10 @@ class _PaygradeEntryBottomSheetState extends State<_PaygradeEntryBottomSheet> {
             padding: EdgeInsets.only(bottom: bottomInset),
             child: FractionallySizedBox(
               heightFactor: 0.86,
-              child: DecoratedBox(
-                decoration: const BoxDecoration(
-                  color: AppColors.surfaceDark,
-                  borderRadius: BorderRadius.vertical(top: Radius.circular(28)),
+              child: AppKeyboardBottomSheetSurface(
+                color: AppColors.surfaceDark,
+                borderRadius: const BorderRadius.vertical(
+                  top: Radius.circular(28),
                 ),
                 child: Column(
                   crossAxisAlignment: CrossAxisAlignment.start,

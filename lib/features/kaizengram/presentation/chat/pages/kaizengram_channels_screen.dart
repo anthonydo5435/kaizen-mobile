@@ -6,6 +6,7 @@ import 'package:provider/provider.dart';
 import '../../../../../core/constants/app_colors.dart';
 import '../../../../../core/utils/custom_functions.dart';
 import '../../../../../core/widgets/app_text_view.dart';
+import '../../../../../core/widgets/app_keyboard_bottom_sheet_surface.dart';
 import '../../widgets/kaizengram_notifier_state.dart';
 import '../providers/kaizengram_chat_controller.dart';
 import '../widgets/chat_module_ui.dart';
@@ -417,137 +418,144 @@ class _StartDirectMessageBottomSheetState
       final candidates = widget.controller.directMessageCandidatesForQuery(
         _query,
       );
+      final bottomInset = MediaQuery.viewInsetsOf(context).bottom;
 
-      return SafeArea(
-        top: false,
-        bottom: false,
-        child: Container(
-          width: double.infinity,
-          padding: const EdgeInsets.fromLTRB(20, 16, 20, 20),
-          decoration: const BoxDecoration(
+      return AnimatedPadding(
+        duration: const Duration(milliseconds: 180),
+        curve: Curves.easeOut,
+        padding: EdgeInsets.only(bottom: bottomInset),
+        child: SafeArea(
+          top: false,
+          bottom: false,
+          child: AppKeyboardBottomSheetSurface(
+            width: double.infinity,
             color: kaizengramChatScreenSurfaceColor,
-            borderRadius: BorderRadius.vertical(top: Radius.circular(24)),
-          ),
-          child: Column(
-            mainAxisSize: MainAxisSize.min,
-            crossAxisAlignment: CrossAxisAlignment.start,
-            children: <Widget>[
-              const KaizengramChatSheetHandle(),
-              const SizedBox(height: 18),
-              const AppTextView.body1(
-                AppStrings.startDirectMessageTitle,
-                color: AppColors.textPrimary,
-                fontSize: 18,
-                fontWeight: FontWeight.w800,
-              ),
-              const SizedBox(height: 6),
-              const AppTextView.body2(
-                AppStrings.startDirectMessageSubtitle,
-                color: AppColors.textSecondary,
-              ),
-              const SizedBox(height: 18),
-              const AppTextView.body3(
-                AppStrings.startDirectMessageSearchLabel,
-                color: AppColors.textPrimary,
-                fontWeight: FontWeight.w700,
-              ),
-              const SizedBox(height: 8),
-              KaizengramChatInputShell(
-                child: TextField(
-                  controller: _queryController,
-                  keyboardType: TextInputType.emailAddress,
-                  style: const TextStyle(color: AppColors.textPrimary),
-                  cursorColor: AppColors.textPrimary,
-                  decoration: const InputDecoration(
-                    hintText: AppStrings.startDirectMessageSearchHint,
-                    hintStyle: TextStyle(color: AppColors.textSecondary),
-                    border: InputBorder.none,
-                    contentPadding: EdgeInsets.all(14),
-                    prefixIcon: Icon(
-                      Icons.search_rounded,
-                      color: AppColors.textSecondary,
+            borderRadius: const BorderRadius.vertical(top: Radius.circular(24)),
+            child: Padding(
+              padding: const EdgeInsets.fromLTRB(20, 16, 20, 20),
+              child: Column(
+                mainAxisSize: MainAxisSize.min,
+                crossAxisAlignment: CrossAxisAlignment.start,
+                children: <Widget>[
+                  const KaizengramChatSheetHandle(),
+                  const SizedBox(height: 18),
+                  const AppTextView.body1(
+                    AppStrings.startDirectMessageTitle,
+                    color: AppColors.textPrimary,
+                    fontSize: 18,
+                    fontWeight: FontWeight.w800,
+                  ),
+                  const SizedBox(height: 6),
+                  const AppTextView.body2(
+                    AppStrings.startDirectMessageSubtitle,
+                    color: AppColors.textSecondary,
+                  ),
+                  const SizedBox(height: 18),
+                  const AppTextView.body3(
+                    AppStrings.startDirectMessageSearchLabel,
+                    color: AppColors.textPrimary,
+                    fontWeight: FontWeight.w700,
+                  ),
+                  const SizedBox(height: 8),
+                  KaizengramChatInputShell(
+                    child: TextField(
+                      controller: _queryController,
+                      keyboardType: TextInputType.emailAddress,
+                      style: const TextStyle(color: AppColors.textPrimary),
+                      cursorColor: AppColors.textPrimary,
+                      decoration: const InputDecoration(
+                        hintText: AppStrings.startDirectMessageSearchHint,
+                        hintStyle: TextStyle(color: AppColors.textSecondary),
+                        border: InputBorder.none,
+                        contentPadding: EdgeInsets.all(14),
+                        prefixIcon: Icon(
+                          Icons.search_rounded,
+                          color: AppColors.textSecondary,
+                        ),
+                      ),
                     ),
                   ),
-                ),
-              ),
-              const SizedBox(height: 18),
-              ConstrainedBox(
-                constraints: BoxConstraints(
-                  maxHeight: MediaQuery.sizeOf(context).height * 0.46,
-                ),
-                child: candidates.isEmpty
-                    ? const _StartDirectMessageEmptyState()
-                    : ListView.separated(
-                        shrinkWrap: true,
-                        itemCount: candidates.length,
-                        separatorBuilder: (_, __) => const SizedBox(height: 10),
-                        itemBuilder: (context, index) {
-                          final user = candidates[index];
-                          return Material(
-                            color: Colors.transparent,
-                            child: InkWell(
-                              borderRadius: BorderRadius.circular(18),
-                              onTap: () =>
-                                  Navigator.of(context).pop(user.email),
-                              child: Container(
-                                padding: const EdgeInsets.symmetric(
-                                  horizontal: 14,
-                                  vertical: 12,
-                                ),
-                                decoration: BoxDecoration(
-                                  color: kaizengramChatCardSurfaceColor,
+                  const SizedBox(height: 18),
+                  ConstrainedBox(
+                    constraints: BoxConstraints(
+                      maxHeight: MediaQuery.sizeOf(context).height * 0.46,
+                    ),
+                    child: candidates.isEmpty
+                        ? const _StartDirectMessageEmptyState()
+                        : ListView.separated(
+                            shrinkWrap: true,
+                            itemCount: candidates.length,
+                            separatorBuilder: (_, __) =>
+                                const SizedBox(height: 10),
+                            itemBuilder: (context, index) {
+                              final user = candidates[index];
+                              return Material(
+                                color: Colors.transparent,
+                                child: InkWell(
                                   borderRadius: BorderRadius.circular(18),
-                                  border: Border.all(
-                                    color: AppColors.textPrimary.withValues(
-                                      alpha: 0.08,
+                                  onTap: () =>
+                                      Navigator.of(context).pop(user.email),
+                                  child: Container(
+                                    padding: const EdgeInsets.symmetric(
+                                      horizontal: 14,
+                                      vertical: 12,
+                                    ),
+                                    decoration: BoxDecoration(
+                                      color: kaizengramChatCardSurfaceColor,
+                                      borderRadius: BorderRadius.circular(18),
+                                      border: Border.all(
+                                        color: AppColors.textPrimary.withValues(
+                                          alpha: 0.08,
+                                        ),
+                                      ),
+                                    ),
+                                    child: Row(
+                                      children: <Widget>[
+                                        ChatUserInitialAvatar(
+                                          label: kaizengramChatInitialFor(
+                                            user.name,
+                                          ),
+                                          accentColor:
+                                              kaizengramChatAccentColorForIndex(
+                                                index,
+                                              ),
+                                          size: 38,
+                                        ),
+                                        const SizedBox(width: 10),
+                                        Expanded(
+                                          child: Column(
+                                            crossAxisAlignment:
+                                                CrossAxisAlignment.start,
+                                            children: <Widget>[
+                                              AppTextView.body2(
+                                                user.name,
+                                                color: AppColors.textPrimary,
+                                                fontWeight: FontWeight.w700,
+                                              ),
+                                              const SizedBox(height: 2),
+                                              AppTextView.body4(
+                                                user.email,
+                                                color: AppColors.textSecondary,
+                                                fontWeight: FontWeight.w500,
+                                              ),
+                                            ],
+                                          ),
+                                        ),
+                                        const Icon(
+                                          Icons.chevron_right_rounded,
+                                          color: AppColors.textSecondary,
+                                        ),
+                                      ],
                                     ),
                                   ),
                                 ),
-                                child: Row(
-                                  children: <Widget>[
-                                    ChatUserInitialAvatar(
-                                      label: kaizengramChatInitialFor(
-                                        user.name,
-                                      ),
-                                      accentColor:
-                                          kaizengramChatAccentColorForIndex(
-                                            index,
-                                          ),
-                                      size: 38,
-                                    ),
-                                    const SizedBox(width: 10),
-                                    Expanded(
-                                      child: Column(
-                                        crossAxisAlignment:
-                                            CrossAxisAlignment.start,
-                                        children: <Widget>[
-                                          AppTextView.body2(
-                                            user.name,
-                                            color: AppColors.textPrimary,
-                                            fontWeight: FontWeight.w700,
-                                          ),
-                                          const SizedBox(height: 2),
-                                          AppTextView.body4(
-                                            user.email,
-                                            color: AppColors.textSecondary,
-                                            fontWeight: FontWeight.w500,
-                                          ),
-                                        ],
-                                      ),
-                                    ),
-                                    const Icon(
-                                      Icons.chevron_right_rounded,
-                                      color: AppColors.textSecondary,
-                                    ),
-                                  ],
-                                ),
-                              ),
-                            ),
-                          );
-                        },
-                      ),
+                              );
+                            },
+                          ),
+                  ),
+                ],
               ),
-            ],
+            ),
           ),
         ),
       );

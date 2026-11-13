@@ -4,11 +4,16 @@ import '../entities/performance_report.dart';
 class ResolvePerformanceReportMinDate {
   const ResolvePerformanceReportMinDate();
 
-  DateTime call(PerformanceReport? report, {DateTime? now}) {
+  DateTime call(
+    PerformanceReport? report, {
+    DateTime? now,
+    String? fallbackDate,
+  }) {
     final currentDate = now ?? DateTime.now();
     final parsedCreatedAt = _resolveParsedPerformanceReportCreatedAt(
       report,
       currentDate,
+      fallbackDate,
     );
     final today = _normalizeCalendarDate(currentDate);
     if (parsedCreatedAt == null) {
@@ -26,12 +31,14 @@ class ResolvePerformanceReportMinDate {
   DateTime? _resolveParsedPerformanceReportCreatedAt(
     PerformanceReport? report,
     DateTime currentDate,
+    String? fallbackDate,
   ) {
     final candidates = <String?>[
       report?.createdAt,
       report?.reportSnapshot['createdAt']?.toString(),
       report?.reportSnapshot['created_at']?.toString(),
       report?.profile.lastAuditLabel,
+      fallbackDate,
     ];
 
     for (final candidate in candidates) {

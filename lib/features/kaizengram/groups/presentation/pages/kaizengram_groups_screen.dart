@@ -8,6 +8,7 @@ import '../../../../../core/constants/app_strings.dart';
 import '../../../../../core/managers/app_manager.dart';
 import '../../../../../core/utils/custom_functions.dart';
 import '../../../../../core/widgets/app_confirmation_dialog.dart';
+import '../../../../../core/widgets/app_keyboard_bottom_sheet_surface.dart';
 import '../../../../../core/widgets/app_text_view.dart';
 import '../../../../login/domain/entities/user.dart';
 import '../../../presentation/chat/widgets/chat_video_preview.dart';
@@ -3912,199 +3913,204 @@ class _GroupWritePostBottomSheetState extends State<_GroupWritePostBottomSheet>
                 alignment: Alignment.bottomCenter,
                 child: SizedBox(
                   height: targetHeight,
-                  child: Container(
-                    padding: const EdgeInsets.fromLTRB(20, 16, 20, 24),
-                    decoration: const BoxDecoration(
-                      color: AppColors.hex111317,
-                      borderRadius: BorderRadius.vertical(
-                        top: Radius.circular(24),
-                      ),
+                  child: AppKeyboardBottomSheetSurface(
+                    color: AppColors.hex111317,
+                    borderRadius: const BorderRadius.vertical(
+                      top: Radius.circular(24),
                     ),
-                    child: Column(
-                      crossAxisAlignment: CrossAxisAlignment.start,
-                      children: <Widget>[
-                        Center(
-                          child: Container(
-                            width: 42,
-                            height: 4,
-                            decoration: BoxDecoration(
-                              color: AppColors.textPrimary.withValues(
-                                alpha: 0.18,
+                    child: Padding(
+                      padding: const EdgeInsets.fromLTRB(20, 16, 20, 24),
+                      child: Column(
+                        crossAxisAlignment: CrossAxisAlignment.start,
+                        children: <Widget>[
+                          Center(
+                            child: Container(
+                              width: 42,
+                              height: 4,
+                              decoration: BoxDecoration(
+                                color: AppColors.textPrimary.withValues(
+                                  alpha: 0.18,
+                                ),
+                                borderRadius: BorderRadius.circular(999),
                               ),
-                              borderRadius: BorderRadius.circular(999),
                             ),
                           ),
-                        ),
-                        const SizedBox(height: 18),
-                        const AppTextView.body1(
-                          AppStrings.kaizengramComposeSheetTitle,
-                          color: AppColors.textPrimary,
-                          fontWeight: FontWeight.w800,
-                          fontSize: 18,
-                        ),
-                        const SizedBox(height: 6),
-                        AppTextView.body2(
-                          AppStrings.groupPostSheetSubtitle(widget.groupName),
-                          color: AppColors.textSecondary,
-                          fontWeight: FontWeight.w500,
-                        ),
-                        const SizedBox(height: 18),
-                        Builder(
-                          builder: (context) {
-                            final authorImageProvider =
-                                _resolvedGroupAvatarImageProvider(
-                                  imagePath: widget.authorAvatarImagePath,
-                                  imageUrl: widget.authorAvatarUrl,
-                                );
+                          const SizedBox(height: 18),
+                          const AppTextView.body1(
+                            AppStrings.kaizengramComposeSheetTitle,
+                            color: AppColors.textPrimary,
+                            fontWeight: FontWeight.w800,
+                            fontSize: 18,
+                          ),
+                          const SizedBox(height: 6),
+                          AppTextView.body2(
+                            AppStrings.groupPostSheetSubtitle(widget.groupName),
+                            color: AppColors.textSecondary,
+                            fontWeight: FontWeight.w500,
+                          ),
+                          const SizedBox(height: 18),
+                          Builder(
+                            builder: (context) {
+                              final authorImageProvider =
+                                  _resolvedGroupAvatarImageProvider(
+                                    imagePath: widget.authorAvatarImagePath,
+                                    imageUrl: widget.authorAvatarUrl,
+                                  );
 
-                            return Row(
-                              children: <Widget>[
-                                CircleAvatar(
-                                  radius: 20,
-                                  backgroundColor: AppColors.hex232834,
-                                  backgroundImage: authorImageProvider,
-                                  child: authorImageProvider == null
-                                      ? const Icon(
-                                          Icons.person_rounded,
-                                          color: AppColors.textPrimary,
-                                        )
-                                      : null,
-                                ),
-                                const SizedBox(width: 12),
-                                Expanded(
-                                  child: AppTextView.body2(
-                                    widget.authorName,
-                                    color: AppColors.textPrimary,
+                              return Row(
+                                children: <Widget>[
+                                  CircleAvatar(
+                                    radius: 20,
+                                    backgroundColor: AppColors.hex232834,
+                                    backgroundImage: authorImageProvider,
+                                    child: authorImageProvider == null
+                                        ? const Icon(
+                                            Icons.person_rounded,
+                                            color: AppColors.textPrimary,
+                                          )
+                                        : null,
+                                  ),
+                                  const SizedBox(width: 12),
+                                  Expanded(
+                                    child: AppTextView.body2(
+                                      widget.authorName,
+                                      color: AppColors.textPrimary,
+                                      fontWeight: FontWeight.w700,
+                                    ),
+                                  ),
+                                ],
+                              );
+                            },
+                          ),
+                          const SizedBox(height: 18),
+                          Expanded(
+                            child: SingleChildScrollView(
+                              child: Column(
+                                crossAxisAlignment: CrossAxisAlignment.start,
+                                children: <Widget>[
+                                  AppTextView.body4(
+                                    AppStrings.kaizengramComposeSourceTitle,
+                                    color: AppColors.textSecondary,
                                     fontWeight: FontWeight.w700,
                                   ),
-                                ),
-                              ],
-                            );
-                          },
-                        ),
-                        const SizedBox(height: 18),
-                        Expanded(
-                          child: SingleChildScrollView(
-                            child: Column(
-                              crossAxisAlignment: CrossAxisAlignment.start,
-                              children: <Widget>[
-                                AppTextView.body4(
-                                  AppStrings.kaizengramComposeSourceTitle,
-                                  color: AppColors.textSecondary,
-                                  fontWeight: FontWeight.w700,
-                                ),
-                                const SizedBox(height: 10),
-                                Row(
-                                  children: <Widget>[
-                                    Expanded(
-                                      child: KaizengramComposePostActionButton(
-                                        icon: Icons.photo_library_outlined,
-                                        label: AppStrings
-                                            .attachmentPickerMediaTitle,
-                                        isBusy: _isPickingMedia,
-                                        onTap:
-                                            _isPickingMedia ||
-                                                _isPickingAttachment
-                                            ? null
-                                            : _pickMedia,
+                                  const SizedBox(height: 10),
+                                  Row(
+                                    children: <Widget>[
+                                      Expanded(
+                                        child:
+                                            KaizengramComposePostActionButton(
+                                              icon:
+                                                  Icons.photo_library_outlined,
+                                              label: AppStrings
+                                                  .attachmentPickerMediaTitle,
+                                              isBusy: _isPickingMedia,
+                                              onTap:
+                                                  _isPickingMedia ||
+                                                      _isPickingAttachment
+                                                  ? null
+                                                  : _pickMedia,
+                                            ),
                                       ),
-                                    ),
-                                    const SizedBox(width: 12),
-                                    Expanded(
-                                      child: KaizengramComposePostActionButton(
-                                        icon: Icons.picture_as_pdf_outlined,
-                                        label:
-                                            AppStrings.attachmentPickerPdfTitle,
-                                        isBusy: _isPickingAttachment,
-                                        onTap:
-                                            _isPickingMedia ||
-                                                _isPickingAttachment
-                                            ? null
-                                            : _pickAttachments,
+                                      const SizedBox(width: 12),
+                                      Expanded(
+                                        child:
+                                            KaizengramComposePostActionButton(
+                                              icon:
+                                                  Icons.picture_as_pdf_outlined,
+                                              label: AppStrings
+                                                  .attachmentPickerPdfTitle,
+                                              isBusy: _isPickingAttachment,
+                                              onTap:
+                                                  _isPickingMedia ||
+                                                      _isPickingAttachment
+                                                  ? null
+                                                  : _pickAttachments,
+                                            ),
                                       ),
+                                    ],
+                                  ),
+                                  if (_draftAttachments.isNotEmpty) ...<Widget>[
+                                    const SizedBox(height: 14),
+                                    _GroupAttachmentPreviewStrip(
+                                      attachments: _draftAttachments,
+                                      removable: true,
+                                      onRemoveAttachment: _removeAttachment,
                                     ),
                                   ],
-                                ),
-                                if (_draftAttachments.isNotEmpty) ...<Widget>[
                                   const SizedBox(height: 14),
-                                  _GroupAttachmentPreviewStrip(
-                                    attachments: _draftAttachments,
-                                    removable: true,
-                                    onRemoveAttachment: _removeAttachment,
-                                  ),
-                                ],
-                                const SizedBox(height: 14),
-                                Container(
-                                  decoration: BoxDecoration(
-                                    color: AppColors.hex1b1e27,
-                                    borderRadius: BorderRadius.circular(16),
-                                    border: Border.all(
-                                      color: AppColors.textPrimary.withValues(
-                                        alpha: 0.08,
+                                  Container(
+                                    decoration: BoxDecoration(
+                                      color: AppColors.hex1b1e27,
+                                      borderRadius: BorderRadius.circular(16),
+                                      border: Border.all(
+                                        color: AppColors.textPrimary.withValues(
+                                          alpha: 0.08,
+                                        ),
+                                      ),
+                                    ),
+                                    child: TextField(
+                                      controller: _postController,
+                                      minLines: 9,
+                                      maxLines: 12,
+                                      style: const TextStyle(
+                                        color: AppColors.textPrimary,
+                                      ),
+                                      cursorColor: AppColors.textPrimary,
+                                      decoration: const InputDecoration(
+                                        hintText: AppStrings
+                                            .kaizengramComposeSheetHint,
+                                        hintStyle: TextStyle(
+                                          color: AppColors.textSecondary,
+                                        ),
+                                        border: InputBorder.none,
+                                        contentPadding: EdgeInsets.all(16),
                                       ),
                                     ),
                                   ),
-                                  child: TextField(
-                                    controller: _postController,
-                                    minLines: 9,
-                                    maxLines: 12,
-                                    style: const TextStyle(
-                                      color: AppColors.textPrimary,
+                                  if (hasLinkPreview) ...<Widget>[
+                                    const SizedBox(height: 12),
+                                    KaizengramTextLinkPreview(
+                                      text: _postController.text,
+                                      topSpacing: 0,
                                     ),
-                                    cursorColor: AppColors.textPrimary,
-                                    decoration: const InputDecoration(
-                                      hintText:
-                                          AppStrings.kaizengramComposeSheetHint,
-                                      hintStyle: TextStyle(
-                                        color: AppColors.textSecondary,
-                                      ),
-                                      border: InputBorder.none,
-                                      contentPadding: EdgeInsets.all(16),
-                                    ),
-                                  ),
-                                ),
-                                if (hasLinkPreview) ...<Widget>[
+                                  ],
                                   const SizedBox(height: 12),
-                                  KaizengramTextLinkPreview(
-                                    text: _postController.text,
-                                    topSpacing: 0,
+                                  AppTextView.body4(
+                                    AppStrings.kaizengramComposeSubtitle,
+                                    color: AppColors.textSecondary,
                                   ),
                                 ],
-                                const SizedBox(height: 12),
-                                AppTextView.body4(
-                                  AppStrings.kaizengramComposeSubtitle,
-                                  color: AppColors.textSecondary,
-                                ),
-                              ],
+                              ),
                             ),
                           ),
-                        ),
-                        const SizedBox(height: 18),
-                        Row(
-                          children: <Widget>[
-                            Expanded(
-                              child: SecondaryGroupsButton(
-                                label: AppStrings.kaizengramComposeButtonCancel,
-                                onTap: () => Navigator.of(context).pop(),
+                          const SizedBox(height: 18),
+                          Row(
+                            children: <Widget>[
+                              Expanded(
+                                child: SecondaryGroupsButton(
+                                  label:
+                                      AppStrings.kaizengramComposeButtonCancel,
+                                  onTap: () => Navigator.of(context).pop(),
+                                ),
                               ),
-                            ),
-                            const SizedBox(width: 10),
-                            Expanded(
-                              child: IgnorePointer(
-                                ignoring: !canSubmit,
-                                child: Opacity(
-                                  opacity: canSubmit ? 1 : 0.45,
-                                  child: PrimaryGroupsButton(
-                                    label:
-                                        AppStrings.kaizengramComposeButtonPost,
-                                    onTap: _submit,
+                              const SizedBox(width: 10),
+                              Expanded(
+                                child: IgnorePointer(
+                                  ignoring: !canSubmit,
+                                  child: Opacity(
+                                    opacity: canSubmit ? 1 : 0.45,
+                                    child: PrimaryGroupsButton(
+                                      label: AppStrings
+                                          .kaizengramComposeButtonPost,
+                                      onTap: _submit,
+                                    ),
                                   ),
                                 ),
                               ),
-                            ),
-                          ],
-                        ),
-                      ],
+                            ],
+                          ),
+                        ],
+                      ),
                     ),
                   ),
                 ),
@@ -4298,172 +4304,176 @@ class _GroupInvitePeopleBottomSheetState
         child: SafeArea(
           top: false,
           bottom: false,
-          child: Container(
+          child: SizedBox(
             height: sheetHeight,
-            padding: const EdgeInsets.fromLTRB(20, 16, 20, 20),
-            decoration: const BoxDecoration(
+            child: AppKeyboardBottomSheetSurface(
               color: AppColors.hex111317,
-              borderRadius: BorderRadius.vertical(top: Radius.circular(24)),
-            ),
-            child: Column(
-              crossAxisAlignment: CrossAxisAlignment.start,
-              children: <Widget>[
-                Center(
-                  child: Container(
-                    width: 42,
-                    height: 4,
-                    decoration: BoxDecoration(
-                      color: AppColors.textPrimary.withValues(alpha: 0.18),
-                      borderRadius: BorderRadius.circular(999),
-                    ),
-                  ),
-                ),
-                const SizedBox(height: 18),
-                const AppTextView.body1(
-                  AppStrings.invitePeopleSheetTitle,
-                  color: AppColors.textPrimary,
-                  fontWeight: FontWeight.w800,
-                  fontSize: 18,
-                ),
-                const SizedBox(height: 6),
-                AppTextView.body4(
-                  AppStrings.invitePeopleSheetSubtitle(widget.group.name),
-                  color: AppColors.textSecondary,
-                  fontWeight: FontWeight.w500,
-                ),
-                const SizedBox(height: 18),
-                AppTextView.body3(
-                  AppStrings.invitePeopleSearchLabel,
-                  color: AppColors.textPrimary,
-                  fontWeight: FontWeight.w700,
-                ),
-                const SizedBox(height: 8),
-                Container(
-                  decoration: BoxDecoration(
-                    color: AppColors.hex1b1e27,
-                    borderRadius: BorderRadius.circular(16),
-                    border: Border.all(
-                      color: _errorText == null
-                          ? AppColors.textPrimary.withValues(alpha: 0.08)
-                          : AppColors.red.withValues(alpha: 0.70),
-                    ),
-                  ),
-                  child: TextField(
-                    controller: _emailController,
-                    keyboardType: TextInputType.emailAddress,
-                    textInputAction: TextInputAction.done,
-                    style: const TextStyle(color: AppColors.textPrimary),
-                    cursorColor: AppColors.textPrimary,
-                    decoration: const InputDecoration(
-                      hintText: AppStrings.invitePeopleSearchHint,
-                      hintStyle: TextStyle(color: AppColors.textSecondary),
-                      border: InputBorder.none,
-                      contentPadding: EdgeInsets.all(14),
-                      prefixIcon: Icon(
-                        Icons.person_add_alt_1_rounded,
-                        color: AppColors.textSecondary,
+              borderRadius: const BorderRadius.vertical(
+                top: Radius.circular(24),
+              ),
+              child: Padding(
+                padding: const EdgeInsets.fromLTRB(20, 16, 20, 20),
+                child: Column(
+                  crossAxisAlignment: CrossAxisAlignment.start,
+                  children: <Widget>[
+                    Center(
+                      child: Container(
+                        width: 42,
+                        height: 4,
+                        decoration: BoxDecoration(
+                          color: AppColors.textPrimary.withValues(alpha: 0.18),
+                          borderRadius: BorderRadius.circular(999),
+                        ),
                       ),
                     ),
-                    onSubmitted: (_) => _addPendingCandidate(),
-                  ),
-                ),
-                if (_errorText != null) ...<Widget>[
-                  const SizedBox(height: 8),
-                  AppTextView.body4(
-                    _errorText!,
-                    color: AppColors.red,
-                    fontWeight: FontWeight.w600,
-                  ),
-                ],
-                if (_selectedPeople.isNotEmpty) ...<Widget>[
-                  const SizedBox(height: 16),
-                  AppTextView.body4(
-                    AppStrings.invitePeopleSelectedCountLabel(
-                      _selectedPeople.length,
+                    const SizedBox(height: 18),
+                    const AppTextView.body1(
+                      AppStrings.invitePeopleSheetTitle,
+                      color: AppColors.textPrimary,
+                      fontWeight: FontWeight.w800,
+                      fontSize: 18,
                     ),
-                    color: AppColors.textPrimary,
-                    fontWeight: FontWeight.w700,
-                  ),
-                  const SizedBox(height: 10),
-                  Wrap(
-                    spacing: 8,
-                    runSpacing: 8,
-                    children: _selectedPeople
-                        .map(
-                          (person) => _SelectedGroupPersonChip(
-                            person: person,
-                            onRemove: () => _removeSelectedPerson(person),
+                    const SizedBox(height: 6),
+                    AppTextView.body4(
+                      AppStrings.invitePeopleSheetSubtitle(widget.group.name),
+                      color: AppColors.textSecondary,
+                      fontWeight: FontWeight.w500,
+                    ),
+                    const SizedBox(height: 18),
+                    AppTextView.body3(
+                      AppStrings.invitePeopleSearchLabel,
+                      color: AppColors.textPrimary,
+                      fontWeight: FontWeight.w700,
+                    ),
+                    const SizedBox(height: 8),
+                    Container(
+                      decoration: BoxDecoration(
+                        color: AppColors.hex1b1e27,
+                        borderRadius: BorderRadius.circular(16),
+                        border: Border.all(
+                          color: _errorText == null
+                              ? AppColors.textPrimary.withValues(alpha: 0.08)
+                              : AppColors.red.withValues(alpha: 0.70),
+                        ),
+                      ),
+                      child: TextField(
+                        controller: _emailController,
+                        keyboardType: TextInputType.emailAddress,
+                        textInputAction: TextInputAction.done,
+                        style: const TextStyle(color: AppColors.textPrimary),
+                        cursorColor: AppColors.textPrimary,
+                        decoration: const InputDecoration(
+                          hintText: AppStrings.invitePeopleSearchHint,
+                          hintStyle: TextStyle(color: AppColors.textSecondary),
+                          border: InputBorder.none,
+                          contentPadding: EdgeInsets.all(14),
+                          prefixIcon: Icon(
+                            Icons.person_add_alt_1_rounded,
+                            color: AppColors.textSecondary,
                           ),
-                        )
-                        .toList(growable: false),
-                  ),
-                ],
-                const SizedBox(height: 18),
-                Expanded(
-                  child: ListView(
-                    padding: EdgeInsets.zero,
-                    children: <Widget>[
-                      AppTextView.body3(
-                        AppStrings.invitePeopleSuggestedHeader,
+                        ),
+                        onSubmitted: (_) => _addPendingCandidate(),
+                      ),
+                    ),
+                    if (_errorText != null) ...<Widget>[
+                      const SizedBox(height: 8),
+                      AppTextView.body4(
+                        _errorText!,
+                        color: AppColors.red,
+                        fontWeight: FontWeight.w600,
+                      ),
+                    ],
+                    if (_selectedPeople.isNotEmpty) ...<Widget>[
+                      const SizedBox(height: 16),
+                      AppTextView.body4(
+                        AppStrings.invitePeopleSelectedCountLabel(
+                          _selectedPeople.length,
+                        ),
                         color: AppColors.textPrimary,
                         fontWeight: FontWeight.w700,
                       ),
-                      const SizedBox(height: 12),
-                      if (pendingTypedCandidate != null) ...<Widget>[
-                        _GroupInviteSuggestionTile(
-                          person: pendingTypedCandidate,
-                          subtitle:
-                              pendingTypedCandidate.role ==
-                                  AppStrings.invitePeopleExternalRole
-                              ? AppStrings.invitePeopleEmailSubtitle(
-                                  pendingTypedCandidate.email,
-                                )
-                              : pendingTypedCandidate.email,
-                          actionLabel: AppStrings.invitePeopleAddAction,
-                          onTap: () =>
-                              _addSelectedPerson(pendingTypedCandidate),
-                        ),
-                        const SizedBox(height: 10),
-                      ],
-                      if (suggestedPeople.isEmpty &&
-                          pendingTypedCandidate == null)
-                        const _GroupInviteEmptyState()
-                      else
-                        ...suggestedPeople.map(
-                          (person) => Padding(
-                            padding: const EdgeInsets.only(bottom: 10),
-                            child: _GroupInviteSuggestionTile(
-                              person: person,
-                              subtitle: person.email,
-                              actionLabel: _actionLabelForPerson(person),
-                              onTap: _isPersonSelectable(person)
-                                  ? () => _addSelectedPerson(person)
-                                  : null,
-                            ),
-                          ),
-                        ),
+                      const SizedBox(height: 10),
+                      Wrap(
+                        spacing: 8,
+                        runSpacing: 8,
+                        children: _selectedPeople
+                            .map(
+                              (person) => _SelectedGroupPersonChip(
+                                person: person,
+                                onRemove: () => _removeSelectedPerson(person),
+                              ),
+                            )
+                            .toList(growable: false),
+                      ),
                     ],
-                  ),
-                ),
-                const SizedBox(height: 14),
-                Row(
-                  children: <Widget>[
+                    const SizedBox(height: 18),
                     Expanded(
-                      child: SecondaryGroupsButton(
-                        label: AppStrings.createCancel,
-                        onTap: () => Navigator.of(context).pop(),
+                      child: ListView(
+                        padding: EdgeInsets.zero,
+                        children: <Widget>[
+                          AppTextView.body3(
+                            AppStrings.invitePeopleSuggestedHeader,
+                            color: AppColors.textPrimary,
+                            fontWeight: FontWeight.w700,
+                          ),
+                          const SizedBox(height: 12),
+                          if (pendingTypedCandidate != null) ...<Widget>[
+                            _GroupInviteSuggestionTile(
+                              person: pendingTypedCandidate,
+                              subtitle:
+                                  pendingTypedCandidate.role ==
+                                      AppStrings.invitePeopleExternalRole
+                                  ? AppStrings.invitePeopleEmailSubtitle(
+                                      pendingTypedCandidate.email,
+                                    )
+                                  : pendingTypedCandidate.email,
+                              actionLabel: AppStrings.invitePeopleAddAction,
+                              onTap: () =>
+                                  _addSelectedPerson(pendingTypedCandidate),
+                            ),
+                            const SizedBox(height: 10),
+                          ],
+                          if (suggestedPeople.isEmpty &&
+                              pendingTypedCandidate == null)
+                            const _GroupInviteEmptyState()
+                          else
+                            ...suggestedPeople.map(
+                              (person) => Padding(
+                                padding: const EdgeInsets.only(bottom: 10),
+                                child: _GroupInviteSuggestionTile(
+                                  person: person,
+                                  subtitle: person.email,
+                                  actionLabel: _actionLabelForPerson(person),
+                                  onTap: _isPersonSelectable(person)
+                                      ? () => _addSelectedPerson(person)
+                                      : null,
+                                ),
+                              ),
+                            ),
+                        ],
                       ),
                     ),
-                    const SizedBox(width: 10),
-                    Expanded(
-                      child: PrimaryGroupsButton(
-                        label: AppStrings.invitePeopleConfirmAction,
-                        onTap: _submit,
-                      ),
+                    const SizedBox(height: 14),
+                    Row(
+                      children: <Widget>[
+                        Expanded(
+                          child: SecondaryGroupsButton(
+                            label: AppStrings.createCancel,
+                            onTap: () => Navigator.of(context).pop(),
+                          ),
+                        ),
+                        const SizedBox(width: 10),
+                        Expanded(
+                          child: PrimaryGroupsButton(
+                            label: AppStrings.invitePeopleConfirmAction,
+                            onTap: _submit,
+                          ),
+                        ),
+                      ],
                     ),
                   ],
                 ),
-              ],
+              ),
             ),
           ),
         ),
@@ -4826,107 +4836,109 @@ class _GroupCommentsBottomSheetState extends State<_GroupCommentsBottomSheet>
         child: SafeArea(
           top: false,
           bottom: false,
-          child: Container(
-            padding: const EdgeInsets.fromLTRB(20, 16, 20, 0),
-            decoration: const BoxDecoration(
-              color: AppColors.hex111317,
-              borderRadius: BorderRadius.vertical(top: Radius.circular(24)),
-            ),
-            child: Column(
-              mainAxisSize: MainAxisSize.min,
-              crossAxisAlignment: CrossAxisAlignment.start,
-              children: <Widget>[
-                Center(
-                  child: Container(
-                    width: 42,
-                    height: 4,
-                    decoration: BoxDecoration(
-                      color: AppColors.textPrimary.withValues(alpha: 0.18),
-                      borderRadius: BorderRadius.circular(999),
+          child: AppKeyboardBottomSheetSurface(
+            color: AppColors.hex111317,
+            borderRadius: const BorderRadius.vertical(top: Radius.circular(24)),
+            child: Padding(
+              padding: const EdgeInsets.fromLTRB(20, 16, 20, 0),
+              child: Column(
+                mainAxisSize: MainAxisSize.min,
+                crossAxisAlignment: CrossAxisAlignment.start,
+                children: <Widget>[
+                  Center(
+                    child: Container(
+                      width: 42,
+                      height: 4,
+                      decoration: BoxDecoration(
+                        color: AppColors.textPrimary.withValues(alpha: 0.18),
+                        borderRadius: BorderRadius.circular(999),
+                      ),
                     ),
                   ),
-                ),
-                const SizedBox(height: 18),
-                const AppTextView.body1(
-                  AppStrings.commentsSheetTitle,
-                  color: AppColors.textPrimary,
-                  fontWeight: FontWeight.w800,
-                  fontSize: 18,
-                ),
-                const SizedBox(height: 6),
-                AppTextView.body4(
-                  AppStrings.commentsSheetSubtitle(widget.group.name),
-                  color: AppColors.textSecondary,
-                  fontWeight: FontWeight.w500,
-                ),
-                const SizedBox(height: 18),
-                ConstrainedBox(
-                  constraints: const BoxConstraints(maxHeight: 280),
-                  child: _post.comments.isEmpty
-                      ? const _GroupCommentsEmptyState()
-                      : ListView.separated(
-                          shrinkWrap: true,
-                          itemCount: _post.comments.length,
-                          itemBuilder: (context, index) {
-                            return _GroupCommentTile(
-                              comment: _post.comments[index],
-                            );
-                          },
-                          separatorBuilder: (_, _) =>
-                              const SizedBox(height: 12),
-                        ),
-                ),
-                const SizedBox(height: 16),
-                Row(
-                  crossAxisAlignment: CrossAxisAlignment.end,
-                  children: <Widget>[
-                    Expanded(
-                      child: Container(
-                        decoration: BoxDecoration(
-                          color: AppColors.hex1b1e27,
-                          borderRadius: BorderRadius.circular(16),
-                          border: Border.all(
-                            color: AppColors.textPrimary.withValues(
-                              alpha: 0.08,
+                  const SizedBox(height: 18),
+                  const AppTextView.body1(
+                    AppStrings.commentsSheetTitle,
+                    color: AppColors.textPrimary,
+                    fontWeight: FontWeight.w800,
+                    fontSize: 18,
+                  ),
+                  const SizedBox(height: 6),
+                  AppTextView.body4(
+                    AppStrings.commentsSheetSubtitle(widget.group.name),
+                    color: AppColors.textSecondary,
+                    fontWeight: FontWeight.w500,
+                  ),
+                  const SizedBox(height: 18),
+                  ConstrainedBox(
+                    constraints: const BoxConstraints(maxHeight: 280),
+                    child: _post.comments.isEmpty
+                        ? const _GroupCommentsEmptyState()
+                        : ListView.separated(
+                            shrinkWrap: true,
+                            itemCount: _post.comments.length,
+                            itemBuilder: (context, index) {
+                              return _GroupCommentTile(
+                                comment: _post.comments[index],
+                              );
+                            },
+                            separatorBuilder: (_, _) =>
+                                const SizedBox(height: 12),
+                          ),
+                  ),
+                  const SizedBox(height: 16),
+                  Row(
+                    crossAxisAlignment: CrossAxisAlignment.end,
+                    children: <Widget>[
+                      Expanded(
+                        child: Container(
+                          decoration: BoxDecoration(
+                            color: AppColors.hex1b1e27,
+                            borderRadius: BorderRadius.circular(16),
+                            border: Border.all(
+                              color: AppColors.textPrimary.withValues(
+                                alpha: 0.08,
+                              ),
+                            ),
+                          ),
+                          child: TextField(
+                            controller: _commentController,
+                            maxLines: 3,
+                            minLines: 1,
+                            cursorHeight: 17,
+                            style: const TextStyle(
+                              color: AppColors.textPrimary,
+                            ),
+                            cursorColor: AppColors.textPrimary,
+                            decoration: const InputDecoration(
+                              hintText: AppStrings.commentInputHint,
+                              hintStyle: TextStyle(
+                                color: AppColors.textSecondary,
+                              ),
+                              border: InputBorder.none,
+                              contentPadding: EdgeInsets.all(14),
                             ),
                           ),
                         ),
-                        child: TextField(
-                          controller: _commentController,
-                          maxLines: 3,
-                          minLines: 1,
-                          cursorHeight: 17,
-                          style: const TextStyle(color: AppColors.textPrimary),
-                          cursorColor: AppColors.textPrimary,
-                          decoration: const InputDecoration(
-                            hintText: AppStrings.commentInputHint,
-                            hintStyle: TextStyle(
-                              color: AppColors.textSecondary,
+                      ),
+                      const SizedBox(width: 10),
+                      SizedBox(
+                        width: 80,
+                        child: IgnorePointer(
+                          ignoring: !canSubmit,
+                          child: Opacity(
+                            opacity: canSubmit ? 1 : 0.45,
+                            child: PrimaryGroupsButton(
+                              label: AppStrings.postCommentAction,
+                              onTap: _submitComment,
                             ),
-                            border: InputBorder.none,
-                            contentPadding: EdgeInsets.all(14),
                           ),
                         ),
                       ),
-                    ),
-                    const SizedBox(width: 10),
-                    SizedBox(
-                      width: 80,
-                      child: IgnorePointer(
-                        ignoring: !canSubmit,
-                        child: Opacity(
-                          opacity: canSubmit ? 1 : 0.45,
-                          child: PrimaryGroupsButton(
-                            label: AppStrings.postCommentAction,
-                            onTap: _submitComment,
-                          ),
-                        ),
-                      ),
-                    ),
-                  ],
-                ),
-                const SizedBox(height: 20),
-              ],
+                    ],
+                  ),
+                  const SizedBox(height: 20),
+                ],
+              ),
             ),
           ),
         ),
@@ -5142,149 +5154,153 @@ class _GroupDraftBottomSheetState extends State<_GroupDraftBottomSheet>
       return AnimatedPadding(
         duration: const Duration(milliseconds: 180),
         padding: EdgeInsets.only(bottom: bottomInset),
-        child: Container(
-          padding: const EdgeInsets.fromLTRB(20, 16, 20, 24),
-          decoration: const BoxDecoration(
-            color: AppColors.hex111317,
-            borderRadius: BorderRadius.vertical(top: Radius.circular(24)),
-          ),
-          child: SingleChildScrollView(
-            child: Column(
-              mainAxisSize: MainAxisSize.min,
-              crossAxisAlignment: CrossAxisAlignment.start,
-              children: <Widget>[
-                Center(
-                  child: Container(
-                    width: 42,
-                    height: 4,
-                    decoration: BoxDecoration(
-                      color: AppColors.textPrimary.withValues(alpha: 0.18),
-                      borderRadius: BorderRadius.circular(999),
+        child: AppKeyboardBottomSheetSurface(
+          color: AppColors.hex111317,
+          borderRadius: const BorderRadius.vertical(top: Radius.circular(24)),
+          child: Padding(
+            padding: const EdgeInsets.fromLTRB(20, 16, 20, 24),
+            child: SingleChildScrollView(
+              child: Column(
+                mainAxisSize: MainAxisSize.min,
+                crossAxisAlignment: CrossAxisAlignment.start,
+                children: <Widget>[
+                  Center(
+                    child: Container(
+                      width: 42,
+                      height: 4,
+                      decoration: BoxDecoration(
+                        color: AppColors.textPrimary.withValues(alpha: 0.18),
+                        borderRadius: BorderRadius.circular(999),
+                      ),
                     ),
                   ),
-                ),
-                const SizedBox(height: 18),
-                AppTextView.body1(
-                  widget.title,
-                  color: AppColors.textPrimary,
-                  fontWeight: FontWeight.w800,
-                  fontSize: 18,
-                ),
-                const SizedBox(height: 6),
-                AppTextView.body2(
-                  widget.subtitle,
-                  color: AppColors.textSecondary,
-                  fontWeight: FontWeight.w500,
-                ),
-                const SizedBox(height: 18),
-                _GroupImagePickerTile(
-                  label: AppStrings.groupImageLabel,
-                  emptyTitle: AppStrings.groupImageHint,
-                  selectedSubtitle: AppStrings.groupImageSelectedHint,
-                  placeholderIcon: Icons.groups_2_rounded,
-                  selectedImagePath: _selectedImagePath,
-                  isPickingImage: _isPickingImage,
-                  onTap: _pickImage,
-                  onRemoveTap: _selectedImagePath == null ? null : _removeImage,
-                ),
-                const SizedBox(height: 14),
-                _GroupImagePickerTile(
-                  label: AppStrings.groupBackgroundImageLabel,
-                  emptyTitle: AppStrings.groupBackgroundImageHint,
-                  selectedSubtitle: AppStrings.groupBackgroundImageSelectedHint,
-                  placeholderIcon: Icons.wallpaper_rounded,
-                  selectedImagePath: _selectedCoverImagePath,
-                  isPickingImage: _isPickingCoverImage,
-                  onTap: _pickCoverImage,
-                  onRemoveTap: _selectedCoverImagePath == null
-                      ? null
-                      : _removeCoverImage,
-                ),
-                const SizedBox(height: 14),
-                _LabeledTextField(
-                  label: AppStrings.nameLabel,
-                  hint: AppStrings.nameHint,
-                  controller: _nameController,
-                ),
-                const SizedBox(height: 14),
-                _LabeledTextField(
-                  label: AppStrings.aboutLabel,
-                  hint: AppStrings.aboutHint,
-                  controller: _aboutController,
-                  maxLines: 3,
-                ),
-                const SizedBox(height: 14),
-                AppTextView.body3(
-                  AppStrings.privacyLabel,
-                  color: AppColors.textPrimary,
-                  fontWeight: FontWeight.w700,
-                ),
-                const SizedBox(height: 10),
-                Row(
-                  children: <Widget>[
-                    Expanded(
-                      child: _SelectableOptionTile(
-                        label: AppStrings.privacyPrivate,
-                        isSelected: _isPrivate,
-                        onTap: () => updateView(() => _isPrivate = true),
-                      ),
-                    ),
-                    const SizedBox(width: 10),
-                    Expanded(
-                      child: _SelectableOptionTile(
-                        label: AppStrings.privacyPublic,
-                        isSelected: !_isPrivate,
-                        onTap: () => updateView(() => _isPrivate = false),
-                      ),
-                    ),
-                  ],
-                ),
-                const SizedBox(height: 14),
-                AppTextView.body3(
-                  AppStrings.topicLabel,
-                  color: AppColors.textPrimary,
-                  fontWeight: FontWeight.w700,
-                ),
-                const SizedBox(height: 10),
-                Wrap(
-                  spacing: 8,
-                  runSpacing: 8,
-                  children: AppStrings.browseTopics
-                      .where((topic) => topic != AppStrings.categoryAll)
-                      .map(
-                        (topic) => _SelectableChip(
-                          label: topic,
-                          isSelected: _selectedTopic == topic,
-                          onTap: () => updateView(() => _selectedTopic = topic),
+                  const SizedBox(height: 18),
+                  AppTextView.body1(
+                    widget.title,
+                    color: AppColors.textPrimary,
+                    fontWeight: FontWeight.w800,
+                    fontSize: 18,
+                  ),
+                  const SizedBox(height: 6),
+                  AppTextView.body2(
+                    widget.subtitle,
+                    color: AppColors.textSecondary,
+                    fontWeight: FontWeight.w500,
+                  ),
+                  const SizedBox(height: 18),
+                  _GroupImagePickerTile(
+                    label: AppStrings.groupImageLabel,
+                    emptyTitle: AppStrings.groupImageHint,
+                    selectedSubtitle: AppStrings.groupImageSelectedHint,
+                    placeholderIcon: Icons.groups_2_rounded,
+                    selectedImagePath: _selectedImagePath,
+                    isPickingImage: _isPickingImage,
+                    onTap: _pickImage,
+                    onRemoveTap: _selectedImagePath == null
+                        ? null
+                        : _removeImage,
+                  ),
+                  const SizedBox(height: 14),
+                  _GroupImagePickerTile(
+                    label: AppStrings.groupBackgroundImageLabel,
+                    emptyTitle: AppStrings.groupBackgroundImageHint,
+                    selectedSubtitle:
+                        AppStrings.groupBackgroundImageSelectedHint,
+                    placeholderIcon: Icons.wallpaper_rounded,
+                    selectedImagePath: _selectedCoverImagePath,
+                    isPickingImage: _isPickingCoverImage,
+                    onTap: _pickCoverImage,
+                    onRemoveTap: _selectedCoverImagePath == null
+                        ? null
+                        : _removeCoverImage,
+                  ),
+                  const SizedBox(height: 14),
+                  _LabeledTextField(
+                    label: AppStrings.nameLabel,
+                    hint: AppStrings.nameHint,
+                    controller: _nameController,
+                  ),
+                  const SizedBox(height: 14),
+                  _LabeledTextField(
+                    label: AppStrings.aboutLabel,
+                    hint: AppStrings.aboutHint,
+                    controller: _aboutController,
+                    maxLines: 3,
+                  ),
+                  const SizedBox(height: 14),
+                  AppTextView.body3(
+                    AppStrings.privacyLabel,
+                    color: AppColors.textPrimary,
+                    fontWeight: FontWeight.w700,
+                  ),
+                  const SizedBox(height: 10),
+                  Row(
+                    children: <Widget>[
+                      Expanded(
+                        child: _SelectableOptionTile(
+                          label: AppStrings.privacyPrivate,
+                          isSelected: _isPrivate,
+                          onTap: () => updateView(() => _isPrivate = true),
                         ),
-                      )
-                      .toList(growable: false),
-                ),
-                const SizedBox(height: 18),
-                Row(
-                  children: <Widget>[
-                    Expanded(
-                      child: SecondaryGroupsButton(
-                        label: AppStrings.createCancel,
-                        onTap: () => Navigator.of(context).pop(),
                       ),
-                    ),
-                    const SizedBox(width: 10),
-                    Expanded(
-                      child: IgnorePointer(
-                        ignoring: !canSubmit,
-                        child: Opacity(
-                          opacity: canSubmit ? 1 : 0.45,
-                          child: PrimaryGroupsButton(
-                            label: widget.submitLabel,
-                            onTap: _submit,
+                      const SizedBox(width: 10),
+                      Expanded(
+                        child: _SelectableOptionTile(
+                          label: AppStrings.privacyPublic,
+                          isSelected: !_isPrivate,
+                          onTap: () => updateView(() => _isPrivate = false),
+                        ),
+                      ),
+                    ],
+                  ),
+                  const SizedBox(height: 14),
+                  AppTextView.body3(
+                    AppStrings.topicLabel,
+                    color: AppColors.textPrimary,
+                    fontWeight: FontWeight.w700,
+                  ),
+                  const SizedBox(height: 10),
+                  Wrap(
+                    spacing: 8,
+                    runSpacing: 8,
+                    children: AppStrings.browseTopics
+                        .where((topic) => topic != AppStrings.categoryAll)
+                        .map(
+                          (topic) => _SelectableChip(
+                            label: topic,
+                            isSelected: _selectedTopic == topic,
+                            onTap: () =>
+                                updateView(() => _selectedTopic = topic),
+                          ),
+                        )
+                        .toList(growable: false),
+                  ),
+                  const SizedBox(height: 18),
+                  Row(
+                    children: <Widget>[
+                      Expanded(
+                        child: SecondaryGroupsButton(
+                          label: AppStrings.createCancel,
+                          onTap: () => Navigator.of(context).pop(),
+                        ),
+                      ),
+                      const SizedBox(width: 10),
+                      Expanded(
+                        child: IgnorePointer(
+                          ignoring: !canSubmit,
+                          child: Opacity(
+                            opacity: canSubmit ? 1 : 0.45,
+                            child: PrimaryGroupsButton(
+                              label: widget.submitLabel,
+                              onTap: _submit,
+                            ),
                           ),
                         ),
                       ),
-                    ),
-                  ],
-                ),
-              ],
+                    ],
+                  ),
+                ],
+              ),
             ),
           ),
         ),

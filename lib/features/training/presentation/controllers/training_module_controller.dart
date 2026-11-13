@@ -33,6 +33,16 @@ enum QuizGenerationDifficulty {
   final String apiValue;
 }
 
+enum QuizGenerationSource {
+  video('video'),
+  sop('sop'),
+  both('both');
+
+  const QuizGenerationSource(this.apiValue);
+
+  final String apiValue;
+}
+
 enum TrainingDocumentFormatKind { bold, italic, underline, heading, quote }
 
 class TrainingDocumentFormatRange {
@@ -974,6 +984,7 @@ class TrainingModuleController extends ChangeNotifier {
   int _quizGenerationOptionsPerQuestion = 4;
   QuizGenerationDifficulty _quizGenerationDifficulty =
       QuizGenerationDifficulty.medium;
+  QuizGenerationSource _quizGenerationSource = QuizGenerationSource.both;
   bool _replaceExistingQuestions = true;
   bool _isGeneratingQuiz = false;
   bool _isGeneratingSop = false;
@@ -1075,6 +1086,7 @@ class TrainingModuleController extends ChangeNotifier {
   int get quizGenerationOptionsPerQuestion => _quizGenerationOptionsPerQuestion;
   QuizGenerationDifficulty get quizGenerationDifficulty =>
       _quizGenerationDifficulty;
+  QuizGenerationSource get quizGenerationSource => _quizGenerationSource;
   bool get replaceExistingQuestions => _replaceExistingQuestions;
   bool get isGeneratingQuiz => _isGeneratingQuiz;
   bool get isGeneratingSop => _isGeneratingSop;
@@ -1818,6 +1830,7 @@ class TrainingModuleController extends ChangeNotifier {
     _quizGenerationQuestionCount = 3;
     _quizGenerationOptionsPerQuestion = 4;
     _quizGenerationDifficulty = QuizGenerationDifficulty.medium;
+    _quizGenerationSource = QuizGenerationSource.both;
     _replaceExistingQuestions = true;
     _questionsErrorMessage = null;
     notifyListeners();
@@ -1868,6 +1881,15 @@ class TrainingModuleController extends ChangeNotifier {
     notifyListeners();
   }
 
+  void setQuizGenerationSource(QuizGenerationSource source) {
+    if (_quizGenerationSource == source) {
+      return;
+    }
+
+    _quizGenerationSource = source;
+    notifyListeners();
+  }
+
   void setReplaceExistingQuestions(bool value) {
     if (_replaceExistingQuestions == value) {
       return;
@@ -1892,6 +1914,7 @@ class TrainingModuleController extends ChangeNotifier {
         numQuestions: _quizGenerationQuestionCount,
         optionsPerQuestion: _quizGenerationOptionsPerQuestion,
         difficultyLevel: _quizGenerationDifficulty.apiValue,
+        source: _quizGenerationSource.apiValue,
         replaceExistingQuestions: _replaceExistingQuestions,
       );
       await refreshQuestionsForSelectedModule();

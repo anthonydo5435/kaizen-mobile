@@ -7,6 +7,7 @@ import '../../../../core/constants/app_strings.dart';
 import '../../../../core/managers/app_manager.dart';
 import '../../../../core/widgets/app_button.dart';
 import '../../../../core/widgets/app_dot_divider.dart';
+import '../../../../core/widgets/app_keyboard_bottom_sheet_surface.dart';
 import '../../../../core/widgets/app_radio_selection_tile.dart';
 import '../../../../core/widgets/app_text_view.dart';
 import '../../../../core/widgets/fast_circular_progress.dart';
@@ -38,9 +39,12 @@ class SetupTrainingScreen extends StatelessWidget {
 
     return MultiProvider(
       providers: [
-        Provider<SeatProfileRemoteDataSource>(create: (_) => createSeatProfileRemoteDataSource()),
+        Provider<SeatProfileRemoteDataSource>(
+          create: (_) => createSeatProfileRemoteDataSource(),
+        ),
         ProxyProvider<SeatProfileRemoteDataSource, SeatProfileRepositoryImpl>(
-          update: (_, remoteDataSource, __) => SeatProfileRepositoryImpl(remoteDataSource),
+          update: (_, remoteDataSource, __) =>
+              SeatProfileRepositoryImpl(remoteDataSource),
         ),
         ProxyProvider<SeatProfileRepositoryImpl, GetSeatProfilesUseCase>(
           update: (_, repository, __) => GetSeatProfilesUseCase(repository),
@@ -49,10 +53,12 @@ class SetupTrainingScreen extends StatelessWidget {
           create: (context) =>
               TrainingSetupController(
                 context.read<GetSeatProfilesUseCase>(),
-                canManageSeatProfile: (seatProfile) =>
-                    AppManager.instance.canCurrentUserManageTrainingForSeatProfile(
+                canManageSeatProfile: (seatProfile) => AppManager.instance
+                    .canCurrentUserManageTrainingForSeatProfile(
                       seatProfileId: seatProfile.id,
-                      additionalSeatProfileIds: <String>[seatProfile.resolvedSeatId],
+                      additionalSeatProfileIds: <String>[
+                        seatProfile.resolvedSeatId,
+                      ],
                     ),
               )..initialize(
                 initialSeatProfileId: initialSeatProfileId,
@@ -116,7 +122,10 @@ class _SetupTrainingScreenView extends StatelessWidget {
         bottom: false,
         child: Column(
           children: <Widget>[
-            Padding(padding: const EdgeInsets.fromLTRB(8, 8, 8, 0), child: _buildHeader(context)),
+            Padding(
+              padding: const EdgeInsets.fromLTRB(8, 8, 8, 0),
+              child: _buildHeader(context),
+            ),
             Expanded(child: _buildContent(context, controller)),
             if (showSetupAction)
               _TrainingSetupNextAction(
@@ -146,7 +155,10 @@ class _SetupTrainingScreenView extends StatelessWidget {
                   '${AppStrings.imagePath}back.svg',
                   width: 24,
                   height: 24,
-                  colorFilter: const ColorFilter.mode(Colors.white, BlendMode.srcIn),
+                  colorFilter: const ColorFilter.mode(
+                    Colors.white,
+                    BlendMode.srcIn,
+                  ),
                 ),
               ),
             ),
@@ -162,7 +174,10 @@ class _SetupTrainingScreenView extends StatelessWidget {
     );
   }
 
-  Widget _buildContent(BuildContext context, TrainingSetupController controller) {
+  Widget _buildContent(
+    BuildContext context,
+    TrainingSetupController controller,
+  ) {
     if (controller.isLoading && controller.seatProfiles.isEmpty) {
       return Center(child: FastCircularProgressIndicator());
     }
@@ -172,7 +187,9 @@ class _SetupTrainingScreenView extends StatelessWidget {
     }
 
     if (controller.seatProfiles.isEmpty) {
-      return const _CenteredMessage(message: AppStrings.seatProfileTrainingNoOptionsAvailable);
+      return const _CenteredMessage(
+        message: AppStrings.seatProfileTrainingNoOptionsAvailable,
+      );
     }
 
     return LayoutBuilder(
@@ -227,12 +244,16 @@ class _SetupTrainingScreenView extends StatelessWidget {
                       if (controller.selectedSeatProfile != null &&
                           controller.categoryOptions.isEmpty) ...<Widget>[
                         const SizedBox(height: 16),
-                        const _InfoMessage(message: AppStrings.seatProfileNoCategoriesFound),
+                        const _InfoMessage(
+                          message: AppStrings.seatProfileNoCategoriesFound,
+                        ),
                       ],
                       if (controller.selectedCategory != null &&
                           controller.descriptionOptions.isEmpty) ...<Widget>[
                         const SizedBox(height: 16),
-                        const _InfoMessage(message: AppStrings.seatProfileNoDescriptionsFound),
+                        const _InfoMessage(
+                          message: AppStrings.seatProfileNoDescriptionsFound,
+                        ),
                       ],
                     ],
                   ),
@@ -245,13 +266,21 @@ class _SetupTrainingScreenView extends StatelessWidget {
     );
   }
 
-  Future<void> _selectSeatProfile(BuildContext context, TrainingSetupController controller) async {
+  Future<void> _selectSeatProfile(
+    BuildContext context,
+    TrainingSetupController controller,
+  ) async {
     final selectedId = await _showSelectionSheet(
       context,
       title: AppStrings.trainingSetupSelectSeat,
       searchHint: AppStrings.trainingSetupSearchSeat,
       options: controller.seatProfiles
-          .map((seatProfile) => _SelectionListOption(id: seatProfile.id, label: seatProfile.title))
+          .map(
+            (seatProfile) => _SelectionListOption(
+              id: seatProfile.id,
+              label: seatProfile.title,
+            ),
+          )
           .toList(growable: false),
       selectedId: controller.selectedSeatProfileId,
     );
@@ -263,7 +292,10 @@ class _SetupTrainingScreenView extends StatelessWidget {
     controller.selectSeatProfile(selectedId);
   }
 
-  Future<void> _selectCategory(BuildContext context, TrainingSetupController controller) async {
+  Future<void> _selectCategory(
+    BuildContext context,
+    TrainingSetupController controller,
+  ) async {
     if (controller.categoryOptions.isEmpty) {
       return;
     }
@@ -273,7 +305,10 @@ class _SetupTrainingScreenView extends StatelessWidget {
       title: AppStrings.trainingSetupSelectCategoryTitle,
       searchHint: AppStrings.trainingSetupSearchCategory,
       options: controller.categoryOptions
-          .map((category) => _SelectionListOption(id: category.id, label: category.title))
+          .map(
+            (category) =>
+                _SelectionListOption(id: category.id, label: category.title),
+          )
           .toList(growable: false),
       selectedId: controller.selectedCategoryId,
     );
@@ -285,7 +320,10 @@ class _SetupTrainingScreenView extends StatelessWidget {
     controller.selectCategory(selectedId);
   }
 
-  Future<void> _selectDescription(BuildContext context, TrainingSetupController controller) async {
+  Future<void> _selectDescription(
+    BuildContext context,
+    TrainingSetupController controller,
+  ) async {
     if (controller.descriptionOptions.isEmpty) {
       return;
     }
@@ -295,7 +333,12 @@ class _SetupTrainingScreenView extends StatelessWidget {
       title: AppStrings.trainingSetupSelectDescriptionTitle,
       searchHint: AppStrings.trainingSetupSearchDescription,
       options: controller.descriptionOptions
-          .map((description) => _SelectionListOption(id: description.id, label: description.name))
+          .map(
+            (description) => _SelectionListOption(
+              id: description.id,
+              label: description.name,
+            ),
+          )
           .toList(growable: false),
       selectedId: controller.selectedDescriptionId,
     );
@@ -327,8 +370,12 @@ class _SetupTrainingScreenView extends StatelessWidget {
     );
   }
 
-  Future<void> _openTrainingEditor(BuildContext context, TrainingSetupController controller) async {
-    if (!controller.canViewTraining || !controller.canManageSelectedSeatProfile) {
+  Future<void> _openTrainingEditor(
+    BuildContext context,
+    TrainingSetupController controller,
+  ) async {
+    if (!controller.canViewTraining ||
+        !controller.canManageSelectedSeatProfile) {
       return;
     }
 
@@ -337,19 +384,22 @@ class _SetupTrainingScreenView extends StatelessWidget {
         builder: (_) => EditTrainingScreen(
           trainingRoute: _resolvedTrainingRoute(controller),
           startNewLessonWhenEmpty: true,
-          canManageTraining: AppManager.instance.canCurrentUserManageTrainingForSeatProfile(
-            seatProfileId: controller.selectedSeatProfile?.id ?? '',
-            additionalSeatProfileIds: <String>[
-              controller.selectedSeatProfile?.resolvedSeatId ?? '',
-            ],
-          ),
+          canManageTraining: AppManager.instance
+              .canCurrentUserManageTrainingForSeatProfile(
+                seatProfileId: controller.selectedSeatProfile?.id ?? '',
+                additionalSeatProfileIds: <String>[
+                  controller.selectedSeatProfile?.resolvedSeatId ?? '',
+                ],
+              ),
           useNonBlockingVideoUpload: true,
         ),
       ),
     );
   }
 
-  SeatDescriptionTrainingRoute _resolvedTrainingRoute(TrainingSetupController controller) {
+  SeatDescriptionTrainingRoute _resolvedTrainingRoute(
+    TrainingSetupController controller,
+  ) {
     final seatProfileId = controller.selectedSeatProfileId?.trim() ?? '';
     final categoryId = controller.selectedCategoryId?.trim() ?? '';
     final descriptionId = controller.selectedDescriptionId?.trim() ?? '';
@@ -369,7 +419,10 @@ class _SelectionListOption {
 }
 
 class _TrainingSetupNextAction extends StatelessWidget {
-  const _TrainingSetupNextAction({required this.isEnabled, required this.onPressed});
+  const _TrainingSetupNextAction({
+    required this.isEnabled,
+    required this.onPressed,
+  });
 
   final bool isEnabled;
   final VoidCallback onPressed;
@@ -418,7 +471,8 @@ class _TrainingSetupOptionSheet extends StatefulWidget {
   final String? initialSelectedId;
 
   @override
-  State<_TrainingSetupOptionSheet> createState() => _TrainingSetupOptionSheetState();
+  State<_TrainingSetupOptionSheet> createState() =>
+      _TrainingSetupOptionSheetState();
 }
 
 class _TrainingSetupOptionSheetState extends State<_TrainingSetupOptionSheet> {
@@ -446,8 +500,11 @@ class _TrainingSetupOptionSheetState extends State<_TrainingSetupOptionSheet> {
   Widget build(BuildContext context) {
     final mediaQuery = MediaQuery.of(context);
     final preferredHeight = mediaQuery.size.height * 0.74;
-    final availableHeight = mediaQuery.size.height - mediaQuery.viewInsets.bottom;
-    final sheetHeight = preferredHeight < availableHeight ? preferredHeight : availableHeight;
+    final availableHeight =
+        mediaQuery.size.height - mediaQuery.viewInsets.bottom;
+    final sheetHeight = preferredHeight < availableHeight
+        ? preferredHeight
+        : availableHeight;
 
     return AnimatedPadding(
       duration: const Duration(milliseconds: 180),
@@ -456,85 +513,87 @@ class _TrainingSetupOptionSheetState extends State<_TrainingSetupOptionSheet> {
       child: SafeArea(
         top: false,
         bottom: false,
-        child: Container(
+        child: AppKeyboardBottomSheetSurface(
           height: sheetHeight,
-          decoration: const BoxDecoration(
-            color: AppColors.mainBg,
-            borderRadius: BorderRadius.vertical(top: Radius.circular(28)),
-          ),
-          padding: const EdgeInsets.fromLTRB(24, 10, 24, 22),
-          child: ValueListenableBuilder<String>(
-            valueListenable: _searchQueryNotifier,
-            builder: (context, _, __) {
-              final options = _filteredOptions();
+          color: AppColors.mainBg,
+          borderRadius: const BorderRadius.vertical(top: Radius.circular(28)),
+          child: Padding(
+            padding: const EdgeInsets.fromLTRB(24, 10, 24, 22),
+            child: ValueListenableBuilder<String>(
+              valueListenable: _searchQueryNotifier,
+              builder: (context, _, __) {
+                final options = _filteredOptions();
 
-              return Column(
-                crossAxisAlignment: CrossAxisAlignment.stretch,
-                children: <Widget>[
-                  Center(
-                    child: Container(
-                      width: 32,
-                      height: 4,
-                      decoration: BoxDecoration(
-                        color: AppColors.textPrimary,
-                        borderRadius: BorderRadius.circular(99),
+                return Column(
+                  crossAxisAlignment: CrossAxisAlignment.stretch,
+                  children: <Widget>[
+                    Center(
+                      child: Container(
+                        width: 32,
+                        height: 4,
+                        decoration: BoxDecoration(
+                          color: AppColors.textPrimary,
+                          borderRadius: BorderRadius.circular(99),
+                        ),
                       ),
                     ),
-                  ),
-                  const SizedBox(height: 14),
-                  _TrainingSetupSelectionHeader(
-                    title: widget.title,
-                    onBack: () => Navigator.of(context).pop(),
-                  ),
-                  const SizedBox(height: 22),
-                  const AppDotDivider(),
-                  const SizedBox(height: 26),
-                  _TrainingSetupSearchField(
-                    controller: _searchController,
-                    hintText: widget.searchHint,
-                    onChanged: (value) => _searchQueryNotifier.value = value,
-                  ),
-                  const SizedBox(height: 18),
-                  Expanded(
-                    child: options.isEmpty
-                        ? const _TrainingSetupNoMatches()
-                        : ListView.separated(
-                            padding: const EdgeInsets.symmetric(vertical: 4),
-                            itemCount: options.length,
-                            separatorBuilder: (_, __) => const SizedBox(height: 4),
-                            itemBuilder: (context, index) {
-                              final option = options[index];
-                              return ValueListenableBuilder<String?>(
-                                valueListenable: _selectedIdNotifier,
-                                builder: (context, selectedId, _) {
-                                  return AppRadioSelectionTile(
-                                    title: option.label,
-                                    isSelected: selectedId == option.id,
-                                    onTap: () => _selectedIdNotifier.value = option.id,
-                                  );
-                                },
-                              );
-                            },
-                          ),
-                  ),
-                  const AppDotDivider(),
-                  const SizedBox(height: 16),
-                  ValueListenableBuilder<String?>(
-                    valueListenable: _selectedIdNotifier,
-                    builder: (context, selectedId, _) {
-                      return AppButton(
-                        text: AppStrings.done,
-                        minimumHeight: 44,
-                        textSize: 16,
-                        onPressed: selectedId == null
-                            ? null
-                            : () => Navigator.of(context).pop(selectedId),
-                      );
-                    },
-                  ),
-                ],
-              );
-            },
+                    const SizedBox(height: 14),
+                    _TrainingSetupSelectionHeader(
+                      title: widget.title,
+                      onBack: () => Navigator.of(context).pop(),
+                    ),
+                    const SizedBox(height: 22),
+                    const AppDotDivider(),
+                    const SizedBox(height: 26),
+                    _TrainingSetupSearchField(
+                      controller: _searchController,
+                      hintText: widget.searchHint,
+                      onChanged: (value) => _searchQueryNotifier.value = value,
+                    ),
+                    const SizedBox(height: 18),
+                    Expanded(
+                      child: options.isEmpty
+                          ? const _TrainingSetupNoMatches()
+                          : ListView.separated(
+                              padding: const EdgeInsets.symmetric(vertical: 4),
+                              itemCount: options.length,
+                              separatorBuilder: (_, __) =>
+                                  const SizedBox(height: 4),
+                              itemBuilder: (context, index) {
+                                final option = options[index];
+                                return ValueListenableBuilder<String?>(
+                                  valueListenable: _selectedIdNotifier,
+                                  builder: (context, selectedId, _) {
+                                    return AppRadioSelectionTile(
+                                      title: option.label,
+                                      isSelected: selectedId == option.id,
+                                      onTap: () =>
+                                          _selectedIdNotifier.value = option.id,
+                                    );
+                                  },
+                                );
+                              },
+                            ),
+                    ),
+                    const AppDotDivider(),
+                    const SizedBox(height: 16),
+                    ValueListenableBuilder<String?>(
+                      valueListenable: _selectedIdNotifier,
+                      builder: (context, selectedId, _) {
+                        return AppButton(
+                          text: AppStrings.done,
+                          minimumHeight: 44,
+                          textSize: 16,
+                          onPressed: selectedId == null
+                              ? null
+                              : () => Navigator.of(context).pop(selectedId),
+                        );
+                      },
+                    ),
+                  ],
+                );
+              },
+            ),
           ),
         ),
       ),
@@ -554,7 +613,10 @@ class _TrainingSetupOptionSheetState extends State<_TrainingSetupOptionSheet> {
 }
 
 class _TrainingSetupSelectionHeader extends StatelessWidget {
-  const _TrainingSetupSelectionHeader({required this.title, required this.onBack});
+  const _TrainingSetupSelectionHeader({
+    required this.title,
+    required this.onBack,
+  });
 
   final String title;
   final VoidCallback onBack;
@@ -572,7 +634,10 @@ class _TrainingSetupSelectionHeader extends StatelessWidget {
               '${AppStrings.imagePath}back.svg',
               width: 24,
               height: 24,
-              colorFilter: const ColorFilter.mode(AppColors.textPrimary, BlendMode.srcIn),
+              colorFilter: const ColorFilter.mode(
+                AppColors.textPrimary,
+                BlendMode.srcIn,
+              ),
             ),
           ),
         ),
@@ -609,7 +674,10 @@ class _TrainingSetupSearchField extends StatelessWidget {
       padding: const EdgeInsets.symmetric(horizontal: 14),
       decoration: BoxDecoration(
         borderRadius: BorderRadius.circular(12),
-        border: Border.all(color: AppColors.fieldBorder.withValues(alpha: 0.75), width: 1),
+        border: Border.all(
+          color: AppColors.fieldBorder.withValues(alpha: 0.75),
+          width: 1,
+        ),
       ),
       child: TextField(
         controller: controller,
@@ -624,7 +692,10 @@ class _TrainingSetupSearchField extends StatelessWidget {
         ),
         decoration: InputDecoration(
           hintText: hintText,
-          hintStyle: const TextStyle(color: AppColors.textSecondary, fontSize: 15),
+          hintStyle: const TextStyle(
+            color: AppColors.textSecondary,
+            fontSize: 15,
+          ),
           border: InputBorder.none,
           isDense: true,
           contentPadding: const EdgeInsets.symmetric(vertical: 9),
@@ -657,7 +728,11 @@ class _CenteredMessage extends StatelessWidget {
   @override
   Widget build(BuildContext context) {
     return Center(
-      child: AppTextView.body(message, color: AppColors.textSecondary, textAlign: TextAlign.center),
+      child: AppTextView.body(
+        message,
+        color: AppColors.textSecondary,
+        textAlign: TextAlign.center,
+      ),
     );
   }
 }

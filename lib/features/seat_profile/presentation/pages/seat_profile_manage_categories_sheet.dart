@@ -7,6 +7,7 @@ import '../../../../core/constants/app_strings.dart';
 import '../../../../core/widgets/app_button.dart';
 import '../../../../core/widgets/app_confirmation_dialog.dart';
 import '../../../../core/widgets/app_dot_divider.dart';
+import '../../../../core/widgets/app_keyboard_bottom_sheet_surface.dart';
 import '../../../../core/widgets/app_overlay_close_button.dart';
 import '../../../../core/widgets/app_swipe_reveal_action.dart';
 import '../../../../core/widgets/app_text_view.dart';
@@ -138,12 +139,11 @@ class _SeatProfileManageCategoriesSheetState
                   maxWidth: 720,
                   maxHeight: MediaQuery.sizeOf(context).height * 0.88,
                 ),
-                child: Material(
+                child: AppKeyboardBottomSheetSurface(
                   color: AppColors.surfaceDark,
                   borderRadius: const BorderRadius.vertical(
                     top: Radius.circular(28),
                   ),
-                  clipBehavior: Clip.antiAlias,
                   child: LayoutBuilder(
                     builder: (context, constraints) {
                       final isCompact = constraints.maxWidth < 560;

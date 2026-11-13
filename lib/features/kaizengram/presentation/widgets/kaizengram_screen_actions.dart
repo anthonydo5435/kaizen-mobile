@@ -389,20 +389,24 @@ extension _KaizenGramViewStateActions on _KaizenGramViewState {
       shape: const RoundedRectangleBorder(
         borderRadius: BorderRadius.vertical(top: Radius.circular(22)),
       ),
-      builder: (_) => _CreateSocialPostBottomSheet(
-        authorName: controller.currentUserDisplayName,
-        avatarImagePath: controller.currentUserImagePath,
-        avatarUrl: controller.currentUserImageUrl,
-        initialAttachments: initialAttachments,
-        onPostSubmitted: (message, attachments) {
-          controller.createCurrentUserSocialPost(
-            message: message,
-            attachments: attachments,
-          );
-          if (controller.useSeparateFeedDemo && _tabController.index != 0) {
-            _tabController.animateTo(0);
-          }
-        },
+      builder: (_) => AppKeyboardBottomSheetSurface(
+        color: AppColors.surfaceDark,
+        borderRadius: const BorderRadius.vertical(top: Radius.circular(22)),
+        child: _CreateSocialPostBottomSheet(
+          authorName: controller.currentUserDisplayName,
+          avatarImagePath: controller.currentUserImagePath,
+          avatarUrl: controller.currentUserImageUrl,
+          initialAttachments: initialAttachments,
+          onPostSubmitted: (message, attachments) {
+            controller.createCurrentUserSocialPost(
+              message: message,
+              attachments: attachments,
+            );
+            if (controller.useSeparateFeedDemo && _tabController.index != 0) {
+              _tabController.animateTo(0);
+            }
+          },
+        ),
       ),
     );
   }
@@ -627,9 +631,13 @@ extension _KaizenGramViewStateActions on _KaizenGramViewState {
       ),
       builder: (_) => ChangeNotifierProvider<KaizengramController>.value(
         value: controller,
-        child: _SocialPostCommentsBottomSheet(
-          post: post,
-          loggedInUserName: loggedInUserName,
+        child: AppKeyboardBottomSheetSurface(
+          color: AppColors.surfaceDark,
+          borderRadius: const BorderRadius.vertical(top: Radius.circular(22)),
+          child: _SocialPostCommentsBottomSheet(
+            post: post,
+            loggedInUserName: loggedInUserName,
+          ),
         ),
       ),
     );
@@ -686,6 +694,7 @@ extension _KaizenGramViewStateActions on _KaizenGramViewState {
           arguments: ComplianceTracksRouteArgs(
             trackAssignmentUuid: trackAssignmentUuid,
             title: post.title,
+            showCertificate: CustomFunctions.isPassedStatus(post.status),
           ),
         );
         return;

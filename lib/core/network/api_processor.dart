@@ -31,7 +31,6 @@ class ApiCallExecutor {
     }
 
     _getCache.clear();
-    debugPrint('GET cache INVALIDATED');
   }
 
   Future<Response> processApi<Response>({
@@ -79,7 +78,17 @@ class ApiCallExecutor {
     final statusCode = response.statusCode;
     final fullEndpoint =
         '${ApiEndPoints.baseUrl}${ApiEndPoints.version}$resolvedEndpoint';
-    debugPrint('Call $fullEndpoint $statusCode');
+    final requestUri =
+        response.request?.url ??
+        (apiCallType == ApiCallType.get &&
+                parameters != null &&
+                parameters.isNotEmpty
+            ? buildUriWithQueryParameters(
+                uri: Uri.parse(fullEndpoint),
+                parameters: parameters,
+              )
+            : Uri.parse(fullEndpoint));
+    debugPrint('Call $requestUri $statusCode');
     try {
       onResponse?.call(response);
     } catch (error) {
@@ -99,7 +108,6 @@ class ApiCallExecutor {
       if (sessionVersion != AppPreference.sessionVersion) {
         throw ApiError.requestFailed(401);
       }
-      debugPrint('Retrying $fullEndpoint after token refresh');
       return processApi<Response>(
         apiCallType: apiCallType,
         endpoint: endpoint,
@@ -123,7 +131,6 @@ class ApiCallExecutor {
         final resolvedConflict = await AppManager.instance
             .resolveConflictWithServerActiveOrganization(conflictPayload);
         if (resolvedConflict) {
-          debugPrint('Retrying $fullEndpoint after organization conflict');
           return processApi<Response>(
             apiCallType: apiCallType,
             endpoint: endpoint,
@@ -324,17 +331,14 @@ class ApiCallExecutor {
   http.Response? _readCachedGetResponse(String cacheKey) {
     final cachedResponse = _getCache[cacheKey];
     if (cachedResponse == null) {
-      debugPrint('GET cache MISS $cacheKey');
       return null;
     }
 
     if (DateTime.now().difference(cachedResponse.createdAt) > _getCacheTtl) {
       _getCache.remove(cacheKey);
-      debugPrint('GET cache EXPIRED $cacheKey');
       return null;
     }
 
-    debugPrint('GET cache HIT $cacheKey');
     return cachedResponse.toHttpResponse();
   }
 
@@ -345,7 +349,6 @@ class ApiCallExecutor {
       headers: response.headers,
       createdAt: DateTime.now(),
     );
-    debugPrint('GET cache STORE $cacheKey');
   }
 
   void _invalidateGetCache() {
@@ -353,10 +356,7 @@ class ApiCallExecutor {
   }
 
   void _invalidateGetCacheEntry(String cacheKey) {
-    final removed = _getCache.remove(cacheKey);
-    if (removed != null) {
-      debugPrint('GET cache INVALIDATED $cacheKey');
-    }
+    _getCache.remove(cacheKey);
   }
 
   String? _extractErrorMessage(String body) {
