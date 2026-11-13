@@ -22,9 +22,11 @@ import '../models/certified_reports_page_model.dart';
 import '../models/description_comments_response_model.dart';
 import '../models/performance_report_model.dart';
 import '../models/quarterly_audit_model.dart';
+import '../models/seat_audit_model.dart';
 import '../models/seat_description_audit_report_comments_model.dart';
 import '../models/seat_description_final_audit_report_model.dart';
 import '../models/single_audit_report_category_details_model.dart';
+import '../models/subordinate_profile_job_model.dart';
 
 class AuditRemoteDataSource {
   AuditRemoteDataSource({ApiCallExecutor? apiCallExecutor})
@@ -35,6 +37,54 @@ class AuditRemoteDataSource {
   };
 
   final ApiCallExecutor _apiCallExecutor;
+
+  Future<List<SubordinateProfileJobModel>> getSubordinateProfileJobs({
+    required String seatId,
+    bool forceRefresh = false,
+  }) {
+    return _apiCallExecutor.processApi<List<SubordinateProfileJobModel>>(
+      apiCallType: ApiCallType.get,
+      endpoint: ApiEndPoints.subordinateProfileJobs(seatId),
+      authToken: AppPreference.getAuthToken(),
+      invalidateCacheBeforeRequest: forceRefresh,
+      decoder: (json) {
+        if (json is! List) {
+          throw const ApiError.invalidResponse();
+        }
+        return json
+            .whereType<Map<String, dynamic>>()
+            .map(SubordinateProfileJobModel.fromJson)
+            .toList(growable: false);
+      },
+    );
+  }
+
+  Future<SeatAuditPageModel> getSeatAudits({
+    required int page,
+    required int pageSize,
+    int? year,
+    int? quarter,
+    bool forceRefresh = false,
+  }) {
+    return _apiCallExecutor.processApi<SeatAuditPageModel>(
+      apiCallType: ApiCallType.get,
+      endpoint: ApiEndPoints.quarterlyAuditSeatAudits,
+      authToken: AppPreference.getAuthToken(),
+      invalidateCacheBeforeRequest: forceRefresh,
+      parameters: {
+        'page': page,
+        'page_size': pageSize,
+        if (year != null) 'year': year,
+        if (quarter != null) 'quarter': quarter,
+      },
+      decoder: (json) {
+        if (json is! Map<String, dynamic>) {
+          throw const ApiError.invalidResponse();
+        }
+        return SeatAuditPageModel.fromJson(json);
+      },
+    );
+  }
 
   Future<AuditMainListModel> getAuditMainList({
     required int page,
@@ -476,6 +526,29 @@ class AuditRemoteDataSource {
         }
 
         return null;
+      },
+    );
+  }
+
+  Future<AuditDetailsModel> getSeatAuditDetails({
+    required String seatId,
+    required DateTime startDate,
+    required DateTime endDate,
+  }) {
+    return _apiCallExecutor.processApi<AuditDetailsModel>(
+      apiCallType: ApiCallType.get,
+      endpoint: ApiEndPoints.quarterlyAuditSeatDetails(seatId),
+      authToken: AppPreference.getAuthToken(),
+      invalidateCacheBeforeRequest: true,
+      parameters: {
+        'start': CustomFunctions.apiDateString(date: startDate),
+        'end': CustomFunctions.apiDateString(date: endDate),
+      },
+      decoder: (json) {
+        if (json is! Map<String, dynamic>) {
+          throw const ApiError.invalidResponse();
+        }
+        return AuditDetailsModel.fromApiJson(json);
       },
     );
   }

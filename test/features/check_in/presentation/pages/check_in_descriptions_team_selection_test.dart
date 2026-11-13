@@ -13,12 +13,14 @@ import 'package:sparrowkaizen/core/network/api_endpoints.dart';
 import 'package:sparrowkaizen/core/network/api_processor.dart';
 import 'package:sparrowkaizen/core/preference/app_preference.dart';
 import 'package:sparrowkaizen/core/utils/custom_functions.dart';
+import 'package:sparrowkaizen/core/widgets/fast_circular_progress.dart';
 import 'package:sparrowkaizen/features/check_in/presentation/pages/check_in_descriptions_list_screen.dart';
 import 'package:sparrowkaizen/features/check_in/presentation/pages/View_all_team_members.dart';
 import 'package:sparrowkaizen/features/check_in/presentation/pages/check_in_single_description.dart';
 import 'package:sparrowkaizen/features/check_in/presentation/providers/check_in_controller.dart';
 import 'package:sparrowkaizen/features/check_in/presentation/widgets/check_in_description_card.dart';
 import 'package:sparrowkaizen/features/check_in/presentation/widgets/check_in_member_card.dart';
+import 'package:sparrowkaizen/features/check_in/presentation/widgets/check_in_seat_profile_switcher.dart';
 import 'package:sparrowkaizen/features/login/domain/entities/user.dart';
 
 const _openedDate = '2026-10-15';
@@ -78,6 +80,8 @@ void main() {
   Future<_NavigationObserver> mount(
     WidgetTester tester, {
     String date = _openedDate,
+    bool isGeneralSeatAudit = false,
+    bool settle = true,
   }) async {
     tester.view.physicalSize = const Size(600, 844);
     tester.view.devicePixelRatio = 1;
@@ -94,13 +98,189 @@ void main() {
             lastAuditDate: date,
             year: 2026,
             quarter: 4,
+            isGeneralSeatAudit: isGeneralSeatAudit,
           ),
         ),
       ),
     );
-    await tester.pumpAndSettle();
+    if (settle) await tester.pumpAndSettle();
     return observer;
   }
+
+  testWidgets(
+    'general seat descriptions show title-only seat switching instead of team members',
+    (tester) async {
+      intercept = (request) async {
+        if (!request.url.path.endsWith(ApiEndPoints.quarterlyAuditSeatAudits)) {
+          return null;
+        }
+        return http.Response(
+          jsonEncode({
+            'count': 2,
+            'current': 1,
+            'next': null,
+            'results': ['a', 'b'].map(_seatOption).toList(),
+          }),
+          200,
+        );
+      };
+      await http.runWithClient(() async {
+        final observer = await mount(tester, isGeneralSeatAudit: true);
+        final controller = _controller(tester);
+        final request = requests.singleWhere(
+          (request) =>
+              request.url.path.endsWith(ApiEndPoints.quarterlyAuditSeatAudits),
+        );
+        expect(request.url.queryParameters, {'page': '1', 'page_size': '10'});
+        expect(
+          requests.where(
+            (request) => request.url.path.endsWith(ApiEndPoints.quarterlyAudit),
+          ),
+          isEmpty,
+        );
+        expect(find.text(AppStrings.auditTeamMembersTab), findsNothing);
+        expect(find.text(AppStrings.auditSwitchSeatProfile), findsOneWidget);
+        expect(
+          tester.getTopLeft(find.text(AppStrings.auditSwitchSeatProfile)).dy,
+          lessThan(
+            tester.getTopLeft(find.text(AppStrings.auditDescriptionsTitle)).dy,
+          ),
+        );
+        final card = find.byKey(
+          const ValueKey('check-in-seat-profile-audit-b'),
+        );
+        expect(
+          find.descendant(of: card, matching: find.byType(Image)),
+          findsNothing,
+        );
+        expect(
+          find.descendant(of: card, matching: find.byType(Text)),
+          findsOneWidget,
+        );
+        final label = tester.widget<Text>(
+          find.descendant(of: card, matching: find.byType(Text)),
+        );
+        expect(label.data, 'Operator b');
+        expect(label.textAlign, TextAlign.center);
+        final requestCount = requests.length;
+        await tester.tap(
+          find.byKey(const ValueKey('check-in-seat-profile-audit-a')),
+        );
+        await tester.pumpAndSettle();
+        expect(requests.length, requestCount);
+        await tester.tap(card);
+        await tester.pumpAndSettle();
+        expect(observer.pushes, 1);
+        expect(controller.state.quarterlyAudit?.uuid, 'audit-b');
+        expect(
+          controller.state.quarterlyAuditDate,
+          CustomFunctions.apiDateString(),
+        );
+        expect(controller.state.mainList, isNull);
+        expect(controller.isGeneralSeatAudit, isTrue);
+        expect(requests.skip(requestCount).map((request) => request.url.path), [
+          endsWith(ApiEndPoints.quarterlyAuditDetail('audit-b')),
+          endsWith(_descriptionEndpoint('b')),
+        ]);
+        expect(find.text(AppStrings.auditSwitchSeatProfile), findsOneWidget);
+        expect(tester.takeException(), isNull);
+      }, () => client);
+    },
+  );
+
+  testWidgets(
+    'general seat See More paginates without dates and switches in place',
+    (tester) async {
+      intercept = (request) async {
+        if (!request.url.path.endsWith(ApiEndPoints.quarterlyAuditSeatAudits)) {
+          return null;
+        }
+        final page = int.parse(request.url.queryParameters['page']!);
+        return http.Response(
+          jsonEncode({
+            'count': 3,
+            'current': page,
+            'next': page == 1 ? '?page=2' : null,
+            'results': (page == 1 ? ['a', 'b'] : ['c'])
+                .map(_seatOption)
+                .toList(),
+          }),
+          200,
+        );
+      };
+      await http.runWithClient(() async {
+        await mount(tester, isGeneralSeatAudit: true);
+        await tester.tap(find.text(AppStrings.auditSeeMore));
+        await tester.pumpAndSettle();
+        final next = find.descendant(
+          of: find.byType(Dialog),
+          matching: find.text(AppStrings.auditSeeMore),
+        );
+        if (next.evaluate().isNotEmpty) {
+          await tester.tap(next);
+          await tester.pumpAndSettle();
+        }
+        final seatRequests = requests
+            .where(
+              (request) => request.url.path.endsWith(
+                ApiEndPoints.quarterlyAuditSeatAudits,
+              ),
+            )
+            .toList();
+        expect(seatRequests.map((request) => request.url.queryParameters), [
+          {'page': '1', 'page_size': '10'},
+          {'page': '2', 'page_size': '10'},
+        ]);
+        final card = find.descendant(
+          of: find.byType(Dialog),
+          matching: find.byKey(const ValueKey('check-in-seat-profile-audit-c')),
+        );
+        await tester.ensureVisible(card);
+        await tester.tap(card);
+        await tester.pumpAndSettle();
+        expect(find.byType(Dialog), findsNothing);
+        expect(_controller(tester).state.quarterlyAudit?.uuid, 'audit-c');
+        expect(find.text(AppStrings.auditSwitchSeatProfile), findsOneWidget);
+        expect(tester.takeException(), isNull);
+      }, () => client);
+    },
+  );
+
+  testWidgets('seat options loading keeps descriptions available', (
+    tester,
+  ) async {
+    final pending = Completer<http.Response>();
+    intercept = (request) async =>
+        request.url.path.endsWith(ApiEndPoints.quarterlyAuditSeatAudits)
+        ? pending.future
+        : null;
+    await http.runWithClient(() async {
+      await mount(tester, isGeneralSeatAudit: true, settle: false);
+      await tester.pump();
+      await tester.pump(const Duration(milliseconds: 50));
+      try {
+        expect(find.text(AppStrings.auditSwitchSeatProfile), findsOneWidget);
+        expect(find.byType(CheckInDescriptionCard), findsWidgets);
+        expect(
+          find.descendant(
+            of: find.byType(CheckInSeatProfileSwitcher),
+            matching: find.byType(FastCircularProgressIndicator),
+          ),
+          findsOneWidget,
+        );
+      } finally {
+        pending.complete(
+          http.Response(
+            jsonEncode({'count': 0, 'current': 1, 'results': []}),
+            200,
+          ),
+        );
+        await tester.pumpAndSettle();
+      }
+      expect(find.text(AppStrings.auditGeneralSeatsEmpty), findsOneWidget);
+      expect(tester.takeException(), isNull);
+    }, () => client);
+  });
 
   testWidgets(
     'description team requests omit the period on open, pagination, search and favorites',
@@ -837,6 +1017,23 @@ Map<String, Object?> _member(String id) => {
   },
   'job': {'uuid': 'seat-$id', 'title': 'Operator $id'},
   'last_audit_date': _openedDate,
+};
+
+Map<String, Object?> _seatOption(String id) => {
+  'uuid': 'audit-$id',
+  'job': _member(id)['job'],
+  'overall_score': 0.0,
+  'last_audit_date': null,
+  'profiles': [
+    {
+      'uuid': 'profile-$id',
+      'name': 'Member $id',
+      'user_uuid': 'user-$id',
+      'email': '$id@example.com',
+      'image': null,
+      'onboarded': true,
+    },
+  ],
 };
 
 Map<String, Object?> _audit(String id) => {

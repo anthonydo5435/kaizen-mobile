@@ -8,9 +8,11 @@ import '../../domain/entities/audit_job_option.dart';
 import '../../domain/entities/audit_profile.dart';
 import '../../domain/entities/performance_report.dart';
 import '../../domain/entities/quarterly_audit.dart';
+import '../../domain/entities/seat_audit.dart';
 import '../../domain/entities/seat_description_audit_report_comments.dart';
 import '../../domain/entities/seat_description_final_audit_report.dart';
 import '../../domain/entities/single_audit_report_category_details.dart';
+import '../../domain/entities/subordinate_profile_job.dart';
 import '../../domain/repositories/audit_repository.dart';
 import '../datasources/audit_remote_data_source.dart';
 
@@ -18,6 +20,34 @@ class AuditRepositoryImpl implements AuditRepository {
   const AuditRepositoryImpl(this._remoteDataSource);
 
   final AuditRemoteDataSource _remoteDataSource;
+
+  @override
+  Future<List<SubordinateProfileJob>> getSubordinateProfileJobs({
+    required String seatId,
+    bool forceRefresh = false,
+  }) {
+    return _remoteDataSource.getSubordinateProfileJobs(
+      seatId: seatId,
+      forceRefresh: forceRefresh,
+    );
+  }
+
+  @override
+  Future<SeatAuditPage> getSeatAudits({
+    required int page,
+    required int pageSize,
+    int? year,
+    int? quarter,
+    bool forceRefresh = false,
+  }) {
+    return _remoteDataSource.getSeatAudits(
+      page: page,
+      pageSize: pageSize,
+      year: year,
+      quarter: quarter,
+      forceRefresh: forceRefresh,
+    );
+  }
 
   @override
   Future<AuditMainList> getAuditMainList({
@@ -197,6 +227,19 @@ class AuditRepositoryImpl implements AuditRepository {
     return _remoteDataSource.certifyPerformanceReport(
       profileJobId: profileJobId,
       payload: payload,
+    );
+  }
+
+  @override
+  Future<AuditDetails> getSeatAuditDetails({
+    required String seatId,
+    required DateTime startDate,
+    required DateTime endDate,
+  }) {
+    return _remoteDataSource.getSeatAuditDetails(
+      seatId: seatId,
+      startDate: startDate,
+      endDate: endDate,
     );
   }
 

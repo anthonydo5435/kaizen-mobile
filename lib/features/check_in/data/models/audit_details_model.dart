@@ -17,6 +17,7 @@ class AuditDetailsModel extends AuditDetails {
     required super.jobUuid,
     required super.jobTitle,
     required super.audits,
+    super.hasInconsistency,
   });
 
   factory AuditDetailsModel.fromApiJson(Map<String, dynamic> json) {
@@ -26,6 +27,7 @@ class AuditDetailsModel extends AuditDetails {
 
     return AuditDetailsModel(
       uuid: _readString(json['uuid']) ?? '',
+      hasInconsistency: _readBool(json['has_inconsistency']) ?? false,
       lastAuditDate: _readString(json['last_audit_date']) ?? 'N/A',
       isFavorite: _readBool(json['is_favorite']) ?? false,
       overallScore: _readDouble(json['overall_score']) ?? 0,
@@ -106,11 +108,13 @@ class AuditDetailsProfileModel extends AuditDetailsProfile {
     required super.email,
     required super.image,
     required super.onboarded,
+    super.userUuid,
   });
 
   factory AuditDetailsProfileModel.fromApiJson(Map<String, dynamic> json) {
     return AuditDetailsProfileModel(
       uuid: _readString(json['uuid']) ?? '',
+      userUuid: _readString(json['user_uuid']) ?? '',
       name: _readString(json['name']) ?? '',
       email: _readString(json['email']) ?? '',
       image: _readString(json['image']),

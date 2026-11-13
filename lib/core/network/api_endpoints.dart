@@ -32,6 +32,7 @@ class ApiEndPoints {
   static const String parentDepartments = '${parentPrefix}department/';
   static const String generatePreSignedUrl = 'generate_pre_signed_url/';
   static const String quarterlyAudit = 'quarterly_audit/';
+  static const String quarterlyAuditSeatAudits = 'quarterly_audit/seat_audits/';
   static const String quarterlyAuditMyAudits = 'quarterly_audit/my_audits/';
   static const String quarterlyAuditPerformanceSnapshot = 'quarterly_audit/performance_snapshot/';
   static const String quarterlyAuditMyPerformanceSnapshot =
@@ -42,6 +43,14 @@ class ApiEndPoints {
 
   static String quarterlyAuditDetails(String profileJobId) {
     return 'quarterly_audit/profile_job/$profileJobId/audits/';
+  }
+
+  static String quarterlyAuditSeatDetails(String seatId) {
+    return 'quarterly_audit/seat/$seatId/audits/';
+  }
+
+  static String subordinateProfileJobs(String seatId) {
+    return 'job/$seatId/subordinate_profile_jobs/';
   }
 
   static String userById(String userId) {

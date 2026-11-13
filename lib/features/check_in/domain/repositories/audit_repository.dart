@@ -8,11 +8,26 @@ import '../entities/audit_job_option.dart';
 import '../entities/audit_profile.dart';
 import '../entities/performance_report.dart';
 import '../entities/quarterly_audit.dart';
+import '../entities/seat_audit.dart';
 import '../entities/seat_description_audit_report_comments.dart';
 import '../entities/seat_description_final_audit_report.dart';
 import '../entities/single_audit_report_category_details.dart';
+import '../entities/subordinate_profile_job.dart';
 
 abstract class AuditRepository {
+  Future<List<SubordinateProfileJob>> getSubordinateProfileJobs({
+    required String seatId,
+    bool forceRefresh = false,
+  });
+
+  Future<SeatAuditPage> getSeatAudits({
+    required int page,
+    required int pageSize,
+    int? year,
+    int? quarter,
+    bool forceRefresh = false,
+  });
+
   Future<AuditMainList> getAuditMainList({
     required int page,
     required int pageSize,
@@ -95,6 +110,12 @@ abstract class AuditRepository {
   Future<String?> certifyPerformanceReport({
     required String profileJobId,
     required Map<String, dynamic> payload,
+  });
+
+  Future<AuditDetails> getSeatAuditDetails({
+    required String seatId,
+    required DateTime startDate,
+    required DateTime endDate,
   });
 
   Future<AuditDetails> getAuditDetails({

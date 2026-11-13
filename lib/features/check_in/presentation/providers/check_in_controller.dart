@@ -22,9 +22,11 @@ import '../../domain/entities/audit_member_status.dart';
 import '../../domain/entities/audit_profile.dart';
 import '../../domain/entities/performance_report.dart';
 import '../../domain/entities/quarterly_audit.dart';
+import '../../domain/entities/seat_audit.dart';
 import '../../domain/entities/seat_description_audit_report_comments.dart';
 import '../../domain/entities/seat_description_final_audit_report.dart';
 import '../../domain/entities/single_audit_report_category_details.dart';
+import '../../domain/entities/subordinate_profile_job.dart';
 import '../../domain/repositories/audit_repository.dart';
 import '../../domain/usecases/get_audit_details_usecase.dart';
 import '../../domain/usecases/get_audit_evaluation_chart_usecase.dart';
@@ -80,6 +82,13 @@ class CheckInController extends ChangeNotifier {
   int _detailsRequestGeneration = 0;
   int _evaluationChartRequestGeneration = 0;
   String? _detailsProfileJobId;
+  String? _detailsSeatId;
+  List<SubordinateProfileJob> _subordinateProfileJobs = const [];
+  String? _subordinateProfileJobsSeatId;
+  bool _isSubordinateProfileJobsLoading = false;
+  bool _hasLoadedSubordinateProfileJobs = false;
+  String? _subordinateProfileJobsError;
+  int _subordinateProfileJobsRequestGeneration = 0;
   CheckInDetailsPeriodMode _detailsPeriodMode =
       CheckInDetailsPeriodMode.quarter;
   DateTime? _detailsStartDate;
@@ -87,6 +96,7 @@ class CheckInController extends ChangeNotifier {
   bool _hasDetailsLoadError = false;
   bool _isDisposed = false;
   bool _isDescriptionsList = false;
+  bool _isGeneralSeatDescriptions = false;
   AuditProfile? _performanceReportProfile;
   CheckInState _state = const CheckInState();
   AuditMainList? _activeMainListCache;
@@ -111,6 +121,10 @@ class CheckInController extends ChangeNotifier {
       <String, _CachedCertifiedReportPdfUrl>{};
 
   CheckInState get state => _state;
+  List<SubordinateProfileJob> get subordinateProfileJobs =>
+      _subordinateProfileJobs;
+  bool get isSubordinateProfileJobsLoading => _isSubordinateProfileJobsLoading;
+  String? get subordinateProfileJobsError => _subordinateProfileJobsError;
   AuditProfile? get performanceReportProfile => _performanceReportProfile;
   String get descriptionSearchQuery => _descriptionSearchQuery;
   CheckInDescriptionsListFiltersState get descriptionFilters =>
@@ -710,6 +724,8 @@ class CheckInController extends ChangeNotifier {
 
   CheckInDetailsPeriodMode get detailsPeriodMode => _detailsPeriodMode;
   bool get hasDetailsLoadError => _hasDetailsLoadError;
+  bool get isGeneralSeatAudit =>
+      _detailsSeatId != null || _isGeneralSeatDescriptions;
 
   String get detailsDateRangeLabel {
     final range = detailsDateRange;
@@ -1025,9 +1041,14 @@ class CheckInController extends ChangeNotifier {
     bool clearEvaluationCharts = true,
     String? profileUuid,
     bool preserveDetails = false,
+    String? seatId,
   }) async {
     final generation = ++_detailsRequestGeneration;
     _detailsProfileJobId = profileJobId;
+    if (!preserveDetails) _detailsSeatId = seatId;
+    if (!preserveDetails || _detailsSeatId != _subordinateProfileJobsSeatId) {
+      _resetSubordinateProfileJobs();
+    }
     _evaluationChartRequestGeneration++;
     try {
       final user = await AppPreference.getUser();
@@ -1064,24 +1085,37 @@ class CheckInController extends ChangeNotifier {
       notifyListeners();
 
       final getAuditDetailsUseCase = _getAuditDetailsUseCase;
-      if (profileJobId.trim().isEmpty || getAuditDetailsUseCase == null) {
+      if (isGeneralSeatAudit
+          ? _auditRepository == null || _detailsSeatId!.trim().isEmpty
+          : profileJobId.trim().isEmpty || getAuditDetailsUseCase == null) {
         _state = _state.copyWith(isLoading: false);
         notifyListeners();
         return;
       }
 
-      final details = await getAuditDetailsUseCase(
-        profileJobId: profileJobId,
-        year: resolvedYear,
-        quarter: resolvedQuarter,
-        profileUuid: profileUuid,
-        startDate: _detailsPeriodMode == CheckInDetailsPeriodMode.dateRange
-            ? detailsDateRange.start
-            : null,
-        endDate: _detailsPeriodMode == CheckInDetailsPeriodMode.dateRange
-            ? detailsDateRange.end
-            : null,
-      );
+      if (_detailsSeatId != null) {
+        unawaited(loadSubordinateProfileJobs());
+      }
+
+      final details = isGeneralSeatAudit
+          ? await _auditRepository!.getSeatAuditDetails(
+              seatId: _detailsSeatId!,
+              startDate: detailsDateRange.start,
+              endDate: detailsDateRange.end,
+            )
+          : await getAuditDetailsUseCase!(
+              profileJobId: profileJobId,
+              year: resolvedYear,
+              quarter: resolvedQuarter,
+              profileUuid: profileUuid,
+              startDate:
+                  _detailsPeriodMode == CheckInDetailsPeriodMode.dateRange
+                  ? detailsDateRange.start
+                  : null,
+              endDate: _detailsPeriodMode == CheckInDetailsPeriodMode.dateRange
+                  ? detailsDateRange.end
+                  : null,
+            );
       if (_isDisposed || generation != _detailsRequestGeneration) return;
       _state = _state.copyWith(
         isLoading: false,
@@ -1089,7 +1123,7 @@ class CheckInController extends ChangeNotifier {
         isSelfAudit: _isSelfAudit(details, user),
       );
       notifyListeners();
-      if (showGraph) {
+      if (showGraph && !isGeneralSeatAudit) {
         await refreshEvaluationChart(profileJobId, profileUuid: profileUuid);
       }
     } catch (error) {
@@ -1099,6 +1133,61 @@ class CheckInController extends ChangeNotifier {
       notifyListeners();
       _logRecoverableError('initializeDetails', error);
     }
+  }
+
+  void _resetSubordinateProfileJobs() {
+    _subordinateProfileJobsRequestGeneration++;
+    _subordinateProfileJobs = const [];
+    _subordinateProfileJobsSeatId = null;
+    _isSubordinateProfileJobsLoading = false;
+    _hasLoadedSubordinateProfileJobs = false;
+    _subordinateProfileJobsError = null;
+  }
+
+  Future<void> loadSubordinateProfileJobs({bool forceRefresh = false}) async {
+    final seatId = _detailsSeatId?.trim();
+    final repository = _auditRepository;
+    if (_isDisposed || seatId == null || seatId.isEmpty || repository == null) {
+      return;
+    }
+    if (!forceRefresh &&
+        _subordinateProfileJobsSeatId == seatId &&
+        (_isSubordinateProfileJobsLoading ||
+            _hasLoadedSubordinateProfileJobs)) {
+      return;
+    }
+    final generation = ++_subordinateProfileJobsRequestGeneration;
+    if (_subordinateProfileJobsSeatId != seatId) {
+      _subordinateProfileJobs = const [];
+    }
+    _subordinateProfileJobsSeatId = seatId;
+    _isSubordinateProfileJobsLoading = true;
+    _subordinateProfileJobsError = null;
+    notifyListeners();
+    try {
+      final profiles = await repository.getSubordinateProfileJobs(
+        seatId: seatId,
+        forceRefresh: forceRefresh,
+      );
+      if (_isDisposed ||
+          generation != _subordinateProfileJobsRequestGeneration) {
+        return;
+      }
+      _subordinateProfileJobs = List<SubordinateProfileJob>.unmodifiable(
+        profiles,
+      );
+      _hasLoadedSubordinateProfileJobs = true;
+    } catch (error) {
+      if (_isDisposed ||
+          generation != _subordinateProfileJobsRequestGeneration) {
+        return;
+      }
+      _subordinateProfileJobsError =
+          AppStrings.auditSubordinateProfilesLoadError;
+      _logRecoverableError('loadSubordinateProfileJobs', error);
+    }
+    _isSubordinateProfileJobsLoading = false;
+    notifyListeners();
   }
 
   Future<void> showEvaluationChart(
@@ -1194,8 +1283,10 @@ class CheckInController extends ChangeNotifier {
     int? year,
     int? quarter,
     bool? isSelfAudit,
+    bool isGeneralSeatAudit = false,
   }) async {
     _isDescriptionsList = true;
+    _isGeneralSeatDescriptions = isGeneralSeatAudit;
     final generation = ++_singleAuditDetailsGeneration;
     descriptionSearchController.clear();
     _descriptionSearchQuery = '';
@@ -1241,7 +1332,7 @@ class CheckInController extends ChangeNotifier {
         return;
       }
 
-      final teamMembersFuture = isOwner
+      final teamMembersFuture = isOwner && !isGeneralSeatAudit
           ? _loadTeamMembers(page: 1, pageSize: _teamMembersScreenPageSize)
           : null;
       final quarterlyAudit = await getQuarterlyAuditUseCase(
@@ -1294,12 +1385,36 @@ class CheckInController extends ChangeNotifier {
 
   Future<String?> selectSingleAuditMember(AuditProfile member) async {
     final currentAudit = _state.quarterlyAudit;
-    final quarterlyAuditId = member.uuid.trim();
+    if (!_state.isOwner || currentAudit == null) return null;
+    return _selectSingleAudit(
+      quarterlyAuditId: member.uuid.trim(),
+      isCurrentSelection: isCurrentAuditMember(currentAudit, member),
+    );
+  }
+
+  bool isCurrentAuditSeat(SeatAudit seat) {
+    final audit = _state.quarterlyAudit;
+    if (audit == null) return false;
+    return (seat.job.uuid.isNotEmpty && seat.job.uuid == audit.jobUuid) ||
+        (seat.uuid.isNotEmpty && seat.uuid == audit.uuid);
+  }
+
+  Future<String?> selectSingleAuditSeat(SeatAudit seat) async {
+    if (!_isGeneralSeatDescriptions) return null;
+    return _selectSingleAudit(
+      quarterlyAuditId: seat.uuid.trim(),
+      isCurrentSelection: isCurrentAuditSeat(seat),
+    );
+  }
+
+  Future<String?> _selectSingleAudit({
+    required String quarterlyAuditId,
+    required bool isCurrentSelection,
+  }) async {
     final getQuarterlyAudit = _getQuarterlyAuditUseCase;
     if (_isDisposed ||
-        !_state.isOwner ||
-        currentAudit == null ||
-        isCurrentAuditMember(currentAudit, member) ||
+        _state.quarterlyAudit == null ||
+        isCurrentSelection ||
         quarterlyAuditId.isEmpty ||
         getQuarterlyAudit == null) {
       return null;

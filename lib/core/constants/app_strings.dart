@@ -514,6 +514,20 @@ class AppStrings {
   static const String auditActive = 'Active';
   static const String auditDeactivated = 'Deactivated';
   static const String auditTeamMembersTab = 'Team Members';
+  static const String auditCheckInsTab = 'Check-ins';
+  static const String auditGeneralSeatsTab = 'General Seats';
+  static const String auditSwitchSeatProfile = 'Switch Seat Profile';
+  static const String auditSubordinateProfilesLoadError =
+      'Unable to load subordinate profiles.';
+  static const String auditGeneralSeatsEmpty = 'No general seats found.';
+  static const String auditGeneralSeatsLoadError =
+      'Unable to load general seats.';
+  static const String auditGeneralSeatsPageError =
+      'Unable to load more general seats.';
+  static const String auditGeneralSeatOverallScore = 'Overall Score';
+  static const String auditScoreUnavailable = '-';
+  static String auditQuarterYear(int year, int quarter) =>
+      'Quarter $quarter - $year';
   static const String auditAllTeamMembersTab = 'All Team Members';
   static const String auditMyFavoritesTab = 'My Favorites';
   static const String auditSeeMore = 'See More';
