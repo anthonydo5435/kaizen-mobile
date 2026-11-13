@@ -1,6 +1,7 @@
 import '../../../seat_profile/domain/entities/department.dart';
 import '../../domain/entities/paygrade_detail.dart';
 import '../../domain/entities/paygrade_page.dart';
+import '../../domain/entities/shared_paygrades_content.dart';
 import '../../domain/repositories/paygrade_repository.dart';
 import '../datasources/paygrade_remote_data_source.dart';
 
@@ -10,12 +11,28 @@ class PaygradeRepositoryImpl implements PaygradeRepository {
   final PaygradeRemoteDataSource _remoteDataSource;
 
   @override
+  Future<String?> getPaygradesPublicLink(String jobId) {
+    return _remoteDataSource.getPaygradesPublicLink(jobId);
+  }
+
+  @override
+  Future<String> createPaygradesPublicLink(String jobId) {
+    return _remoteDataSource.createPaygradesPublicLink(jobId);
+  }
+
+  @override
+  Future<void> deletePaygradesPublicLink(String jobId) {
+    return _remoteDataSource.deletePaygradesPublicLink(jobId);
+  }
+
+  @override
   Future<PaygradePage> getPaygrades({
     required int page,
     int pageSize = 10,
     String? departmentId,
     String name = '',
     String? title,
+    bool forceRefresh = false,
   }) {
     return _remoteDataSource.getPaygrades(
       page: page,
@@ -23,6 +40,7 @@ class PaygradeRepositoryImpl implements PaygradeRepository {
       departmentId: departmentId,
       name: name,
       title: title,
+      forceRefresh: forceRefresh,
     );
   }
 
@@ -40,6 +58,11 @@ class PaygradeRepositoryImpl implements PaygradeRepository {
       paygradeId: paygradeId,
       type: type,
     );
+  }
+
+  @override
+  Future<SharedPaygradesContent> getSharedPaygrades(String publicId) {
+    return _remoteDataSource.getSharedPaygrades(publicId);
   }
 
   @override
@@ -63,6 +86,7 @@ class PaygradeRepositoryImpl implements PaygradeRepository {
     required String promotionRequirement,
     required int position,
     required bool fromSandbox,
+    String? payRate,
   }) {
     return _remoteDataSource.createPaygrade(
       jobId: jobId,
@@ -73,6 +97,7 @@ class PaygradeRepositoryImpl implements PaygradeRepository {
       promotionRequirement: promotionRequirement,
       position: position,
       fromSandbox: fromSandbox,
+      payRate: payRate,
     );
   }
 
@@ -82,12 +107,25 @@ class PaygradeRepositoryImpl implements PaygradeRepository {
     required String title,
     required String description,
     required String promotionRequirement,
+    String? payRate,
   }) {
     return _remoteDataSource.updatePaygrade(
       paygradeId: paygradeId,
       title: title,
       description: description,
       promotionRequirement: promotionRequirement,
+      payRate: payRate,
+    );
+  }
+
+  @override
+  Future<void> updatePayRate({
+    required String paygradeId,
+    required String payRate,
+  }) {
+    return _remoteDataSource.updatePayRate(
+      paygradeId: paygradeId,
+      payRate: payRate,
     );
   }
 

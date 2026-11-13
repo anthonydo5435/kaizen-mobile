@@ -14,6 +14,7 @@ import 'package:sparrowkaizen/features/training/domain/repositories/training_lib
 import 'package:sparrowkaizen/features/training/domain/usecases/get_training_library_modules_usecase.dart';
 import 'package:sparrowkaizen/features/training/presentation/controllers/training_library_controller.dart';
 import 'package:sparrowkaizen/features/training/presentation/models/training_library_filter_tag.dart';
+import 'package:sparrowkaizen/features/training/presentation/widgets/training_library_module_card.dart';
 import 'package:sparrowkaizen/features/training/presentation/widgets/training_library_result_area.dart';
 
 import '../../fixtures/training_library_fixtures.dart';
@@ -50,6 +51,151 @@ void main() {
     );
     expect(await controller.applyPendingSeatSelection(), isTrue);
     controller.closeSeatSelection();
+  }
+
+  TrainingLibraryPage pageOfLessons(int page) => TrainingLibraryPage(
+    items: List.generate(
+      25,
+      (index) =>
+          _module('lesson-${(page - 1) * 25 + index}', _seatA, 'operations'),
+    ),
+    hasNextPage: page < 3,
+  );
+
+  testWidgets(
+    'prefetches each 25-item page at item 16 without duplicate requests',
+    (tester) async {
+      repository.respond = () async =>
+          pageOfLessons(repository.requestedPages.last);
+      await controller.refresh();
+      repository.requestedPages.clear();
+      final nextPage = Completer<TrainingLibraryPage>();
+      repository.respond = () => nextPage.future;
+
+      controller.onItemVisible('lesson-14');
+      expect(repository.requestedPages, isEmpty);
+      controller.onItemVisible('lesson-15');
+      controller.onItemVisible('lesson-16');
+      controller.onItemVisible('lesson-15');
+      expect(repository.requestedPages, [2]);
+      expect(controller.isLoadingMore, isTrue);
+      nextPage.complete(pageOfLessons(2));
+      await tester.pump();
+      expect(controller.items, hasLength(50));
+
+      repository.respond = () async =>
+          pageOfLessons(repository.requestedPages.last);
+      controller.onItemVisible('lesson-0');
+      controller.onItemVisible('lesson-39');
+      expect(repository.requestedPages, [2]);
+      controller.onItemVisible('lesson-40');
+      await tester.pump();
+      expect(repository.requestedPages, [2, 3]);
+      expect(repository.requestedPageSizes, everyElement(25));
+      expect(controller.items, hasLength(75));
+      controller.onItemVisible('lesson-74');
+      expect(repository.requestedPages, [2, 3]);
+    },
+  );
+
+  testWidgets('failed prefetch keeps cards and waits for an explicit retry', (
+    tester,
+  ) async {
+    repository.respond = () async => pageOfLessons(1);
+    await controller.refresh();
+    repository.requestedPages.clear();
+    repository.respond = () async => throw Exception('offline');
+    controller.onItemVisible('lesson-15');
+    await tester.pump();
+    expect(controller.items, hasLength(25));
+    expect(controller.isLoadingMore, isFalse);
+    expect(
+      controller.loadMoreErrorMessage,
+      AppStrings.trainingLibraryUnableToLoadMore,
+    );
+    controller.onItemVisible('lesson-16');
+    controller.onItemVisible('lesson-24');
+    expect(repository.requestedPages, [2]);
+
+    repository.respond = () async => pageOfLessons(2);
+    await controller.loadNextPage();
+    expect(repository.requestedPages, [2, 2]);
+    expect(controller.items, hasLength(50));
+    expect(controller.loadMoreErrorMessage, isNull);
+  });
+
+  testWidgets('refresh discards the previous listing prefetch response', (
+    tester,
+  ) async {
+    repository.respond = () async => pageOfLessons(1);
+    await controller.refresh();
+    final nextPage = Completer<TrainingLibraryPage>();
+    repository.respond = () => nextPage.future;
+    controller.onItemVisible('lesson-15');
+    repository.respond = () async => TrainingLibraryPage(
+      items: [_module('refreshed', _seatA, 'operations')],
+      hasNextPage: false,
+    );
+    await controller.refresh();
+    nextPage.complete(pageOfLessons(2));
+    await tester.pump();
+    expect(controller.items.map((item) => item.id), ['refreshed']);
+    expect(controller.isLoadingMore, isFalse);
+  });
+
+  for (final mode in TrainingLibraryViewMode.values) {
+    testWidgets(
+      '${mode.name} prefetch uses the visible card, excluding cached offscreen cards',
+      (tester) async {
+        repository.respond = () async =>
+            pageOfLessons(repository.requestedPages.last);
+        await controller.changeViewMode(mode);
+        await controller.refresh();
+        repository.requestedPages.clear();
+        await tester.pumpWidget(
+          MaterialApp(
+            home: Scaffold(
+              body: Center(
+                child: SizedBox(
+                  width: 360,
+                  height: 300,
+                  child: ListenableBuilder(
+                    listenable: controller,
+                    builder: (context, _) => TrainingLibraryResultArea(
+                      controller: controller,
+                      items: controller.visibleItems,
+                      scrollController: controller.scrollController,
+                      onModuleTap: (_) {},
+                    ),
+                  ),
+                ),
+              ),
+            ),
+          ),
+        );
+        await tester.pumpAndSettle();
+        final cardHeight = tester
+            .getSize(find.byType(TrainingLibraryModuleCard).first)
+            .height;
+        final sixteenthCardTop = 15 * (cardHeight + 16);
+        controller.scrollController.jumpTo(sixteenthCardTop - 301);
+        await tester.pumpAndSettle();
+        expect(
+          find.byKey(const ValueKey('lesson-15'), skipOffstage: false),
+          findsOneWidget,
+        );
+        expect(repository.requestedPages, isEmpty);
+
+        controller.scrollController.jumpTo(sixteenthCardTop - 299);
+        await tester.pumpAndSettle();
+        expect(repository.requestedPages, [2]);
+        expect(controller.items, hasLength(50));
+        controller.scrollController.jumpTo(0);
+        await tester.pumpAndSettle();
+        expect(repository.requestedPages, [2]);
+        expect(tester.takeException(), isNull);
+      },
+    );
   }
 
   test(
@@ -853,9 +999,10 @@ SeatProfileDescription _description(String id) => SeatProfileDescription(
   milestoneDays: '',
 );
 
-class _LibraryRepository implements TrainingLibraryRepository {
+class _LibraryRepository extends Fake implements TrainingLibraryRepository {
   int requests = 0;
   final List<int> requestedPages = [];
+  final List<int> requestedPageSizes = [];
   final List<
     ({
       String? jobId,
@@ -888,9 +1035,11 @@ class _LibraryRepository implements TrainingLibraryRepository {
     String? jobId,
     String? jobCategoryId,
     String? jobCategoryDescriptionId,
+    bool forceRefresh = false,
   }) async {
     requests++;
     requestedPages.add(page);
+    requestedPageSizes.add(pageSize);
     filterRequests.add((
       jobId: jobId,
       categoryId: jobCategoryId,

@@ -44,7 +44,7 @@ class AppListingSearchBar extends StatelessWidget {
             padding: const EdgeInsets.only(left: 12, right: 4),
             decoration: BoxDecoration(
               borderRadius: BorderRadius.circular(12),
-              border: Border.all(color: AppColors.grey1),
+              border: Border.all(color: AppColors.fieldBorder.withValues(alpha: 0.2)),
             ),
             child: Row(
               children: [

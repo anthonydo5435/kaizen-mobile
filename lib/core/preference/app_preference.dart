@@ -17,8 +17,13 @@ class AppPreference {
   static const String _selectedOrganizationIdKey = 'selectedOrganizationId';
   static bool _useParentApiEndpoints = false;
   static String? _selectedOrganizationId;
+  static int _sessionVersion = 0;
+
+  /// Changes when credentials are cleared, not when a token pair is refreshed.
+  static int get sessionVersion => _sessionVersion;
 
   static Future<void> init() async {
+    _sessionVersion++;
     _sharedPrefs = await SharedPreferences.getInstance();
     _useParentApiEndpoints =
         _sharedPrefs.getBool(_useParentApiEndpointsKey) ?? false;
@@ -31,7 +36,7 @@ class AppPreference {
     return _sharedPrefs.getString(_accessTokenKey) ?? '';
   }
 
-  static setAuthToken(String at) async {
+  static Future<void> setAuthToken(String at) async {
     await _sharedPrefs.setString(_accessTokenKey, at);
   }
 
@@ -43,7 +48,7 @@ class AppPreference {
     return _sharedPrefs.getString(_refreshTokenKey) ?? '';
   }
 
-  static setRefreshToken(String at) async {
+  static Future<void> setRefreshToken(String at) async {
     await _sharedPrefs.setString(_refreshTokenKey, at);
   }
 
@@ -52,8 +57,8 @@ class AppPreference {
   }
 
   static Future<void> clearTokens() async {
-    await clearAuthToken();
-    await clearRefreshToken();
+    _sessionVersion++;
+    await Future.wait<void>([clearAuthToken(), clearRefreshToken()]);
   }
 
   static String getOnboardingToken() {
@@ -86,12 +91,14 @@ class AppPreference {
   }
 
   static Future<void> clearUserSession() async {
-    await clearTokens();
-    await clearActiveCompany();
-    await clearUser();
-    await clearSelectedOrganizationId();
-    await clearUseParentApiEndpoints();
-    await clearOnboardingSession();
+    await Future.wait<void>([
+      clearTokens(),
+      clearActiveCompany(),
+      clearUser(),
+      clearSelectedOrganizationId(),
+      clearUseParentApiEndpoints(),
+      clearOnboardingSession(),
+    ]);
   }
 
   static Future<void> saveActiveCompany(CompanyDetails company) async {

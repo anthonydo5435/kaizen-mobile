@@ -17,6 +17,9 @@ class VideoPlaybackService {
   static const MethodChannel _audioSessionChannel = MethodChannel(
     'kaizenteams/video_audio_session',
   );
+  static const MethodChannel _fullscreenChannel = MethodChannel(
+    'kaizenteams/video_fullscreen',
+  );
   static const String _customCacheNamespace = 'kaizen-video';
   static const String _packageCacheStoragePrefix =
       'cached_video_player_plus_caching_time_of_';
@@ -53,6 +56,51 @@ class VideoPlaybackService {
       await _audioSessionChannel.invokeMethod<void>('prepareForPlayback');
     } catch (error) {
       // Best-effort only. Playback should continue even if the route stays unchanged.
+    }
+  }
+
+  static Future<void> setFullscreen(bool enabled) async {
+    if (!kIsWeb && defaultTargetPlatform == TargetPlatform.android) {
+      try {
+        // Use WindowInsets on Android, including apps targeting API 36.
+        await _fullscreenChannel.invokeMethod<void>('setFullscreen', {
+          'enabled': enabled,
+        });
+        return;
+      } on MissingPluginException {
+        // Older native builds still support Flutter's system UI request.
+      }
+    }
+    await SystemChrome.setEnabledSystemUIMode(
+      enabled ? SystemUiMode.immersiveSticky : SystemUiMode.edgeToEdge,
+    );
+  }
+
+  /// Watches the physical device while the interface is temporarily locked.
+  static Future<bool> waitForDevicePortrait() async {
+    if (kIsWeb ||
+        (defaultTargetPlatform != TargetPlatform.android &&
+            defaultTargetPlatform != TargetPlatform.iOS)) {
+      return false;
+    }
+    try {
+      return await _fullscreenChannel.invokeMethod<bool>('waitForPortrait') ??
+          false;
+    } on MissingPluginException {
+      return false;
+    }
+  }
+
+  static Future<void> cancelDevicePortraitWait() async {
+    if (kIsWeb ||
+        (defaultTargetPlatform != TargetPlatform.android &&
+            defaultTargetPlatform != TargetPlatform.iOS)) {
+      return;
+    }
+    try {
+      await _fullscreenChannel.invokeMethod<void>('cancelWaitForPortrait');
+    } on MissingPluginException {
+      // A native build without this bridge has no sensor subscription to stop.
     }
   }
 

@@ -3,6 +3,7 @@ import 'package:flutter/material.dart';
 import '../../../../core/constants/app_colors.dart';
 import '../../../../core/constants/app_strings.dart';
 import '../../../../core/widgets/app_button.dart';
+import '../../../../core/widgets/app_dialog_style.dart';
 import '../../../../core/widgets/app_text_view.dart';
 
 class UpgradePlanDialog extends StatelessWidget {
@@ -20,7 +21,7 @@ class UpgradePlanDialog extends StatelessWidget {
         decoration: BoxDecoration(
           color: AppColors.mainBg,
           borderRadius: BorderRadius.circular(12),
-          border: Border.all(color: AppColors.secondaryColor, width: 1.2),
+          border: AppDialogStyle.border,
           boxShadow: [
             BoxShadow(
               color: Colors.black.withValues(alpha: 0.24),

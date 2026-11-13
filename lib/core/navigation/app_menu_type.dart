@@ -10,5 +10,10 @@ enum AppMenuType {
   departments,
   kaizenGpt,
   setting,
-  profile,
+  profile;
+
+  bool get isBottomNavigationTab => switch (this) {
+    library || audits || performanceSnapshot || learningTracks => true,
+    _ => false,
+  };
 }

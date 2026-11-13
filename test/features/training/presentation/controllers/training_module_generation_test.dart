@@ -1,5 +1,5 @@
 import 'package:flutter_test/flutter_test.dart';
-import 'package:sparrowkaizen/features/check_in/domain/repositories/audit_repository.dart';
+import 'package:sparrowkaizen/features/training/domain/repositories/training_library_repository.dart';
 import 'package:sparrowkaizen/features/training/domain/entities/seat_description_training.dart';
 import 'package:sparrowkaizen/features/training/presentation/controllers/training_module_controller.dart';
 
@@ -9,28 +9,36 @@ void main() {
 
   setUp(() => repository = _GenerationRepository());
 
-  Future<TrainingModuleController> initialize({bool canManageTraining = true}) async {
-    final controller = TrainingModuleController(repository, canManageTraining: canManageTraining);
+  Future<TrainingModuleController> initialize({
+    bool canManageTraining = true,
+  }) async {
+    final controller = TrainingModuleController(
+      repository,
+      canManageTraining: canManageTraining,
+    );
     addTearDown(controller.dispose);
     await controller.initialize(jobId: 'seat', descriptionId: 'description');
     return controller;
   }
 
   for (final transcript in <String?>[null, '', ' \n\t ']) {
-    test('missing or blank transcript blocks both generation API calls: $transcript', () async {
-      repository.transcript = transcript;
-      final controller = await initialize();
+    test(
+      'missing or blank transcript blocks both generation API calls: $transcript',
+      () async {
+        repository.transcript = transcript;
+        final controller = await initialize();
 
-      expect(controller.hasSelectedModuleVideo, isTrue);
-      expect(controller.canGenerateSopForSelectedModule, isFalse);
-      expect(controller.canGenerateQuizForSelectedModule, isFalse);
-      expect(await controller.generateSopForSelectedModule(), isFalse);
-      expect(await controller.generateQuizForSelectedModule(), isFalse);
-      expect(repository.generationRequests, isEmpty);
-      expect(controller.isGeneratingSop, isFalse);
-      expect(controller.isGeneratingQuiz, isFalse);
-      expect(controller.canAddQuestionToSelectedModule, isTrue);
-    });
+        expect(controller.hasSelectedModuleVideo, isTrue);
+        expect(controller.canGenerateSopForSelectedModule, isFalse);
+        expect(controller.canGenerateQuizForSelectedModule, isFalse);
+        expect(await controller.generateSopForSelectedModule(), isFalse);
+        expect(await controller.generateQuizForSelectedModule(), isFalse);
+        expect(repository.generationRequests, isEmpty);
+        expect(controller.isGeneratingSop, isFalse);
+        expect(controller.isGeneratingQuiz, isFalse);
+        expect(controller.canAddQuestionToSelectedModule, isTrue);
+      },
+    );
   }
 
   test(
@@ -67,35 +75,61 @@ void main() {
     expect(repository.generationRequests, isEmpty);
   });
 
-  test('a nonblank transcript enables SOP and Quiz generation for the selected lesson', () async {
-    repository.transcript = ' Follow these steps. ';
+  test(
+    'a nonblank transcript enables SOP and Quiz generation for the selected lesson',
+    () async {
+      repository.transcript = ' Follow these steps. ';
+      final controller = await initialize();
+
+      expect(controller.canGenerateSopForSelectedModule, isTrue);
+      expect(controller.canGenerateQuizForSelectedModule, isTrue);
+      expect(await controller.generateSopForSelectedModule(), isTrue);
+      expect(await controller.generateQuizForSelectedModule(), isTrue);
+      expect(repository.generationRequests, ['sop:module', 'quiz:module']);
+    },
+  );
+
+  test(
+    'a transcript does not grant generation access to a read-only viewer',
+    () async {
+      repository.transcript = 'Follow these steps.';
+      final controller = await initialize(canManageTraining: false);
+
+      expect(controller.canGenerateSopForSelectedModule, isFalse);
+      expect(controller.canGenerateQuizForSelectedModule, isFalse);
+      expect(await controller.generateSopForSelectedModule(), isFalse);
+      expect(await controller.generateQuizForSelectedModule(), isFalse);
+      expect(repository.generationRequests, isEmpty);
+    },
+  );
+
+  test('assignment generation refreshes its instructions', () async {
     final controller = await initialize();
 
-    expect(controller.canGenerateSopForSelectedModule, isTrue);
-    expect(controller.canGenerateQuizForSelectedModule, isTrue);
-    expect(await controller.generateSopForSelectedModule(), isTrue);
-    expect(await controller.generateQuizForSelectedModule(), isTrue);
-    expect(repository.generationRequests, ['sop:module', 'quiz:module']);
+    expect(controller.canGenerateAssignmentForSelectedModule, isTrue);
+    expect(await controller.generateAssignmentForSelectedModule(), isTrue);
+    expect(repository.generationRequests, ['assignment:module']);
+    expect(controller.selectedModuleAssignmentInstructions, '<p>Generated</p>');
+    expect(controller.hasSelectedModuleAssignmentInstructions, isTrue);
+    expect(controller.isGeneratingAssignment, isFalse);
   });
 
-  test('a transcript does not grant generation access to a read-only viewer', () async {
-    repository.transcript = 'Follow these steps.';
+  test('assignment generation is unavailable to read-only viewers', () async {
     final controller = await initialize(canManageTraining: false);
 
-    expect(controller.canGenerateSopForSelectedModule, isFalse);
-    expect(controller.canGenerateQuizForSelectedModule, isFalse);
-    expect(await controller.generateSopForSelectedModule(), isFalse);
-    expect(await controller.generateQuizForSelectedModule(), isFalse);
+    expect(controller.canGenerateAssignmentForSelectedModule, isFalse);
+    expect(await controller.generateAssignmentForSelectedModule(), isFalse);
     expect(repository.generationRequests, isEmpty);
   });
 }
 
-class _GenerationRepository extends Fake implements AuditRepository {
+class _GenerationRepository extends Fake implements TrainingLibraryRepository {
   String? transcript;
   final generationRequests = <String>[];
 
   @override
-  Future<List<SeatDescriptionTrainingModule>> getSeatDescriptionTrainingModules({
+  Future<List<SeatDescriptionTrainingModule>>
+  getSeatDescriptionTrainingModules({
     required String descriptionId,
     bool forceRefresh = false,
   }) async => const [
@@ -109,8 +143,10 @@ class _GenerationRepository extends Fake implements AuditRepository {
   ];
 
   @override
-  Future<SeatDescriptionTrainingModuleDetail> getSeatDescriptionTrainingModuleDetail({
+  Future<SeatDescriptionTrainingModuleDetail>
+  getSeatDescriptionTrainingModuleDetail({
     required String moduleId,
+    bool forceRefresh = false,
   }) async => SeatDescriptionTrainingModuleDetail(
     uuid: moduleId,
     actualId: moduleId,
@@ -133,9 +169,30 @@ class _GenerationRepository extends Fake implements AuditRepository {
   );
 
   @override
-  Future<void> generateSeatDescriptionTrainingModuleSop({required String moduleId}) async {
+  Future<void> generateSeatDescriptionTrainingModuleSop({
+    required String moduleId,
+  }) async {
     generationRequests.add('sop:$moduleId');
   }
+
+  @override
+  Future<void> generateSeatDescriptionTrainingModuleAssignment({
+    required String moduleId,
+  }) async {
+    generationRequests.add('assignment:$moduleId');
+  }
+
+  @override
+  Future<SeatDescriptionTrainingAssignment>
+  getSeatDescriptionTrainingModuleAssignment({
+    required String moduleId,
+  }) async => SeatDescriptionTrainingAssignment(
+    uuid: '',
+    title: null,
+    instructions: generationRequests.contains('assignment:$moduleId')
+        ? '<p>Generated</p>'
+        : null,
+  );
 
   @override
   Future<void> generateSeatDescriptionTrainingModuleQuiz({
@@ -143,18 +200,22 @@ class _GenerationRepository extends Fake implements AuditRepository {
     required int numQuestions,
     required int optionsPerQuestion,
     required String difficultyLevel,
+    required String source,
     required bool replaceExistingQuestions,
   }) async {
     generationRequests.add('quiz:$moduleId');
   }
 
   @override
-  Future<SeatDescriptionTrainingDocument> getSeatDescriptionTrainingModuleDocument({
-    required String moduleId,
-  }) async => const SeatDescriptionTrainingDocument(uuid: 'sop', text: '<p>Procedure</p>');
+  Future<SeatDescriptionTrainingDocument>
+  getSeatDescriptionTrainingModuleDocument({required String moduleId}) async =>
+      const SeatDescriptionTrainingDocument(
+        uuid: 'sop',
+        text: '<p>Procedure</p>',
+      );
 
   @override
-  Future<List<SeatDescriptionTrainingQuestion>> getSeatDescriptionTrainingModuleQuestions({
-    required String moduleId,
-  }) async => const [];
+  Future<List<SeatDescriptionTrainingQuestion>>
+  getSeatDescriptionTrainingModuleQuestions({required String moduleId}) async =>
+      const [];
 }

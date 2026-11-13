@@ -79,6 +79,11 @@ class AppManager extends ChangeNotifier {
       AppPermissionUtils.canModifyCurrentOrganizationContent(
         currentOrganization: currentOrganization,
       );
+  bool get currentUserCanEditDepartments =>
+      AppPermissionUtils.canEditDepartments(
+        user: _currentUser,
+        currentOrganization: currentOrganization,
+      );
   bool get currentUserCanManageAnySeatProfileDepartments =>
       AppPermissionUtils.canManageAnySeatProfileDepartments(
         user: _currentUser,
@@ -102,6 +107,12 @@ class AppManager extends ChangeNotifier {
         currentOrganization: currentOrganization,
       );
 
+  bool get currentUserCanManagePublicLinks =>
+      AppPermissionUtils.canManagePublicLinks(
+        user: _currentUser,
+        currentOrganization: currentOrganization,
+      );
+
   bool canCurrentUserManageSeatProfileDepartment({
     required String departmentId,
   }) {
@@ -121,6 +132,16 @@ class AppManager extends ChangeNotifier {
       currentOrganization: currentOrganization,
       seatProfileId: seatProfileId,
       additionalSeatProfileIds: additionalSeatProfileIds,
+    );
+  }
+
+  bool canCurrentUserViewTrainingQuizAndAssignment({
+    required String seatProfileId,
+  }) {
+    return AppPermissionUtils.canViewTrainingQuizAndAssignment(
+      user: _currentUser,
+      currentOrganization: currentOrganization,
+      seatProfileId: seatProfileId,
     );
   }
 

@@ -9,9 +9,9 @@ import '../../../../core/constants/app_strings.dart';
 import '../../../../core/network/api_error.dart';
 import '../../../../core/services/background_media_upload_controller.dart';
 import '../../../../core/services/file_uploader.dart';
-import '../../../check_in/data/datasources/audit_remote_data_source.dart';
-import '../../../check_in/data/repositories/audit_repository_impl.dart';
-import '../../../check_in/domain/repositories/audit_repository.dart';
+import '../../data/datasources/training_library_remote_data_source.dart';
+import '../../data/repositories/training_library_repository_impl.dart';
+import '../../domain/repositories/training_library_repository.dart';
 import '../../domain/entities/seat_description_training.dart';
 
 class TrainingVideoUploadTask {
@@ -77,11 +77,12 @@ class TrainingVideoUploadSummaryEvent {
 
 class TrainingVideoUploadController extends ChangeNotifier {
   TrainingVideoUploadController._({
-    AuditRepository? auditRepository,
+    TrainingLibraryRepository? trainingRepository,
     FileUploader? fileUploader,
     BackgroundMediaUploadController? backgroundUploadController,
-  }) : _auditRepository =
-           auditRepository ?? AuditRepositoryImpl(AuditRemoteDataSource()),
+  }) : _trainingRepository =
+           trainingRepository ??
+           TrainingLibraryRepositoryImpl(TrainingLibraryRemoteDataSource()),
        _fileUploader = fileUploader ?? const FileUploader(),
        _backgroundUploadController =
            backgroundUploadController ??
@@ -98,7 +99,7 @@ class TrainingVideoUploadController extends ChangeNotifier {
   static const String _moduleIdKey = 'moduleId';
   static const String _moduleTitleKey = 'moduleTitle';
 
-  final AuditRepository _auditRepository;
+  final TrainingLibraryRepository _trainingRepository;
   final FileUploader _fileUploader;
   final BackgroundMediaUploadController _backgroundUploadController;
   final List<TrainingVideoUploadSummaryEvent> _summaryEvents =
@@ -228,7 +229,7 @@ class TrainingVideoUploadController extends ChangeNotifier {
           final videoDurationInSeconds = await _resolveVideoDurationInSeconds(
             context.preparedFile.uploadFile,
           );
-          final uploadedVideo = await _auditRepository
+          final uploadedVideo = await _trainingRepository
               .addSeatDescriptionTrainingModuleVideo(
                 moduleId: resolvedModuleId,
                 videoUuid: _generateClientUuid(),
@@ -281,7 +282,7 @@ class TrainingVideoUploadController extends ChangeNotifier {
     required String moduleId,
   }) async {
     try {
-      final generatedSummary = await _auditRepository
+      final generatedSummary = await _trainingRepository
           .generateSeatDescriptionTrainingModuleSummary(moduleId: moduleId);
       _recordSummaryEvent(
         descriptionId: descriptionId,

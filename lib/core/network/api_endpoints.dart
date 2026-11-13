@@ -2,9 +2,13 @@ import '../preference/app_preference.dart';
 
 class ApiEndPoints {
   ApiEndPoints._();
-  // static const String baseUrl = 'https://dev-api.kaizenteams.ai';
+  static const String baseUrl = 'https://dev-api.kaizenteams.ai';
 
-  static const String baseUrl = 'https://api.kaizenteams.ai';
+  static const String publicWebBaseUrl = baseUrl == 'https://dev-api.kaizenteams.ai'
+      ? 'https://dev.kaizenteams.ai'
+      : 'https://app.kaizenteams.ai';
+
+  // static const String baseUrl = 'https://api.kaizenteams.ai';
   static const String version = '/api/v1/';
   static const String parentPrefix = 'parent_';
   static const String login = 'accounts/login/';
@@ -123,6 +127,26 @@ class ApiEndPoints {
   static const String trainingModules = 'training_modules/';
   static const String trainingModulesAll = 'training_modules/all/';
 
+  static String sharedContent(String publicId) {
+    return 'shared/content/${Uri.encodeComponent(publicId)}/';
+  }
+
+  static String seatProfilePublicLink(String seatId) {
+    return 'job/${Uri.encodeComponent(seatId)}/public-links/seat-profile/';
+  }
+
+  static String paygradesPublicLink(String jobId) {
+    return 'job/${Uri.encodeComponent(jobId)}/public-links/paygrades/';
+  }
+
+  static String lmsPublicLink(String descriptionId) {
+    return 'job_category_description/${Uri.encodeComponent(descriptionId)}/public-links/lms/';
+  }
+
+  static String sharedLesson(String sharedContentId, String publicId) {
+    return '${sharedContent(sharedContentId)}modules/${Uri.encodeComponent(publicId)}/';
+  }
+
   static String trainingModuleDetail(String moduleId) {
     return 'training_modules/$moduleId/';
   }
@@ -141,6 +165,10 @@ class ApiEndPoints {
 
   static String trainingDocument(String documentId) {
     return 'training_document/$documentId/';
+  }
+
+  static String trainingDocumentPdf(String documentId) {
+    return '${trainingDocument(Uri.encodeComponent(documentId))}pdf/';
   }
 
   static String trainingModuleQuestions(String moduleId) {
@@ -173,6 +201,10 @@ class ApiEndPoints {
 
   static String generateTrainingModuleSop(String moduleId) {
     return 'training_modules/$moduleId/generate_sop/';
+  }
+
+  static String generateTrainingModuleAssignment(String moduleId) {
+    return 'training_modules/$moduleId/generate_assignment/';
   }
 
   static String generateTrainingModuleSummary(String moduleId) {
@@ -337,6 +369,7 @@ class ApiEndPoints {
         endpoint == images ||
         endpoint == generatePreSignedUrl ||
         endpoint == organizations ||
+        endpoint.startsWith('shared/content/') ||
         endpoint.startsWith('accounts/verify_token/');
   }
 }

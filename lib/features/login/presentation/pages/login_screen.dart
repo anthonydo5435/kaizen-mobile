@@ -13,8 +13,8 @@ import '../../../auth/presentation/widgets/auth_outlined_text_field.dart';
 import '../../../auth/presentation/widgets/auth_page_frame.dart';
 import '../../data/datasources/auth_remote_data_source.dart';
 import '../../data/repositories/auth_repository_impl.dart';
-import '../../domain/usecases/login_usecase.dart';
 import '../../domain/usecases/google_login_usecase.dart';
+import '../../domain/usecases/login_usecase.dart';
 import '../providers/login_controller.dart';
 import '../widgets/google_login_button.dart';
 
@@ -81,11 +81,6 @@ class _LoginScreenViewState extends State<_LoginScreenView> {
     }
 
     if (_controller.shouldHandleUserNavigation() && user != null) {
-      ScaffoldMessenger.of(context)
-        ..hideCurrentSnackBar()
-        ..showSnackBar(
-          SnackBar(content: AppTextView.body2(AppStrings.welcomeBackUser(user.displayName))),
-        );
       WidgetsBinding.instance.addPostFrameCallback((_) async {
         if (!mounted) {
           return;
@@ -222,11 +217,11 @@ class _LoginMethodSeparator extends StatelessWidget {
 
   @override
   Widget build(BuildContext context) {
-    return const Padding(
+    return Padding(
       padding: EdgeInsets.symmetric(vertical: 18),
       child: Row(
         children: [
-          Expanded(child: Divider(color: AppColors.fieldBorder, height: 1)),
+          Expanded(child: Divider(color: AppColors.fieldBorder.withValues(alpha: 0.5), height: 1)),
           Padding(
             padding: EdgeInsets.symmetric(horizontal: 16),
             child: AppTextView.body2(

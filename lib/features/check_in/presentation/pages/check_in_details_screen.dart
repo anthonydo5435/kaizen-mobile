@@ -20,7 +20,9 @@ import '../../domain/usecases/get_audit_evaluation_chart_usecase.dart';
 import '../../domain/usecases/get_audit_overview_usecase.dart';
 import '../../domain/usecases/get_quarterly_audit_usecase.dart';
 import '../providers/check_in_controller.dart';
+import '../widgets/check_in_details_period_controls.dart';
 import '../widgets/upgrade_plan_dialog.dart';
+import 'performance_report_dialogs.dart';
 
 class CheckInDetailsScreen extends StatelessWidget {
   const CheckInDetailsScreen({
@@ -75,16 +77,13 @@ class CheckInDetailsScreen extends StatelessWidget {
               ),
         ),
       ],
-      child: _CheckInDetailsScreenView(profileJobId: profileJobId, year: year, quarter: quarter),
+      child: const _CheckInDetailsScreenView(),
     );
   }
 }
 
 class _CheckInDetailsScreenView extends StatelessWidget {
-  const _CheckInDetailsScreenView({required this.profileJobId, this.year, this.quarter});
-  final String profileJobId;
-  final int? year;
-  final int? quarter;
+  const _CheckInDetailsScreenView();
 
   @override
   Widget build(BuildContext context) {
@@ -99,12 +98,12 @@ class _CheckInDetailsScreenView extends StatelessWidget {
           children: [
             Expanded(
               child: Padding(
-                padding: EdgeInsets.only(left: 14, right: 14),
+                padding: const EdgeInsets.symmetric(horizontal: 8),
                 child: Column(
                   children: [
                     _buildTitle(context),
                     const SizedBox(height: 18),
-                    if (state.isLoading)
+                    if (state.isLoading && details == null)
                       Expanded(child: Center(child: FastCircularProgressIndicator()))
                     else if (details == null)
                       const Expanded(
@@ -115,39 +114,16 @@ class _CheckInDetailsScreenView extends StatelessWidget {
                           ),
                         ),
                       )
-                    else ...[
-                      _buildHeaderSection(details),
-                      const SizedBox(height: 24),
-                      Expanded(
-                        child: Container(
-                          decoration: BoxDecoration(
-                            color: AppColors.surfaceDark3,
-                            borderRadius: BorderRadius.circular(12),
-                          ),
-                          padding: EdgeInsets.only(left: 14, right: 14, top: 12),
-                          child: Column(
-                            children: [
-                              _buildAuditListHeader(context, controller, details),
-                              const SizedBox(height: 6),
-
-                              controller.showGraph
-                                  ? Expanded(
-                                      child: CheckInEvaluationChartWidget(
-                                        charts: state.evaluationCharts,
-                                        isLoading: state.isEvaluationChartLoading,
-                                      ),
-                                    )
-                                  : Expanded(child: _buildAuditListView(controller, details)),
-                            ],
-                          ),
-                        ),
-                      ),
-                    ],
+                    else
+                      Expanded(child: _buildDetailsContent(context, controller, details)),
                   ],
                 ),
               ),
             ),
-            if (!state.isLoading && !state.isSelfAudit)
+            if (!state.isLoading &&
+                details != null &&
+                !state.isSelfAudit &&
+                !controller.hasDetailsLoadError)
               _buildNewAuditButton(
                 context,
                 details,
@@ -159,9 +135,72 @@ class _CheckInDetailsScreenView extends StatelessWidget {
     );
   }
 
+  Widget _buildDetailsContent(
+    BuildContext context,
+    CheckInController controller,
+    AuditDetails details,
+  ) {
+    final state = controller.state;
+    // Let the profile and filters scroll away together when vertical space is tight.
+    return NestedScrollView(
+      headerSliverBuilder: (context, innerBoxIsScrolled) => [
+        SliverToBoxAdapter(child: _buildHeaderSection(details)),
+        const SliverToBoxAdapter(child: SizedBox(height: 24)),
+        SliverToBoxAdapter(
+          child: Padding(
+            padding: const EdgeInsets.only(bottom: 12),
+            child: CheckInDetailsPeriodControls(
+              mode: controller.detailsPeriodMode,
+              year: controller.selectedAuditYear,
+              quarter: controller.selectedAuditQuarter,
+              yearOptions: controller.detailsYearOptions,
+              dateRangeLabel: controller.detailsDateRangeLabel,
+              onModeChanged: controller.selectDetailsPeriodMode,
+              onQuarterChanged: controller.selectDetailsQuarter,
+              onDateRangePressed: () => _openDateRangePicker(context, controller),
+            ),
+          ),
+        ),
+        SliverToBoxAdapter(
+          child: Container(
+            key: const ValueKey('check-in-details-evaluation-card'),
+            decoration: const BoxDecoration(
+              color: AppColors.surfaceDark3,
+              borderRadius: BorderRadius.vertical(top: Radius.circular(12)),
+            ),
+            padding: const EdgeInsets.fromLTRB(14, 10, 14, 4),
+            child: _buildAuditListHeader(context, controller, details),
+          ),
+        ),
+      ],
+      body: Container(
+        decoration: const BoxDecoration(
+          color: AppColors.surfaceDark3,
+          borderRadius: BorderRadius.vertical(bottom: Radius.circular(12)),
+        ),
+        padding: const EdgeInsets.symmetric(horizontal: 14),
+        child: state.isLoading
+            ? Center(child: FastCircularProgressIndicator())
+            : controller.hasDetailsLoadError
+            ? const Center(
+                child: AppTextView.body(
+                  AppStrings.auditDetailsLoadFailed,
+                  color: AppColors.textSecondary,
+                ),
+              )
+            : controller.showGraph
+            ? CheckInEvaluationChartWidget(
+                charts: state.evaluationCharts,
+                isLoading: state.isEvaluationChartLoading,
+              )
+            : _buildAuditListView(controller, details),
+      ),
+    );
+  }
+
   Widget _buildTitle(BuildContext context) {
     return Padding(
-      padding: const EdgeInsets.symmetric(horizontal: 16, vertical: 0),
+      padding: EdgeInsets.zero,
       child: Stack(
         alignment: Alignment.center,
         children: [
@@ -219,7 +258,7 @@ class _CheckInDetailsScreenView extends StatelessWidget {
                       border: Border.all(color: Colors.white, width: 1.2),
                       image: DecorationImage(
                         image: profileImage == null
-                            ? const AssetImage('lib/assets/images/dumy_pic.png')
+                            ? const AssetImage(AppStrings.dummyProfileImagePath)
                             : NetworkImage(profileImage),
                         fit: BoxFit.cover,
                       ),
@@ -340,64 +379,63 @@ class _CheckInDetailsScreenView extends StatelessWidget {
           const SizedBox(height: 10),
         ],
         Row(
-          crossAxisAlignment: CrossAxisAlignment.start,
-          mainAxisAlignment: MainAxisAlignment.spaceBetween,
           children: [
-            Column(
-              crossAxisAlignment: CrossAxisAlignment.start,
-              children: [
-                SizedBox(height: 5),
-                AppTextView.body1(
-                  AppStrings.checkInEvaluationChart,
-                  fontWeight: FontWeight.w600,
-                  color: AppColors.textPrimary,
-                  fontSize: 14,
-                ),
-
-                // const SizedBox(height: 4),
-                // GestureDetector(
-                //   onTap: () => _openAuditReport(context, details),
-                //   child: const Text(
-                //     'Check-in Report',
-                //     style: TextStyle(
-                //       color: AppColors.textPrimary,
-                //       fontSize: 12,
-                //       fontWeight: FontWeight.w500,
-                //       decoration: TextDecoration.underline,
-                //       decorationColor: AppColors.textPrimary,
-                //     ),
-                //   ),
-                // ),
-              ],
+            Expanded(
+              child: AppTextView.body1(
+                controller.showGraph
+                    ? AppStrings.checkInPerformanceChart
+                    : AppStrings.checkInListTitle,
+                fontWeight: FontWeight.w600,
+                color: AppColors.textPrimary,
+                fontSize: 16,
+              ),
             ),
-            Row(
-              children: [
-                GestureDetector(
-                  onTap: () {
-                    if (controller.showGraph) {
-                      controller.setShowGraph(false);
-                    } else {
-                      controller.showEvaluationChart(
-                        details.profileJob,
-                        profileUuid: _resolveActiveProfileUuid(controller, details),
-                      );
-                    }
-                  },
-                  child: _buildGraphIcon(controller.showGraph ? 'chart.svg' : 'list.svg'),
-                ),
-                const SizedBox(width: 8),
-                GestureDetector(
-                  onTap: () {
-                    openCheckInTeamMemberFilterSheet(context, details);
-                  },
-                  child: _buildFilterIcon(),
-                ),
-              ],
+            const SizedBox(width: 8),
+            GestureDetector(
+              key: const ValueKey('check-in-details-chart-toggle'),
+              onTap: () {
+                if (controller.showGraph) {
+                  controller.setShowGraph(false);
+                } else {
+                  controller.showEvaluationChart(
+                    details.profileJob,
+                    profileUuid: _resolveActiveProfileUuid(controller, details),
+                  );
+                }
+              },
+              child: _buildGraphIcon(controller.showGraph ? 'chart.svg' : 'list.svg'),
+            ),
+            const SizedBox(width: 8),
+            GestureDetector(
+              key: const ValueKey('check-in-details-team-filter'),
+              onTap: () {
+                openCheckInTeamMemberFilterSheet(context, details);
+              },
+              child: _buildFilterIcon(),
             ),
           ],
         ),
       ],
     );
+  }
+
+  Future<void> _openDateRangePicker(BuildContext context, CheckInController controller) async {
+    final range = controller.detailsDateRange;
+    final result = await showPerformanceReportTimeRangeDialog(
+      context,
+      constraints: const BoxConstraints(maxWidth: 420),
+      selectStartDateInitially: true,
+      calendarOnly: true,
+      startDate: range.start,
+      endDate: range.end,
+      minDate: DateTime(1900),
+      maxDate: DateTime(2100, 12, 31),
+      formatDate: MaterialLocalizations.of(context).formatShortDate,
+    );
+    if (!context.mounted || result == null) return;
+    if (result is DateTimeRange) {
+      await controller.applyDetailsDateRange(startDate: result.start, endDate: result.end);
+    }
   }
 
   Widget _buildGraphIcon(String iconName) {
@@ -453,7 +491,12 @@ class _CheckInDetailsScreenView extends StatelessWidget {
 
         return GestureDetector(
           behavior: HitTestBehavior.opaque,
-          onTap: () => _openSingleAuditDetails(context, details, audit.date),
+          onTap: () => _openSingleAuditDetails(
+            context,
+            details,
+            audit.date,
+            quarterlyAuditUuid: audit.quarterlyAuditUuid,
+          ),
           child: Container(
             padding: const EdgeInsets.symmetric(horizontal: 16, vertical: 12),
             decoration: BoxDecoration(
@@ -464,32 +507,40 @@ class _CheckInDetailsScreenView extends StatelessWidget {
             child: Row(
               mainAxisAlignment: MainAxisAlignment.spaceBetween,
               children: [
-                Column(
-                  crossAxisAlignment: CrossAxisAlignment.start,
-                  children: [
-                    AppTextView.body1(
-                      CustomFunctions.formatDate(audit.date),
-                      fontWeight: FontWeight.w700,
-                      color: AppColors.textPrimary,
-                      fontSize: 14,
-                    ),
-                    const SizedBox(height: 8),
-                    Wrap(
-                      spacing: 8,
-                      runSpacing: 8,
-                      crossAxisAlignment: WrapCrossAlignment.center,
-                      children: [
-                        AppTextView.body2('Ratings: ', color: Colors.grey),
-                        _buildRatingBadge(value: audit.great, color: AppColors.green1),
-                        _buildRatingBadge(value: audit.almostThere, color: AppColors.orange1),
-                        _buildRatingBadge(value: audit.needsImprovement, color: AppColors.red1),
-                      ],
-                    ),
-                  ],
+                Expanded(
+                  child: Column(
+                    crossAxisAlignment: CrossAxisAlignment.start,
+                    children: [
+                      AppTextView.body1(
+                        CustomFunctions.formatDate(audit.date),
+                        fontWeight: FontWeight.w700,
+                        color: AppColors.textPrimary,
+                        fontSize: 14,
+                      ),
+                      const SizedBox(height: 8),
+                      Wrap(
+                        spacing: 8,
+                        runSpacing: 8,
+                        crossAxisAlignment: WrapCrossAlignment.center,
+                        children: [
+                          const AppTextView.body2(AppStrings.auditRatingsLabel, color: Colors.grey),
+                          _buildRatingBadge(value: audit.great, color: AppColors.green1),
+                          _buildRatingBadge(value: audit.almostThere, color: AppColors.orange1),
+                          _buildRatingBadge(value: audit.needsImprovement, color: AppColors.red1),
+                        ],
+                      ),
+                    ],
+                  ),
                 ),
+                const SizedBox(width: 12),
                 GestureDetector(
                   onTap: () {
-                    _openSingleAuditDetails(context, details, audit.date);
+                    _openSingleAuditDetails(
+                      context,
+                      details,
+                      audit.date,
+                      quarterlyAuditUuid: audit.quarterlyAuditUuid,
+                    );
                   },
                   child: Container(
                     decoration: BoxDecoration(
@@ -539,19 +590,22 @@ class _CheckInDetailsScreenView extends StatelessWidget {
     BuildContext context,
     AuditDetails details,
     String date, {
+    String? quarterlyAuditUuid,
     bool requireDescriptionSelection = false,
   }) async {
+    final controller = context.read<CheckInController>();
+    final rowAuditUuid = quarterlyAuditUuid?.trim() ?? '';
     await AppRouter.pushNamed(
       context,
       AppRouter.checkInDescriptionsList,
       arguments: CheckInDescriptionsListRouteArgs(
-        quarterlyAuditId: details.uuid,
+        quarterlyAuditId: rowAuditUuid.isEmpty ? details.uuid : rowAuditUuid,
         date: date,
         lastAuditDate: details.lastAuditDate,
-        year: year,
-        quarter: quarter,
+        year: controller.selectedAuditYear,
+        quarter: controller.selectedAuditQuarter,
         requireDescriptionSelection: requireDescriptionSelection,
-        isSelfAudit: context.read<CheckInController>().state.isSelfAudit,
+        isSelfAudit: controller.state.isSelfAudit,
       ),
     );
 
@@ -575,6 +629,9 @@ class _CheckInDetailsScreenView extends StatelessWidget {
   }) {
     final hasDetails = details != null;
     final shouldStartNewAudit = hasDetails && _shouldStartNewAuditForBottomAction(details);
+    if (shouldStartNewAudit && !context.read<CheckInController>().isSelectedAuditPeriodCurrent) {
+      return const SizedBox.shrink();
+    }
 
     return Container(
       height: 100,
@@ -592,7 +649,7 @@ class _CheckInDetailsScreenView extends StatelessWidget {
       child: Stack(
         children: [
           Padding(
-            padding: EdgeInsets.only(left: 14, right: 14, top: 12),
+            padding: const EdgeInsets.fromLTRB(8, 12, 8, 0),
             child: hasDetails
                 ? AppButton(
                     text: shouldStartNewAudit ? AppStrings.newCheckIn : AppStrings.continueCheckIn,
@@ -614,6 +671,11 @@ class _CheckInDetailsScreenView extends StatelessWidget {
     AuditDetails details,
     bool shouldStartNewAudit,
   ) async {
+    final controller = context.read<CheckInController>();
+    if (shouldStartNewAudit && !controller.isSelectedAuditPeriodCurrent) {
+      return;
+    }
+
     if (context.read<AppManager>().showBillingBanner) {
       await showDialog<void>(
         context: context,
@@ -624,7 +686,6 @@ class _CheckInDetailsScreenView extends StatelessWidget {
     }
 
     final todayDate = CustomFunctions.apiDateString();
-    final controller = context.read<CheckInController>();
     if (controller.state.isAuditActionLoading || controller.state.isSelfAudit) {
       return;
     }
@@ -665,15 +726,12 @@ class _CheckInDetailsScreenView extends StatelessWidget {
   }) async {
     await controller.initializeDetails(
       profileJobId,
-      year: year,
-      quarter: quarter,
+      year: controller.selectedAuditYear,
+      quarter: controller.selectedAuditQuarter,
       clearEvaluationCharts: clearEvaluationCharts || !controller.showGraph,
       profileUuid: profileUuid,
+      preserveDetails: true,
     );
-
-    if (controller.showGraph) {
-      await controller.refreshEvaluationChart(profileJobId, profileUuid: profileUuid);
-    }
   }
 
   Widget _buildProfilesList(List<AuditDetailsProfile> profiles) {
@@ -881,7 +939,7 @@ class _DetailProfileAvatar extends StatelessWidget {
         border: Border.all(color: AppColors.textPrimary, width: 1.4),
         image: DecorationImage(
           image: resolvedImageUrl == null
-              ? const AssetImage('lib/assets/images/dumy_pic.png')
+              ? const AssetImage(AppStrings.dummyProfileImagePath)
               : NetworkImage(resolvedImageUrl),
           fit: BoxFit.cover,
         ),

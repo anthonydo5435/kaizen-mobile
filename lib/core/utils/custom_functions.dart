@@ -684,7 +684,7 @@ class CustomFunctions {
 
   static ImageProvider<Object> resolveImageProvider(
     String? imagePath, {
-    String fallbackAssetPath = 'lib/assets/images/dumy_pic.png',
+    String fallbackAssetPath = AppStrings.dummyProfileImagePath,
   }) {
     final value = imagePath?.trim();
     if (value != null && value.isNotEmpty) {

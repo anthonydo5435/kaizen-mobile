@@ -58,6 +58,65 @@
                     android:scheme="kaizenteams"
                     android:host="settings" />
             </intent-filter>
+            <intent-filter>
+                <action android:name="android.intent.action.VIEW"/>
+                <category android:name="android.intent.category.DEFAULT"/>
+                <category android:name="android.intent.category.BROWSABLE"/>
+                <data
+                    android:scheme="kaizenteams"
+                    android:host="open" />
+            </intent-filter>
+            <intent-filter android:autoVerify="true">
+                <action android:name="android.intent.action.VIEW"/>
+                <category android:name="android.intent.category.DEFAULT"/>
+                <category android:name="android.intent.category.BROWSABLE"/>
+                <data
+                    android:scheme="https"
+                    android:host="dev.kaizenteams.ai"
+                    android:pathPrefix="/shared/paygrades/" />
+                <data
+                    android:scheme="https"
+                    android:host="api.kaizenteams.ai"
+                    android:pathPrefix="/shared/paygrades/" />
+                <data
+                    android:scheme="https"
+                    android:host="app.kaizenteams.ai"
+                    android:pathPrefix="/shared/paygrades/" />
+            </intent-filter>
+            <intent-filter android:autoVerify="true">
+                <action android:name="android.intent.action.VIEW"/>
+                <category android:name="android.intent.category.DEFAULT"/>
+                <category android:name="android.intent.category.BROWSABLE"/>
+                <data
+                    android:scheme="https"
+                    android:host="dev.kaizenteams.ai"
+                    android:pathPrefix="/shared/seat-profile/" />
+                <data
+                    android:scheme="https"
+                    android:host="api.kaizenteams.ai"
+                    android:pathPrefix="/shared/seat-profile/" />
+                <data
+                    android:scheme="https"
+                    android:host="app.kaizenteams.ai"
+                    android:pathPrefix="/shared/seat-profile/" />
+            </intent-filter>
+            <intent-filter android:autoVerify="true">
+                <action android:name="android.intent.action.VIEW"/>
+                <category android:name="android.intent.category.DEFAULT"/>
+                <category android:name="android.intent.category.BROWSABLE"/>
+                <data
+                    android:scheme="https"
+                    android:host="dev.kaizenteams.ai"
+                    android:pathPrefix="/shared/lms/" />
+                <data
+                    android:scheme="https"
+                    android:host="api.kaizenteams.ai"
+                    android:pathPrefix="/shared/lms/" />
+                <data
+                    android:scheme="https"
+                    android:host="app.kaizenteams.ai"
+                    android:pathPrefix="/shared/lms/" />
+            </intent-filter>
             <intent-filter android:autoVerify="true">
                 <action android:name="android.intent.action.VIEW"/>
                 <category android:name="android.intent.category.DEFAULT"/>
@@ -88,6 +147,10 @@
                     android:scheme="https"
                     android:host="api.kaizenteams.ai"
                     android:pathPrefix="/verify_token/" />
+                <data
+                    android:scheme="https"
+                    android:host="app.kaizenteams.ai"
+                    android:pathPrefix="/verify_token/" />
             </intent-filter>
             <intent-filter android:autoVerify="true">
                 <action android:name="android.intent.action.VIEW"/>
@@ -100,6 +163,10 @@
                 <data
                     android:scheme="https"
                     android:host="api.kaizenteams.ai"
+                    android:pathPrefix="/organization/" />
+                <data
+                    android:scheme="https"
+                    android:host="app.kaizenteams.ai"
                     android:pathPrefix="/organization/" />
             </intent-filter>
             <intent-filter android:autoVerify="true">
@@ -135,6 +202,9 @@
 
          In particular, this is used by the Flutter engine in io.flutter.plugin.text.ProcessTextPlugin. -->
     <queries>
+        <intent>
+            <action android:name="android.support.customtabs.action.CustomTabsService" />
+        </intent>
         <intent>
             <action android:name="android.intent.action.PROCESS_TEXT"/>
             <data android:mimeType="text/plain"/>

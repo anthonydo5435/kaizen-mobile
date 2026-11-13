@@ -9,56 +9,6 @@ import '../../domain/entities/performance_report.dart';
 import '../providers/check_in_controller.dart';
 import 'paygrade_detail_dialog.dart';
 
-bool _isUnavailablePaygradeDisplay(String value) =>
-    value.trim() == AppStrings.paygradesUnavailableDisplay;
-
-bool _hasPaygradeUnit(String value) {
-  final trimmed = value.trim();
-  return trimmed.isNotEmpty && trimmed != '--' && trimmed != '-';
-}
-
-String _paygradeDisplayWithUnit({
-  required String paygradeDisplay,
-  required String paygradeUnit,
-}) {
-  final display = paygradeDisplay.trim();
-  final unit = paygradeUnit.trim();
-  if (display.isEmpty ||
-      _isUnavailablePaygradeDisplay(display) ||
-      !_hasPaygradeUnit(unit)) {
-    return display;
-  }
-
-  final slashIndex = display.lastIndexOf('/');
-  if (slashIndex >= 0) {
-    return '${display.substring(0, slashIndex + 1)}$unit';
-  }
-
-  return '$display/$unit';
-}
-
-String _currentPositionFallbackTitle(
-  PerformanceReport report, {
-  int position = 1,
-}) {
-  final seatProfileCode = _seatProfileCode(report.profile.seatProfile);
-  return '$seatProfileCode $position';
-}
-
-String _seatProfileCode(String seatProfile) {
-  final words = seatProfile
-      .trim()
-      .split(RegExp(r'\s+'))
-      .where((word) => word.isNotEmpty)
-      .take(3)
-      .toList(growable: false);
-  if (words.isEmpty) {
-    return '--';
-  }
-
-  return words.map((word) => word[0].toUpperCase()).join();
-}
-
 Future<void> showPerformanceReportPaygradePipelineSheet(
   BuildContext context, {
   required PerformanceReport report,
@@ -130,6 +80,7 @@ Future<void> showPerformanceReportPaygradePipelineSheet(
                     padding: const EdgeInsets.fromLTRB(12, 0, 12, 16),
                     child: _PaygradePipelineCard(
                       report: report,
+                      controller: auditController,
                       onStepTap: (step) => showPaygradeDetailDialog(
                         sheetContext,
                         step: step,
@@ -161,34 +112,28 @@ class PerformanceReportPaygradePipelineSection extends StatelessWidget {
 
   @override
   Widget build(BuildContext context) {
-    final currentStepIndex = report.paygradePipeline.indexWhere(
-      (step) => step.isCurrent,
-    );
-    final currentStep = currentStepIndex >= 0
-        ? report.paygradePipeline[currentStepIndex]
-        : null;
-    final currentPositionValue = _currentPositionFallbackTitle(
-      report,
-      position: currentStepIndex >= 0 ? currentStepIndex + 1 : 1,
-    );
-    final currentPayValue = _paygradeDisplayWithUnit(
-      paygradeDisplay: currentStep?.payRateDisplay ?? report.currentPaygrade,
-      paygradeUnit: report.paygradeUnit,
-    );
+    final summary = context
+        .read<CheckInController>()
+        .buildPerformanceReportPaygradeSummary(report);
 
     return _PaygradeSummaryCard(
       onTap: onTap,
-      currentPosition: currentPositionValue,
-      currentPay: currentPayValue,
-      totalLevels: '${report.paygradePipeline.length}',
+      currentPosition: summary.currentPosition,
+      currentPay: summary.currentPay,
+      totalLevels: summary.totalLevels,
     );
   }
 }
 
 class _PaygradePipelineCard extends StatelessWidget {
-  const _PaygradePipelineCard({required this.report, required this.onStepTap});
+  const _PaygradePipelineCard({
+    required this.report,
+    required this.controller,
+    required this.onStepTap,
+  });
 
   final PerformanceReport report;
+  final CheckInController controller;
   final ValueChanged<PerformanceReportPaygradeStep> onStepTap;
 
   @override
@@ -211,11 +156,16 @@ class _PaygradePipelineCard extends StatelessWidget {
     return Column(
       children: List<Widget>.generate(report.paygradePipeline.length, (index) {
         final step = report.paygradePipeline[index];
-        final status = _resolvePipelineStageStatus(
+        final status = controller.resolvePerformanceReportPaygradeStageStatus(
           step: step,
           index: index,
           currentStepIndex: currentStepIndex,
         );
+        final paygradeDisplay = controller
+            .formatPerformanceReportPaygradeDisplay(
+              paygradeDisplay: step.caption,
+              paygradeUnit: report.paygradeUnit,
+            );
 
         return Padding(
           padding: EdgeInsets.only(
@@ -223,7 +173,12 @@ class _PaygradePipelineCard extends StatelessWidget {
           ),
           child: _PipelineStageTile(
             step: step,
-            paygradeUnit: report.paygradeUnit,
+            paygradeDisplay: paygradeDisplay,
+            paygradeDisplayColor: controller
+                .resolvePerformanceReportPaygradeDisplayColor(
+                  paygradeDisplay,
+                  payRateAmount: step.payRateAmount,
+                ),
             status: status,
             showConnector: index < report.paygradePipeline.length - 1,
             onTap: () => onStepTap(step),
@@ -232,78 +187,6 @@ class _PaygradePipelineCard extends StatelessWidget {
       }),
     );
   }
-}
-
-class _PipelineStageStatus {
-  const _PipelineStageStatus({
-    required this.label,
-    required this.accentColor,
-    required this.borderColor,
-    required this.surfaceColor,
-    required this.badgeBackgroundColor,
-    required this.badgeTextColor,
-    required this.indicatorFillColor,
-  });
-
-  final String label;
-  final Color accentColor;
-  final Color borderColor;
-  final Color surfaceColor;
-  final Color badgeBackgroundColor;
-  final Color badgeTextColor;
-  final Color indicatorFillColor;
-}
-
-_PipelineStageStatus _resolvePipelineStageStatus({
-  required PerformanceReportPaygradeStep step,
-  required int index,
-  required int currentStepIndex,
-}) {
-  if (step.isCurrent) {
-    return _PipelineStageStatus(
-      label: AppStrings.performanceReportPaygradeStatusCurrent,
-      accentColor: AppColors.secondaryColor,
-      borderColor: AppColors.secondaryColor,
-      surfaceColor: AppColors.bgGlow.withValues(alpha: 0.55),
-      badgeBackgroundColor: AppColors.secondaryColor,
-      badgeTextColor: AppColors.textPrimary,
-      indicatorFillColor: AppColors.secondaryColor,
-    );
-  }
-
-  if (currentStepIndex >= 0 && index < currentStepIndex) {
-    return _PipelineStageStatus(
-      label: AppStrings.performanceReportPaygradeStatusAchieved,
-      accentColor: AppColors.progressColor,
-      borderColor: AppColors.secondaryColor,
-      surfaceColor: AppColors.surfaceDark1,
-      badgeBackgroundColor: AppColors.progressColor.withValues(alpha: 0.16),
-      badgeTextColor: AppColors.progressColor,
-      indicatorFillColor: AppColors.secondaryColor.withValues(alpha: 0.08),
-    );
-  }
-
-  if (currentStepIndex >= 0 && index == currentStepIndex + 1) {
-    return _PipelineStageStatus(
-      label: AppStrings.performanceReportPaygradeStatusNext,
-      accentColor: AppColors.orange1,
-      borderColor: AppColors.secondaryColor,
-      surfaceColor: AppColors.surfaceDark1,
-      badgeBackgroundColor: AppColors.orange1.withValues(alpha: 0.16),
-      badgeTextColor: AppColors.orange1,
-      indicatorFillColor: AppColors.secondaryColor.withValues(alpha: 0.08),
-    );
-  }
-
-  return _PipelineStageStatus(
-    label: AppStrings.performanceReportPaygradeStatusUpcoming,
-    accentColor: AppColors.textSecondary,
-    borderColor: AppColors.secondaryColor,
-    surfaceColor: AppColors.surfaceDark,
-    badgeBackgroundColor: AppColors.textSecondary.withValues(alpha: 0.12),
-    badgeTextColor: AppColors.textSecondary,
-    indicatorFillColor: AppColors.secondaryColor.withValues(alpha: 0.05),
-  );
 }
 
 class _PaygradeSummaryCard extends StatefulWidget {
@@ -531,15 +414,17 @@ class _PaygradeSummaryRow extends StatelessWidget {
 class _PipelineStageTile extends StatelessWidget {
   const _PipelineStageTile({
     required this.step,
-    required this.paygradeUnit,
+    required this.paygradeDisplay,
+    required this.paygradeDisplayColor,
     required this.status,
     required this.showConnector,
     this.onTap,
   });
 
   final PerformanceReportPaygradeStep step;
-  final String paygradeUnit;
-  final _PipelineStageStatus status;
+  final String paygradeDisplay;
+  final Color paygradeDisplayColor;
+  final PerformanceReportPaygradeStageStatus status;
   final bool showConnector;
   final VoidCallback? onTap;
   static const double _indicatorSize = 46;
@@ -547,14 +432,6 @@ class _PipelineStageTile extends StatelessWidget {
 
   @override
   Widget build(BuildContext context) {
-    final paygradeDisplay = _paygradeDisplayWithUnit(
-      paygradeDisplay: step.caption,
-      paygradeUnit: paygradeUnit,
-    );
-    final isUnavailablePaygrade =
-        step.payRateAmount <= 0 ||
-        _isUnavailablePaygradeDisplay(paygradeDisplay);
-
     return InkWell(
       borderRadius: BorderRadius.circular(16),
       onTap: onTap,
@@ -635,9 +512,7 @@ class _PipelineStageTile extends StatelessWidget {
                               _PipelineMetaChip(
                                 icon: Icons.payments_outlined,
                                 text: paygradeDisplay,
-                                textColor: isUnavailablePaygrade
-                                    ? AppColors.secondaryColor
-                                    : AppColors.textPrimary,
+                                textColor: paygradeDisplayColor,
                                 borderColor: status.borderColor,
                               ),
                               const Spacer(),
@@ -692,7 +567,7 @@ class _PipelineStageTile extends StatelessWidget {
 class _PipelineStatusBadge extends StatelessWidget {
   const _PipelineStatusBadge({required this.status});
 
-  final _PipelineStageStatus status;
+  final PerformanceReportPaygradeStageStatus status;
 
   @override
   Widget build(BuildContext context) {

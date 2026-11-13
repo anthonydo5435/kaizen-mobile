@@ -10,10 +10,12 @@ class AppGradientActionButton extends StatelessWidget {
     required this.label,
     required this.icon,
     required this.onTap,
+    this.iconOnly = false,
     this.isLoading = false,
     this.iconSize = 18,
     this.textSize = 15,
     this.fontWeight = FontWeight.w600,
+    this.foregroundColor = AppColors.textPrimary,
     this.padding = const EdgeInsets.symmetric(horizontal: 16, vertical: 11),
     this.borderRadius = 24,
     this.minHeight = 48,
@@ -29,10 +31,12 @@ class AppGradientActionButton extends StatelessWidget {
   final String label;
   final IconData icon;
   final VoidCallback? onTap;
+  final bool iconOnly;
   final bool isLoading;
   final double iconSize;
   final double textSize;
   final FontWeight fontWeight;
+  final Color foregroundColor;
   final EdgeInsetsGeometry padding;
   final double borderRadius;
   final double minHeight;
@@ -66,7 +70,7 @@ class AppGradientActionButton extends StatelessWidget {
               ]
             : const <BoxShadow>[]);
 
-    return Opacity(
+    final button = Opacity(
       opacity: isEnabled ? 1 : 0.58,
       child: Material(
         color: Colors.transparent,
@@ -87,32 +91,61 @@ class AppGradientActionButton extends StatelessWidget {
                 border: Border.all(color: resolvedBorderColor),
                 boxShadow: resolvedBoxShadows,
               ),
-              child: isLoading
-                  ? const FastCircularProgressIndicator(width: 18, height: 18)
-                  : Row(
+              child: Stack(
+                alignment: Alignment.center,
+                children: [
+                  // The label keeps sizing the button while the loader is shown.
+                  Visibility(
+                    visible: !isLoading,
+                    maintainState: true,
+                    maintainAnimation: true,
+                    maintainSize: true,
+                    child: Row(
                       mainAxisSize: MainAxisSize.min,
                       mainAxisAlignment: MainAxisAlignment.center,
                       children: <Widget>[
-                        Icon(
-                          icon,
-                          color: AppColors.textPrimary,
-                          size: iconSize,
-                        ),
-                        SizedBox(width: iconSpacing),
-                        AppTextView.body(
-                          label,
-                          color: AppColors.textPrimary,
-                          fontWeight: fontWeight,
-                          fontSize: textSize,
-                          maxLines: 1,
-                          overflow: TextOverflow.ellipsis,
-                        ),
+                        Icon(icon, color: foregroundColor, size: iconSize),
+                        if (!iconOnly) ...[
+                          SizedBox(width: iconSpacing),
+                          Flexible(
+                            child: AppTextView.body(
+                              label,
+                              color: foregroundColor,
+                              fontWeight: fontWeight,
+                              fontSize: textSize,
+                              maxLines: 1,
+                              overflow: TextOverflow.ellipsis,
+                            ),
+                          ),
+                        ],
                       ],
                     ),
+                  ),
+                  if (isLoading)
+                    const Positioned.fill(
+                      child: Center(
+                        child: SizedBox.square(
+                          dimension: 18,
+                          child: FastCircularProgressIndicator(
+                            width: 18,
+                            height: 18,
+                          ),
+                        ),
+                      ),
+                    ),
+                ],
+              ),
             ),
           ),
         ),
       ),
     );
+
+    return iconOnly
+        ? Tooltip(
+            message: label,
+            child: Semantics(button: true, child: button),
+          )
+        : button;
   }
 }

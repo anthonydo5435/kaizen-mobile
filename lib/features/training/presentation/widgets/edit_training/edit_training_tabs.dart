@@ -1,7 +1,11 @@
 part of 'package:sparrowkaizen/features/training/presentation/pages/edit_training_screen.dart';
 
 class TrainingTabs extends StatelessWidget {
-  const TrainingTabs({super.key, required this.navigation, required this.maxTabIndex});
+  const TrainingTabs({
+    super.key,
+    required this.navigation,
+    required this.maxTabIndex,
+  });
 
   final TrainingTabNavigationController navigation;
   final int maxTabIndex;
@@ -39,16 +43,87 @@ class TrainingTabs extends StatelessWidget {
 
   @override
   Widget build(BuildContext context) {
+    final highContrast = MediaQuery.highContrastOf(context);
+    final duration = MediaQuery.disableAnimationsOf(context)
+        ? Duration.zero
+        : const Duration(milliseconds: 240);
+
     return ListenableProvider<TrainingTabNavigationController>.value(
       value: navigation,
       child: DecoratedBox(
-        decoration: const BoxDecoration(
-          color: AppColors.trainingLessonActionSurface,
-          borderRadius: BorderRadius.all(Radius.circular(22)),
+        decoration: BoxDecoration(
+          borderRadius: BorderRadius.circular(28),
+          boxShadow: [
+            BoxShadow(
+              color: Colors.black.withValues(alpha: 0.18),
+              blurRadius: 20,
+              offset: const Offset(0, 6),
+            ),
+          ],
         ),
-        child: Padding(
-          padding: const EdgeInsets.symmetric(horizontal: 14, vertical: 8),
-          child: Row(children: _tabs),
+        child: ClipRRect(
+          borderRadius: BorderRadius.circular(28),
+          child: BackdropFilter(
+            filter: ImageFilter.blur(sigmaX: 18, sigmaY: 18),
+            enabled: !highContrast,
+            child: Material(
+              color: AppColors.surfaceDark.withValues(
+                alpha: highContrast ? 1 : 0.72,
+              ),
+              child: Ink(
+                decoration: BoxDecoration(
+                  borderRadius: BorderRadius.circular(28),
+                  border: Border.fromBorderSide(
+                    BorderSide(
+                      color: AppColors.textPrimary.withValues(
+                        alpha: highContrast ? 0.4 : 0.16,
+                      ),
+                    ),
+                  ),
+                  gradient: LinearGradient(
+                    begin: Alignment.topLeft,
+                    end: Alignment.bottomRight,
+                    colors: [
+                      AppColors.textPrimary.withValues(alpha: 0.14),
+                      AppColors.textPrimary.withValues(alpha: 0.025),
+                      AppColors.secondaryColor.withValues(alpha: 0.08),
+                    ],
+                    stops: const [0, 0.55, 1],
+                  ),
+                ),
+                child: Padding(
+                  padding: const EdgeInsets.all(4),
+                  child: Stack(
+                    children: [
+                      Positioned.fill(
+                        child: IgnorePointer(
+                          child: Selector<TrainingTabNavigationController, int>(
+                            selector: (_, tabs) => tabs.selectedIndex,
+                            builder: (context, selectedIndex, child) =>
+                                AnimatedAlign(
+                                  duration: duration,
+                                  curve: Curves.easeOutCubic,
+                                  alignment: AlignmentDirectional(
+                                    -1 + 2 * selectedIndex / 3,
+                                    0,
+                                  ),
+                                  child: child,
+                                ),
+                            child: const FractionallySizedBox(
+                              widthFactor: 0.25,
+                              heightFactor: 1,
+                              child: _TrainingGlassSelectionLens(),
+                            ),
+                          ),
+                        ),
+                      ),
+                      Row(children: _tabs),
+                    ],
+                  ),
+                ),
+              ),
+            ),
+          ),
         ),
       ),
     );
@@ -109,7 +184,11 @@ class _TrainingTabItem extends StatelessWidget {
 
   @override
   Widget build(BuildContext context) {
-    final textColor = isSelected ? AppColors.textPrimary : AppColors.trainingNavigationInactive;
+    final textColor = !isEnabled
+        ? AppColors.textSecondary.withValues(alpha: 0.45)
+        : isSelected
+        ? AppColors.lightPurple1
+        : AppColors.textPrimary;
 
     return Semantics(
       button: true,
@@ -118,37 +197,50 @@ class _TrainingTabItem extends StatelessWidget {
       label: label,
       onTap: isEnabled ? onTap : null,
       excludeSemantics: true,
-      child: Material(
-        color: isSelected ? AppColors.secondaryColor : Colors.transparent,
-        shape: RoundedRectangleBorder(
-          borderRadius: BorderRadius.circular(14),
-          side: BorderSide(color: isSelected ? AppColors.lightPurple1 : Colors.transparent),
-        ),
-        clipBehavior: Clip.antiAlias,
-        child: InkWell(
-          onTap: isEnabled ? onTap : null,
-          child: ConstrainedBox(
-            constraints: const BoxConstraints(minHeight: 28),
-            child: Padding(
-              padding: EdgeInsets.symmetric(
-                horizontal: label == AppStrings.trainingAssignmentTab ? 4 : 0,
-                vertical: 7,
-              ),
+      child: InkWell(
+        onTap: isEnabled ? onTap : null,
+        borderRadius: BorderRadius.circular(24),
+        splashColor: AppColors.textPrimary.withValues(alpha: 0.12),
+        highlightColor: AppColors.textPrimary.withValues(alpha: 0.06),
+        child: ConstrainedBox(
+          constraints: const BoxConstraints(minHeight: 46),
+          child: Padding(
+            padding: const EdgeInsets.symmetric(horizontal: 2, vertical: 5),
+            child: ExcludeSemantics(
               child: Opacity(
                 opacity: isEnabled ? 1 : 0.55,
                 child: Column(
                   mainAxisSize: MainAxisSize.min,
                   mainAxisAlignment: MainAxisAlignment.center,
                   children: [
-                    SvgPicture.asset(iconAsset, width: 15, height: 15, excludeFromSemantics: true),
+                    AnimatedScale(
+                      scale: isSelected ? 1.05 : 1,
+                      duration: MediaQuery.disableAnimationsOf(context)
+                          ? Duration.zero
+                          : const Duration(milliseconds: 240),
+                      curve: Curves.easeOutCubic,
+                      child: SvgPicture.asset(
+                        iconAsset,
+                        width: label == 'Video' ? 14 : 20,
+                        height: label == 'Video' ? 14 : 20,
+                        excludeFromSemantics: true,
+                        colorFilter: ColorFilter.mode(
+                          textColor,
+                          BlendMode.srcIn,
+                        ),
+                      ),
+                    ),
                     const SizedBox(height: 4),
                     FittedBox(
                       fit: BoxFit.scaleDown,
                       child: AppTextView.body3(
                         label,
                         color: textColor,
-                        fontWeight: FontWeight.w600,
+                        fontWeight: isSelected
+                            ? FontWeight.w700
+                            : FontWeight.w500,
                         textAlign: TextAlign.center,
+                        fontSize: 11,
                         maxLines: 1,
                       ),
                     ),
@@ -157,6 +249,33 @@ class _TrainingTabItem extends StatelessWidget {
               ),
             ),
           ),
+        ),
+      ),
+    );
+  }
+}
+
+class _TrainingGlassSelectionLens extends StatelessWidget {
+  const _TrainingGlassSelectionLens();
+
+  @override
+  Widget build(BuildContext context) {
+    final edge = BorderSide(
+      color: AppColors.textPrimary.withValues(alpha: 0.22),
+    );
+
+    return DecoratedBox(
+      decoration: BoxDecoration(
+        borderRadius: BorderRadius.circular(24),
+        border: Border(top: edge, left: edge, right: edge),
+        gradient: LinearGradient(
+          begin: Alignment.topLeft,
+          end: Alignment.bottomRight,
+          colors: [
+            AppColors.textPrimary.withValues(alpha: 0.2),
+            AppColors.secondaryColor.withValues(alpha: 0.15),
+            AppColors.textPrimary.withValues(alpha: 0.065),
+          ],
         ),
       ),
     );

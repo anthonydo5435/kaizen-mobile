@@ -1,17 +1,33 @@
 const int trainingViewerTabCount = 4;
 
-int maxTrainingTabIndex({required bool hasSelectedModule, required bool canManageTraining}) =>
-    !hasSelectedModule ? 0 : (canManageTraining ? trainingViewerTabCount - 1 : 1);
+int maxTrainingTabIndex({
+  required bool hasSelectedModule,
+  required bool canViewQuizAndAssignment,
+}) => !hasSelectedModule
+    ? 0
+    : (canViewQuizAndAssignment ? trainingViewerTabCount - 1 : 1);
 
-/// Video and SOP remain available without permission to edit the lesson.
-bool isTrainingViewerTabEnabled({required bool canManageTraining, required int tabIndex}) {
+/// Tab visibility is independent of permission to edit the lesson.
+bool isTrainingViewerTabEnabled({
+  required bool canViewQuizAndAssignment,
+  required int tabIndex,
+}) {
   return tabIndex >= 0 &&
       tabIndex <=
-          maxTrainingTabIndex(hasSelectedModule: true, canManageTraining: canManageTraining);
+          maxTrainingTabIndex(
+            hasSelectedModule: true,
+            canViewQuizAndAssignment: canViewQuizAndAssignment,
+          );
 }
 
-int normalizeTrainingViewerTabIndex({required bool canManageTraining, required int tabIndex}) {
-  if (isTrainingViewerTabEnabled(canManageTraining: canManageTraining, tabIndex: tabIndex)) {
+int normalizeTrainingViewerTabIndex({
+  required bool canViewQuizAndAssignment,
+  required int tabIndex,
+}) {
+  if (isTrainingViewerTabEnabled(
+    canViewQuizAndAssignment: canViewQuizAndAssignment,
+    tabIndex: tabIndex,
+  )) {
     return tabIndex;
   }
 

@@ -3,6 +3,7 @@ import 'package:flutter/material.dart';
 import '../../../../core/constants/app_colors.dart';
 import '../../../../core/constants/app_strings.dart';
 import '../../../../core/widgets/app_overlay_close_button.dart';
+import '../../../../core/widgets/app_dialog_style.dart';
 import '../../../../core/widgets/app_text_view.dart';
 import '../../domain/entities/performance_report.dart';
 import '../providers/check_in_controller.dart';
@@ -53,7 +54,7 @@ class _PaygradeDetailDialog extends StatelessWidget {
     return Dialog(
       backgroundColor: AppColors.mainBg,
       insetPadding: const EdgeInsets.symmetric(horizontal: 18, vertical: 28),
-      shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(16)),
+      shape: AppDialogStyle.shape(radius: 16),
       child: ConstrainedBox(
         constraints: BoxConstraints(maxWidth: 760, maxHeight: maxDialogHeight),
         child: Padding(

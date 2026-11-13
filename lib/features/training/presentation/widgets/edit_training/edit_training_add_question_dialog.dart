@@ -42,7 +42,8 @@ class _AddQuestionDialogState extends State<_AddQuestionDialog> {
 
   Future<void> _submit() async {
     final trainingController = context.read<TrainingModuleController>();
-    if (trainingController.isAddingQuestion || _formController.isPickingImage) return;
+    if (trainingController.isAddingQuestion || _formController.isPickingImage)
+      return;
 
     final validationMessage = _formController.validate();
     if (validationMessage != null) {
@@ -74,32 +75,39 @@ class _AddQuestionDialogState extends State<_AddQuestionDialog> {
     final controller = context.watch<TrainingModuleController>();
     final mediaQuery = MediaQuery.of(context);
     final availableHeight =
-        mediaQuery.size.height - mediaQuery.viewInsets.bottom - mediaQuery.padding.top - 16;
+        mediaQuery.size.height -
+        mediaQuery.viewInsets.bottom -
+        mediaQuery.padding.top -
+        16;
 
     return AnimatedBuilder(
       animation: _formController,
       builder: (context, _) => Padding(
         padding: EdgeInsets.only(bottom: mediaQuery.viewInsets.bottom),
-        child: Container(
+        child: AppKeyboardBottomSheetSurface(
           width: double.infinity,
-          constraints: BoxConstraints(
-            maxWidth: 620,
-            maxHeight: availableHeight.clamp(0.0, mediaQuery.size.height * 0.92),
-          ),
-          decoration: const BoxDecoration(
-            color: AppColors.trainingLessonActionSurface,
-            borderRadius: BorderRadius.vertical(top: Radius.circular(24)),
-          ),
-          child: SafeArea(
-            top: false,
-            child: _AddQuestionForm(
-              form: _formController,
-              isSaving: controller.isAddingQuestion,
-              canSubmit: controller.canAddQuestionToSelectedModule,
-              onPickImage: () => _formController.pickQuestionImage(widget.onPickImage),
-              onRemoveOption: _removeOption,
-              onSubmit: _submit,
-              onClose: () => Navigator.of(context).pop(),
+          color: AppColors.trainingLessonActionSurface,
+          borderRadius: const BorderRadius.vertical(top: Radius.circular(24)),
+          child: ConstrainedBox(
+            constraints: BoxConstraints(
+              maxWidth: 620,
+              maxHeight: availableHeight.clamp(
+                0.0,
+                mediaQuery.size.height * 0.92,
+              ),
+            ),
+            child: SafeArea(
+              top: false,
+              child: _AddQuestionForm(
+                form: _formController,
+                isSaving: controller.isAddingQuestion,
+                canSubmit: controller.canAddQuestionToSelectedModule,
+                onPickImage: () =>
+                    _formController.pickQuestionImage(widget.onPickImage),
+                onRemoveOption: _removeOption,
+                onSubmit: _submit,
+                onClose: () => Navigator.of(context).pop(),
+              ),
             ),
           ),
         ),
@@ -135,7 +143,10 @@ class _AddQuestionForm extends StatelessWidget {
       mainAxisSize: MainAxisSize.min,
       crossAxisAlignment: CrossAxisAlignment.stretch,
       children: [
-        _QuestionSheetHeader(title: AppStrings.trainingAddNewQuestion, onClose: onClose),
+        _QuestionSheetHeader(
+          title: AppStrings.trainingAddNewQuestion,
+          onClose: onClose,
+        ),
         Flexible(
           child: SingleChildScrollView(
             padding: const EdgeInsets.fromLTRB(18, 18, 18, 24),
@@ -143,7 +154,10 @@ class _AddQuestionForm extends StatelessWidget {
             child: Column(
               crossAxisAlignment: CrossAxisAlignment.stretch,
               children: [
-                _QuestionTextField(controller: form.questionController, isEnabled: !isBusy),
+                _QuestionTextField(
+                  controller: form.questionController,
+                  isEnabled: !isBusy,
+                ),
                 const SizedBox(height: 16),
                 _QuestionPictureField(
                   image: form.questionImage,
@@ -163,7 +177,9 @@ class _AddQuestionForm extends StatelessWidget {
                   onPrevious: !isBusy && form.canChangeCorrectAnswer
                       ? form.previousCorrectAnswer
                       : null,
-                  onNext: !isBusy && form.canChangeCorrectAnswer ? form.nextCorrectAnswer : null,
+                  onNext: !isBusy && form.canChangeCorrectAnswer
+                      ? form.nextCorrectAnswer
+                      : null,
                 ),
                 if (form.validationMessage != null) ...[
                   const SizedBox(height: 16),
@@ -179,11 +195,15 @@ class _AddQuestionForm extends StatelessWidget {
             onPressed: !isBusy && canSubmit ? onSubmit : null,
             style: TextButton.styleFrom(
               backgroundColor: AppColors.secondaryColor,
-              disabledBackgroundColor: AppColors.secondaryColor.withValues(alpha: 0.55),
+              disabledBackgroundColor: AppColors.secondaryColor.withValues(
+                alpha: 0.55,
+              ),
               foregroundColor: AppColors.textPrimary,
               disabledForegroundColor: AppColors.textPrimary,
               minimumSize: const Size.fromHeight(44),
-              shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(14)),
+              shape: RoundedRectangleBorder(
+                borderRadius: BorderRadius.circular(14),
+              ),
             ),
             child: isSaving
                 ? const FastCircularProgressIndicator()

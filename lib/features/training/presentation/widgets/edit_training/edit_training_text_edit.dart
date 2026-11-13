@@ -36,24 +36,16 @@ class _TrainingTextEditSheet extends StatefulWidget {
 class _TrainingTextEditSheetState extends State<_TrainingTextEditSheet> {
   late final TextEditingController _controller;
   final ValueNotifier<bool> _isSavingNotifier = ValueNotifier<bool>(false);
-  final ValueNotifier<String?> _errorTextNotifier = ValueNotifier<String?>(
-    null,
-  );
+  final ValueNotifier<String?> _errorTextNotifier = ValueNotifier<String?>(null);
   late final Listenable _sheetListenable;
 
-  bool get _canSave =>
-      _controller.text.trim().isNotEmpty && !_isSavingNotifier.value;
+  bool get _canSave => _controller.text.trim().isNotEmpty && !_isSavingNotifier.value;
 
   @override
   void initState() {
     super.initState();
-    _controller = TextEditingController(text: widget.initialValue)
-      ..addListener(_handleTextChanged);
-    _sheetListenable = Listenable.merge([
-      _controller,
-      _isSavingNotifier,
-      _errorTextNotifier,
-    ]);
+    _controller = TextEditingController(text: widget.initialValue)..addListener(_handleTextChanged);
+    _sheetListenable = Listenable.merge([_controller, _isSavingNotifier, _errorTextNotifier]);
   }
 
   @override
@@ -98,10 +90,7 @@ class _TrainingTextEditSheetState extends State<_TrainingTextEditSheet> {
       return;
     }
 
-    final errorMessage = context
-        .read<TrainingModuleController>()
-        .errorMessage
-        ?.trim();
+    final errorMessage = context.read<TrainingModuleController>().errorMessage?.trim();
     _errorTextNotifier.value = (errorMessage != null && errorMessage.isNotEmpty)
         ? errorMessage
         : AppStrings.loginSomethingWentWrong;
@@ -127,9 +116,7 @@ class _TrainingTextEditSheetState extends State<_TrainingTextEditSheet> {
                 borderRadius: BorderRadius.vertical(top: Radius.circular(28)),
               ),
               child: Padding(
-                padding: EdgeInsets.only(
-                  bottom: MediaQuery.viewInsetsOf(context).bottom,
-                ),
+                padding: EdgeInsets.only(bottom: MediaQuery.viewInsetsOf(context).bottom),
                 child: SingleChildScrollView(
                   padding: EdgeInsets.fromLTRB(
                     20,
@@ -162,9 +149,7 @@ class _TrainingTextEditSheetState extends State<_TrainingTextEditSheet> {
                               fontWeight: FontWeight.w600,
                             ),
                           ),
-                          _DialogCloseButton(
-                            onTap: () => Navigator.of(context).pop(),
-                          ),
+                          _DialogCloseButton(onTap: () => Navigator.of(context).pop()),
                         ],
                       ),
                       const SizedBox(height: 10),
@@ -174,12 +159,12 @@ class _TrainingTextEditSheetState extends State<_TrainingTextEditSheet> {
                         height: 1.45,
                       ),
                       const SizedBox(height: 18),
-                      AppTextView.body3(
-                        widget.fieldLabel,
-                        color: AppColors.textPrimary,
-                        fontWeight: FontWeight.w700,
-                      ),
-                      const SizedBox(height: 8),
+                      // AppTextView.body3(
+                      //   widget.fieldLabel,
+                      //   color: AppColors.textPrimary,
+                      //   fontWeight: FontWeight.w700,
+                      // ),
+                      // const SizedBox(height: 8),
                       TextField(
                         controller: _controller,
                         autofocus: true,
@@ -192,9 +177,7 @@ class _TrainingTextEditSheetState extends State<_TrainingTextEditSheet> {
                             ? TextInputType.multiline
                             : TextInputType.text,
                         textCapitalization: TextCapitalization.sentences,
-                        onSubmitted: widget.maxLines == 1
-                            ? (_) => _submit()
-                            : null,
+                        onSubmitted: widget.maxLines == 1 ? (_) => _submit() : null,
                         style: const TextStyle(
                           color: AppColors.textPrimary,
                           fontSize: 15,
@@ -204,50 +187,35 @@ class _TrainingTextEditSheetState extends State<_TrainingTextEditSheet> {
                         decoration: InputDecoration(
                           hintText: widget.hintText,
                           hintStyle: TextStyle(
-                            color: AppColors.textSecondary.withValues(
-                              alpha: 0.74,
-                            ),
+                            color: AppColors.textSecondary.withValues(alpha: 0.74),
                             fontSize: 15,
                             fontWeight: FontWeight.w500,
                             height: 1.45,
                           ),
                           filled: true,
-                          fillColor: AppColors.surfaceDark2.withValues(
-                            alpha: 0.42,
-                          ),
-                          contentPadding: const EdgeInsets.symmetric(
-                            horizontal: 16,
-                            vertical: 14,
-                          ),
+                          fillColor: AppColors.surfaceDark2.withValues(alpha: 0.42),
+                          contentPadding: const EdgeInsets.symmetric(horizontal: 16, vertical: 14),
                           border: OutlineInputBorder(
                             borderRadius: BorderRadius.circular(18),
                             borderSide: BorderSide(
-                              color: AppColors.fieldBorder.withValues(
-                                alpha: 0.16,
-                              ),
+                              color: AppColors.fieldBorder.withValues(alpha: 0.16),
                             ),
                           ),
                           enabledBorder: OutlineInputBorder(
                             borderRadius: BorderRadius.circular(18),
                             borderSide: BorderSide(
-                              color: AppColors.fieldBorder.withValues(
-                                alpha: 0.16,
-                              ),
+                              color: AppColors.fieldBorder.withValues(alpha: 0.16),
                             ),
                           ),
                           focusedBorder: OutlineInputBorder(
                             borderRadius: BorderRadius.circular(18),
-                            borderSide: const BorderSide(
-                              color: AppColors.secondaryColor,
-                            ),
+                            borderSide: const BorderSide(color: AppColors.secondaryColor),
                           ),
                         ),
                       ),
                       if (_errorTextNotifier.value != null) ...[
                         const SizedBox(height: 12),
-                        _DialogErrorMessageCard(
-                          message: _errorTextNotifier.value!,
-                        ),
+                        _DialogErrorMessageCard(message: _errorTextNotifier.value!),
                       ],
                       const SizedBox(height: 22),
                       SizedBox(
@@ -260,10 +228,7 @@ class _TrainingTextEditSheetState extends State<_TrainingTextEditSheet> {
                           minHeight: 52,
                           borderRadius: 16,
                           textSize: 15,
-                          padding: const EdgeInsets.symmetric(
-                            horizontal: 16,
-                            vertical: 14,
-                          ),
+                          padding: const EdgeInsets.symmetric(horizontal: 16, vertical: 14),
                         ),
                       ),
                     ],
@@ -318,9 +283,7 @@ class _TrainingFormattingToolbar extends StatelessWidget {
             decoration: BoxDecoration(
               color: AppColors.mainBg,
               borderRadius: BorderRadius.circular(12),
-              border: Border.all(
-                color: AppColors.secondaryColor.withValues(alpha: 0.18),
-              ),
+              border: Border.all(color: AppColors.secondaryColor.withValues(alpha: 0.18)),
             ),
             child: AnimatedBuilder(
               animation: controller,
@@ -334,22 +297,17 @@ class _TrainingFormattingToolbar extends StatelessWidget {
         const SizedBox(width: 8),
         SizedBox.square(
           dimension: 44,
-          child: Material(
-            color: AppColors.secondaryColor,
-            shape: RoundedRectangleBorder(
+          child: Container(
+            decoration: BoxDecoration(
+              color: AppColors.secondaryColor,
               borderRadius: BorderRadius.circular(12),
-              side: const BorderSide(color: AppColors.lightPurple1),
             ),
             clipBehavior: Clip.antiAlias,
             child: IconButton(
               tooltip: AppStrings.done,
               onPressed: onDoneTap,
               padding: EdgeInsets.zero,
-              icon: const Icon(
-                Icons.check_rounded,
-                color: AppColors.textPrimary,
-                size: 26,
-              ),
+              icon: const Icon(Icons.check_rounded, color: AppColors.textPrimary, size: 26),
             ),
           ),
         ),
@@ -483,9 +441,7 @@ class _TrainingFormattingButton extends StatelessWidget {
                   color: isActive
                       ? AppColors.secondaryColor.withValues(alpha: 0.22)
                       : Colors.transparent,
-                  border: isActive
-                      ? Border.all(color: AppColors.secondaryColor)
-                      : null,
+                  border: isActive ? Border.all(color: AppColors.secondaryColor) : null,
                 ),
                 child: Icon(icon, color: iconColor, size: 16),
               ),

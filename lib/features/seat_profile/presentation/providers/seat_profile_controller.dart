@@ -26,6 +26,7 @@ class SeatProfileController extends ChangeNotifier {
   bool _isLoadingMore = false;
   bool _hasNextPage = true;
   int _currentPage = 0;
+  int _listRequestVersion = 0;
   String? _errorMessage;
   String _searchQuery = '';
   SeatProfileFilter _selectedFilter = SeatProfileFilter.all;
@@ -92,7 +93,7 @@ class SeatProfileController extends ChangeNotifier {
   }
 
   Future<void> refresh() {
-    return _refreshSeatProfiles(showLoader: false);
+    return _refreshSeatProfiles(showLoader: false, forceRefresh: true);
   }
 
   Future<void> loadNextPage() async {
@@ -121,7 +122,10 @@ class SeatProfileController extends ChangeNotifier {
     );
   }
 
-  Future<void> _refreshSeatProfiles({required bool showLoader}) async {
+  Future<void> _refreshSeatProfiles({
+    required bool showLoader,
+    bool forceRefresh = false,
+  }) async {
     if (_isInitialLoading || _isListLoading || _isRefreshing) {
       return;
     }
@@ -135,7 +139,7 @@ class SeatProfileController extends ChangeNotifier {
     notifyListeners();
 
     try {
-      await _reloadSeatProfiles();
+      await _reloadSeatProfiles(forceRefresh: forceRefresh);
     } catch (error) {
       _errorMessage = error.toString();
     }
@@ -149,14 +153,18 @@ class SeatProfileController extends ChangeNotifier {
     _flushPendingSearchRefresh();
   }
 
-  Future<void> _reloadSeatProfiles() async {
-    _currentPage = 0;
-    _hasNextPage = true;
-    _items = const <SeatProfile>[];
-    await _loadPage(1, replace: true);
+  Future<void> _reloadSeatProfiles({bool forceRefresh = false}) async {
+    // Retain the current cards until a successful replacement arrives.
+    _listRequestVersion++;
+    await _loadPage(1, replace: true, forceRefresh: forceRefresh);
   }
 
-  Future<void> _loadPage(int page, {bool replace = false}) async {
+  Future<void> _loadPage(
+    int page, {
+    bool replace = false,
+    bool forceRefresh = false,
+  }) async {
+    final requestVersion = _listRequestVersion;
     final response = await _getSeatProfilesUseCase(
       page: page,
       pageSize: _pageSize,
@@ -164,7 +172,11 @@ class SeatProfileController extends ChangeNotifier {
           ? null
           : _selectedDepartmentId,
       title: _searchQuery.trim(),
+      forceRefresh: forceRefresh,
     );
+    if (requestVersion != _listRequestVersion) {
+      return;
+    }
     _currentPage = page;
     _hasNextPage = response.hasNextPage && response.items.isNotEmpty;
     _items = replace

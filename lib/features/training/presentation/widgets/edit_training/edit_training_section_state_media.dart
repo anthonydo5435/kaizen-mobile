@@ -341,16 +341,7 @@ extension _EditTrainingSectionViewStateMedia on _EditTrainingSectionViewState {
     TrainingModuleController controller,
   ) async {
     try {
-      final didUploadThumbnail = await _showThumbnailPickerDialog(controller);
-      if (!mounted) {
-        return;
-      }
-
-      _showNonApiSnackBar(
-        didUploadThumbnail
-            ? AppStrings.trainingThumbnailUpdatedSuccess
-            : AppStrings.trainingVideoUploadedSuccess,
-      );
+      await _showThumbnailPickerDialog(controller);
     } finally {
       _setFinalizingVideoSetup(false);
     }
@@ -368,10 +359,7 @@ extension _EditTrainingSectionViewStateMedia on _EditTrainingSectionViewState {
             value: controller,
             child: _TrainingThumbnailPickerDialog(
               onSelectThumbnailTap: () async {
-                final didUpload = await _pickAndUploadThumbnail(
-                  controller,
-                  showSuccessSnackBar: false,
-                );
+                final didUpload = await _pickAndUploadThumbnail(controller);
                 if (didUpload == true && dialogContext.mounted) {
                   Navigator.of(dialogContext).pop(true);
                 }
@@ -389,9 +377,8 @@ extension _EditTrainingSectionViewStateMedia on _EditTrainingSectionViewState {
   }
 
   Future<bool?> _pickAndUploadThumbnail(
-    TrainingModuleController controller, {
-    bool showSuccessSnackBar = true,
-  }) async {
+    TrainingModuleController controller,
+  ) async {
     if (controller.isUpdatingVideoActions) {
       return false;
     }
@@ -421,9 +408,6 @@ extension _EditTrainingSectionViewStateMedia on _EditTrainingSectionViewState {
         return false;
       }
 
-      if (showSuccessSnackBar) {
-        _showNonApiSnackBar(AppStrings.trainingThumbnailUpdatedSuccess);
-      }
       return true;
     } on PlatformException catch (error) {
       if (!mounted) {

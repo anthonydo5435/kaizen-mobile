@@ -11,6 +11,7 @@ import '../../../../routes/app_router.dart';
 import '../../data/datasources/audit_remote_data_source.dart';
 import '../../data/repositories/audit_repository_impl.dart';
 import '../../domain/entities/audit_member_status.dart';
+import '../../domain/entities/audit_member.dart';
 import '../../domain/entities/audit_profile.dart';
 import '../../domain/usecases/get_audit_overview_usecase.dart';
 import '../providers/check_in_controller.dart';
@@ -118,7 +119,13 @@ class _CheckInScreenViewState extends State<_CheckInScreenView> {
       child: SafeArea(
         top: false,
         bottom: false,
-        child: _buildContent(controller, state),
+        child: Builder(
+          builder: (bodyContext) => _buildContent(
+            controller,
+            state,
+            bottomInset: MediaQuery.paddingOf(bodyContext).bottom,
+          ),
+        ),
       ),
     );
   }
@@ -134,7 +141,11 @@ class _CheckInScreenViewState extends State<_CheckInScreenView> {
     );
   }
 
-  Widget _buildContent(CheckInController controller, CheckInState state) {
+  Widget _buildContent(
+    CheckInController controller,
+    CheckInState state, {
+    required double bottomInset,
+  }) {
     final members = controller.visibleMembers;
     final showSearchAndFilter = state.isOwner;
     final showSelectionTabs = state.isOwner && !state.isActualOwner;
@@ -146,18 +157,17 @@ class _CheckInScreenViewState extends State<_CheckInScreenView> {
 
     final content = ListView(
       controller: _scrollController,
-      padding: const EdgeInsets.fromLTRB(16, 8, 16, 24),
+      physics: const AlwaysScrollableScrollPhysics(
+        parent: ClampingScrollPhysics(),
+      ),
+      padding: EdgeInsets.fromLTRB(
+        8,
+        showSelectionTabs ? 0 : 8,
+        8,
+        bottomInset + 24,
+      ),
       children: [
         if (showSearchAndFilter) ...[
-          if (showSelectionTabs) ...[
-            CheckInStatusSwitcher(
-              selectedStatus: state.selectedStatus,
-              activeTitle: AppStrings.auditTeamMembersTab,
-              deactivatedTitle: AppStrings.auditMyCheckInsTab,
-              onStatusSelected: controller.selectStatus,
-            ),
-            const SizedBox(height: 22),
-          ],
           CheckInSearchBar(
             controller: _searchController,
             onChanged: controller.updateSearchQuery,
@@ -190,23 +200,8 @@ class _CheckInScreenViewState extends State<_CheckInScreenView> {
           for (var index = 0; index < members.length; index++) ...[
             CheckInMemberCard(
               member: members[index],
-              onCheckInTap: () {
-                final member = members[index];
-                AppRouter.pushNamed(
-                  context,
-                  AppRouter.checkInDetails,
-                  arguments: CheckInDetailsRouteArgs(
-                    profileJobId: member is AuditProfile
-                        ? member.profileJob
-                        : '',
-                    year: controller.selectedAuditYear,
-                    quarter: controller.selectedAuditQuarter,
-                    selectedProfileUuid: member is AuditProfile
-                        ? member.profileUuid
-                        : null,
-                  ),
-                );
-              },
+              onCheckInTap: () =>
+                  _openCheckInDetails(members[index], controller),
             ),
             if (index != members.length - 1) const SizedBox(height: 18),
           ],
@@ -218,14 +213,54 @@ class _CheckInScreenViewState extends State<_CheckInScreenView> {
       ],
     );
 
-    return Stack(
-      fit: StackFit.expand,
+    return Column(
       children: [
-        content,
-        if (isInitialLoading)
-          const Center(child: FastCircularProgressIndicator()),
+        if (showSelectionTabs)
+          Padding(
+            padding: const EdgeInsets.fromLTRB(8, 8, 8, 22),
+            child: CheckInStatusSwitcher(
+              selectedStatus: state.selectedStatus,
+              activeTitle: AppStrings.auditTeamMembersTab,
+              deactivatedTitle: AppStrings.auditMyCheckInsTab,
+              onStatusSelected: controller.selectStatus,
+            ),
+          ),
+        Expanded(
+          child: Stack(
+            fit: StackFit.expand,
+            children: [
+              RefreshIndicator(
+                color: AppColors.purple2,
+                onRefresh: controller.refresh,
+                child: content,
+              ),
+              if (isInitialLoading)
+                const Center(child: FastCircularProgressIndicator()),
+            ],
+          ),
+        ),
       ],
     );
+  }
+
+  Future<void> _openCheckInDetails(
+    AuditMember member,
+    CheckInController controller,
+  ) async {
+    await AppRouter.pushNamed<void>(
+      context,
+      AppRouter.checkInDetails,
+      arguments: CheckInDetailsRouteArgs(
+        profileJobId: member is AuditProfile ? member.profileJob : '',
+        year: controller.selectedAuditYear,
+        quarter: controller.selectedAuditQuarter,
+        selectedProfileUuid: member is AuditProfile ? member.profileUuid : null,
+      ),
+    );
+    if (!mounted) return;
+
+    // Fetch the saved summary after the entire description/detail flow closes.
+    await controller.refresh();
   }
 
   Future<void> _openFilterSheet(

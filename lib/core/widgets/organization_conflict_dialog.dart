@@ -5,6 +5,7 @@ import 'package:sparrowkaizen/core/widgets/app_button.dart';
 import '../constants/app_colors.dart';
 import '../constants/app_strings.dart';
 import '../managers/app_manager.dart';
+import 'app_dialog_style.dart';
 import 'app_text_view.dart';
 
 class OrganizationConflictDialog extends StatelessWidget {
@@ -26,7 +27,7 @@ class OrganizationConflictDialog extends StatelessWidget {
                 decoration: BoxDecoration(
                   color: AppColors.mainBg,
                   borderRadius: BorderRadius.circular(12),
-                  border: Border.all(color: AppColors.purple2, width: 1.2),
+                  border: AppDialogStyle.border,
                   boxShadow: [
                     BoxShadow(
                       color: AppColors.purple1.withValues(alpha: 0.18),

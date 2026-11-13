@@ -117,7 +117,7 @@ class _TrainingThumbnailPickerDialog extends StatelessWidget {
 
     return AlertDialog(
       backgroundColor: AppColors.surfaceDark,
-      shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(18)),
+      shape: AppDialogStyle.shape(radius: 18),
       title: const AppTextView.body1(
         AppStrings.trainingAddThumbnailTitle,
         color: AppColors.textPrimary,

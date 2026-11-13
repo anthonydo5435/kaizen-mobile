@@ -37,7 +37,7 @@ class AuthOutlinedTextField extends StatelessWidget {
     final showError = resolvedErrorText != null && resolvedErrorText.isNotEmpty;
     final inputBorder = OutlineInputBorder(
       borderRadius: BorderRadius.circular(12),
-      borderSide: const BorderSide(color: AppColors.fieldBorder, width: 1),
+      borderSide: BorderSide(color: AppColors.fieldBorder.withValues(alpha: 0.5), width: 1),
     );
 
     return Column(
@@ -53,9 +53,7 @@ class AuthOutlinedTextField extends StatelessWidget {
             readOnly: readOnly,
             textInputAction: textInputAction,
             autofillHints: autofillHints,
-            style: TextStyle(
-              color: enabled ? AppColors.textPrimary : AppColors.textSecondary,
-            ),
+            style: TextStyle(color: enabled ? AppColors.textPrimary : AppColors.textSecondary),
             cursorColor: AppColors.textPrimary,
             cursorHeight: 18,
             onChanged: onChanged,
@@ -67,19 +65,12 @@ class AuthOutlinedTextField extends StatelessWidget {
               enabledBorder: inputBorder,
               disabledBorder: inputBorder,
               focusedBorder: inputBorder.copyWith(
-                borderSide: const BorderSide(
-                  color: AppColors.textPrimary,
-                  width: 1,
-                ),
+                borderSide: const BorderSide(color: AppColors.textPrimary, width: 1),
               ),
               border: showError
-                  ? inputBorder.copyWith(
-                      borderSide: const BorderSide(color: AppColors.red),
-                    )
+                  ? inputBorder.copyWith(borderSide: const BorderSide(color: AppColors.red))
                   : inputBorder,
-              errorBorder: inputBorder.copyWith(
-                borderSide: const BorderSide(color: AppColors.red),
-              ),
+              errorBorder: inputBorder.copyWith(borderSide: const BorderSide(color: AppColors.red)),
               focusedErrorBorder: inputBorder.copyWith(
                 borderSide: const BorderSide(color: AppColors.red),
               ),
@@ -92,11 +83,7 @@ class AuthOutlinedTextField extends StatelessWidget {
           child: showError
               ? Padding(
                   padding: const EdgeInsets.only(top: 4, left: 4),
-                  child: AppTextView.body4(
-                    resolvedErrorText,
-                    color: AppColors.red1,
-                    fontSize: 10,
-                  ),
+                  child: AppTextView.body4(resolvedErrorText, color: AppColors.red1, fontSize: 10),
                 )
               : const SizedBox.shrink(),
         ),

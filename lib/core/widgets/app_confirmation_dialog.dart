@@ -1,6 +1,7 @@
 import 'package:flutter/material.dart';
 
 import '../constants/app_colors.dart';
+import 'app_dialog_style.dart';
 import 'app_text_view.dart';
 import 'fast_circular_progress.dart';
 
@@ -28,7 +29,7 @@ class AppConfirmationDialog extends StatelessWidget {
   Widget build(BuildContext context) {
     return AlertDialog(
       backgroundColor: AppColors.surfaceDark,
-      shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(18)),
+      shape: AppDialogStyle.shape(radius: 18),
       title: AppTextView.body1(
         title,
         color: AppColors.textPrimary,

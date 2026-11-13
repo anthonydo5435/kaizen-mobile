@@ -3,14 +3,16 @@ part of 'package:sparrowkaizen/features/training/presentation/pages/edit_trainin
 class _AssignmentTabContent extends StatelessWidget {
   const _AssignmentTabContent({
     required this.isLoading,
-    required this.hasResolvedAssignment,
+    required this.canManageGeneration,
+    required this.canGenerate,
+    required this.isGenerating,
     required this.canEditAssignment,
-    required this.canSaveAssignment,
     required this.isSavingAssignment,
-    required this.hasSavedAssignment,
     required this.titleController,
     required this.descriptionController,
-    required this.onSaveTap,
+    required this.instructions,
+    required this.errorMessage,
+    required this.onGenerateTap,
     required this.onDoneTap,
     this.onBoldTap,
     this.onItalicTap,
@@ -22,14 +24,16 @@ class _AssignmentTabContent extends StatelessWidget {
   });
 
   final bool isLoading;
-  final bool hasResolvedAssignment;
+  final bool canManageGeneration;
+  final bool canGenerate;
+  final bool isGenerating;
   final bool canEditAssignment;
-  final bool canSaveAssignment;
   final bool isSavingAssignment;
-  final bool hasSavedAssignment;
   final TextEditingController titleController;
   final TrainingRichTextEditingController descriptionController;
-  final Future<bool> Function() onSaveTap;
+  final String? instructions;
+  final String? errorMessage;
+  final VoidCallback onGenerateTap;
   final VoidCallback onDoneTap;
   final VoidCallback? onBoldTap;
   final VoidCallback? onItalicTap;
@@ -41,149 +45,235 @@ class _AssignmentTabContent extends StatelessWidget {
 
   @override
   Widget build(BuildContext context) {
-    final hasVisibleContent =
-        titleController.text.trim().isNotEmpty || descriptionController.text.trim().isNotEmpty;
-    if (!canEditAssignment && !hasVisibleContent) {
-      return _AssignmentPlaceholder(isLoading: isLoading);
-    }
-
-    return _buildContent();
-  }
-
-  Widget _buildContent() {
-    final isResolvingAssignmentState = canEditAssignment && !hasResolvedAssignment;
-    final hasDescriptionContent = descriptionController.text.trim().isNotEmpty;
-    final isBusy = isLoading || isSavingAssignment || isResolvingAssignmentState;
-
-    return TrainingAssignmentLayout(
-      header: _buildTitleSection(isResolvingAssignmentState),
-      body: Container(
-        clipBehavior: Clip.antiAlias,
-        decoration: BoxDecoration(color: Colors.white, borderRadius: BorderRadius.circular(14)),
-        child: Column(
-          children: [
-            Expanded(
-              child: isResolvingAssignmentState || (isLoading && !hasDescriptionContent)
-                  ? const Center(
-                      child: FastCircularProgressIndicator(color: AppColors.secondaryColor),
-                    )
-                  : _TrainingEditableTextCard(
-                      controller: descriptionController,
-                      scrollPhysics: const AlwaysScrollableScrollPhysics(),
-                      hintText: AppStrings.trainingAssignmentDescriptionHint,
-                      minLines: 10,
-                      maxLines: 18,
-                      expands: true,
-                      readOnly: !canEditAssignment || isBusy,
-                      wrapWithCard: false,
-                      textColor: AppColors.mainBg,
-                      hintColor: AppColors.trainingUploadMuted,
-                      padding: const EdgeInsets.all(16),
-                    ),
-            ),
-            if (canEditAssignment && !isResolvingAssignmentState)
-              Padding(
-                padding: const EdgeInsets.fromLTRB(10, 0, 10, 12),
-                child: TextFieldTapRegion(
-                  child: _TrainingFormattingToolbar(
-                    controller: descriptionController,
-                    isSaving: isBusy,
-                    onDoneTap: onDoneTap,
-                    onBoldTap: onBoldTap,
-                    onItalicTap: onItalicTap,
-                    onUnderlineTap: onUnderlineTap,
-                    onBulletListTap: onBulletListTap,
-                    onNumberedListTap: onNumberedListTap,
-                    onQuoteTap: onQuoteTap,
-                    onHeadingTap: onHeadingTap,
-                  ),
-                ),
-              ),
-          ],
-        ),
-      ),
-    );
-  }
-
-  Widget _buildTitleSection(bool isResolvingAssignmentState) {
     return Column(
       crossAxisAlignment: CrossAxisAlignment.stretch,
       children: [
-        if (canEditAssignment) ...[
-          Row(
-            children: [
-              Expanded(
-                child: AppTextView.body1(
-                  hasSavedAssignment
-                      ? AppStrings.trainingEditAction
-                      : AppStrings.trainingLibraryCreate,
-                  color: AppColors.textPrimary,
-                  fontSize: 18,
-                  fontWeight: FontWeight.w700,
-                ),
+        OverflowBar(
+          alignment: MainAxisAlignment.spaceBetween,
+          overflowAlignment: OverflowBarAlignment.end,
+          spacing: 2,
+          overflowSpacing: 2,
+          children: [
+            const AppTextView.body1(
+              AppStrings.trainingAssignmentTab,
+              color: AppColors.textPrimary,
+              fontSize: 16,
+              fontWeight: FontWeight.w700,
+            ),
+            if (canManageGeneration)
+              AppAiGenerateButton(
+                label: AppStrings.trainingGenerateAssignment,
+                isEnabled: canGenerate,
+                isLoading: isGenerating,
+                onTap: onGenerateTap,
+                showOutline: true,
               ),
-              const SizedBox(width: 8),
-              Flexible(
-                child: Align(
-                  alignment: Alignment.centerRight,
-                  child: FittedBox(
-                    fit: BoxFit.scaleDown,
-                    child: _GradientTrainingActionButton(
-                      label: hasSavedAssignment
-                          ? AppStrings.trainingSaveAction
-                          : AppStrings.trainingCreateAssignment,
-                      icon: hasSavedAssignment ? null : Icons.assignment_rounded,
-                      isEnabled: canSaveAssignment,
-                      isLoading: isSavingAssignment || isResolvingAssignmentState,
-                      showLoaderInIconSlot: true,
-                      verticalPadding: 8,
-                      onTap: canSaveAssignment ? () => unawaited(onSaveTap()) : null,
-                    ),
-                  ),
-                ),
-              ),
-            ],
-          ),
-          const SizedBox(height: 16),
-        ],
-        const _TrainingSectionHeader(title: AppStrings.trainingLessonTitle),
-        const SizedBox(height: 8),
-        _TrainingSingleLineInputCard(
-          controller: titleController,
-          hintText: AppStrings.trainingAssignmentTitleHint,
-          readOnly: !canEditAssignment || isSavingAssignment || isResolvingAssignmentState,
+          ],
         ),
         const SizedBox(height: 18),
-        const _TrainingSectionHeader(title: AppStrings.trainingAssignmentDescriptionLabel),
-        const SizedBox(height: 8),
+        Expanded(
+          child: _AssignmentInstructionsPanel(
+            instructions: instructions,
+            isLoading: isLoading,
+            errorMessage: errorMessage,
+            canEdit: canEditAssignment,
+            isSaving: isSavingAssignment,
+            titleController: titleController,
+            descriptionController: descriptionController,
+            onDoneTap: onDoneTap,
+            onBoldTap: onBoldTap,
+            onItalicTap: onItalicTap,
+            onUnderlineTap: onUnderlineTap,
+            onBulletListTap: onBulletListTap,
+            onNumberedListTap: onNumberedListTap,
+            onQuoteTap: onQuoteTap,
+            onHeadingTap: onHeadingTap,
+          ),
+        ),
       ],
     );
   }
 }
 
-class _AssignmentPlaceholder extends StatelessWidget {
-  const _AssignmentPlaceholder({this.isLoading = false});
+class _AssignmentInstructionsPanel extends StatelessWidget {
+  const _AssignmentInstructionsPanel({
+    required this.instructions,
+    required this.isLoading,
+    required this.errorMessage,
+    required this.canEdit,
+    required this.isSaving,
+    required this.titleController,
+    required this.descriptionController,
+    required this.onDoneTap,
+    this.onBoldTap,
+    this.onItalicTap,
+    this.onUnderlineTap,
+    this.onBulletListTap,
+    this.onNumberedListTap,
+    this.onQuoteTap,
+    this.onHeadingTap,
+  });
 
+  final String? instructions;
   final bool isLoading;
+  final String? errorMessage;
+  final bool canEdit;
+  final bool isSaving;
+  final TextEditingController titleController;
+  final TrainingRichTextEditingController descriptionController;
+  final VoidCallback onDoneTap;
+  final VoidCallback? onBoldTap;
+  final VoidCallback? onItalicTap;
+  final VoidCallback? onUnderlineTap;
+  final VoidCallback? onBulletListTap;
+  final VoidCallback? onNumberedListTap;
+  final VoidCallback? onQuoteTap;
+  final VoidCallback? onHeadingTap;
 
   @override
   Widget build(BuildContext context) {
+    final html = instructions?.trim();
+    final message = errorMessage?.trim();
+
     return Container(
       width: double.infinity,
-      decoration: BoxDecoration(color: Colors.white, borderRadius: BorderRadius.circular(14)),
-      child: Center(
-        child: Padding(
-          padding: const EdgeInsets.all(16),
-          child: isLoading
-              ? const FastCircularProgressIndicator(color: AppColors.secondaryColor)
-              : const AppTextView.body3(
+      clipBehavior: Clip.antiAlias,
+      decoration: BoxDecoration(
+        color: Colors.white,
+        borderRadius: BorderRadius.circular(14),
+      ),
+      child: isLoading
+          ? const Center(
+              child: FastCircularProgressIndicator(
+                color: AppColors.secondaryColor,
+              ),
+            )
+          : canEdit
+          ? Column(
+              children: [
+                if (message != null && message.isNotEmpty)
+                  Padding(
+                    padding: const EdgeInsets.fromLTRB(16, 0, 16, 10),
+                    child: AppTextView.body3(
+                      message,
+                      color: AppColors.red1,
+                      height: 1.4,
+                    ),
+                  ),
+                Expanded(
+                  child: _TrainingEditableTextCard(
+                    controller: descriptionController,
+                    hintText: AppStrings.trainingAssignmentDescriptionHint,
+                    minLines: 10,
+                    maxLines: 18,
+                    expands: true,
+                    wrapWithCard: false,
+                    textColor: AppColors.mainBg,
+                    hintColor: AppColors.trainingUploadMuted,
+                    padding: const EdgeInsets.all(16),
+                  ),
+                ),
+                Padding(
+                  padding: const EdgeInsets.symmetric(
+                    horizontal: 10,
+                    vertical: 12,
+                  ),
+                  child: TextFieldTapRegion(
+                    child: _TrainingFormattingToolbar(
+                      controller: descriptionController,
+                      isSaving: isSaving,
+                      onDoneTap: onDoneTap,
+                      onBoldTap: onBoldTap,
+                      onItalicTap: onItalicTap,
+                      onUnderlineTap: onUnderlineTap,
+                      onBulletListTap: onBulletListTap,
+                      onNumberedListTap: onNumberedListTap,
+                      onQuoteTap: onQuoteTap,
+                      onHeadingTap: onHeadingTap,
+                    ),
+                  ),
+                ),
+              ],
+            )
+          : message != null && message.isNotEmpty
+          ? Center(
+              child: Padding(
+                padding: const EdgeInsets.all(16),
+                child: AppTextView.body3(
+                  message,
+                  color: AppColors.mainBg,
+                  textAlign: TextAlign.center,
+                  height: 1.55,
+                ),
+              ),
+            )
+          : html == null || html.isEmpty
+          ? const Center(
+              child: Padding(
+                padding: EdgeInsets.all(16),
+                child: AppTextView.body3(
                   AppStrings.trainingNoAssignmentAvailable,
                   color: AppColors.mainBg,
                   textAlign: TextAlign.center,
                   height: 1.55,
                 ),
-        ),
-      ),
+              ),
+            )
+          : SingleChildScrollView(
+              primary: false,
+              physics: const AlwaysScrollableScrollPhysics(),
+              padding: const EdgeInsets.all(16),
+              child: Column(
+                crossAxisAlignment: CrossAxisAlignment.start,
+                children: [
+                  if (titleController.text.trim().isNotEmpty) ...[
+                    AppTextView.body1(
+                      titleController.text.trim(),
+                      color: AppColors.mainBg,
+                      fontSize: 18,
+                      fontWeight: FontWeight.w700,
+                    ),
+                    const SizedBox(height: 12),
+                  ],
+                  Html(
+                    data: html,
+                    shrinkWrap: true,
+                    style: {
+                      'body': Style(
+                        margin: Margins.zero,
+                        padding: HtmlPaddings.zero,
+                        color: AppColors.mainBg,
+                        fontSize: FontSize(13),
+                        fontWeight: FontWeight.w400,
+                        lineHeight: const LineHeight(1.65),
+                      ),
+                      'p': Style(
+                        margin: Margins.only(bottom: 12),
+                        lineHeight: const LineHeight(1.65),
+                      ),
+                      'ul': Style(margin: Margins.only(bottom: 12)),
+                      'ol': Style(margin: Margins.only(bottom: 12)),
+                      'li': Style(margin: Margins.only(bottom: 6)),
+                      'h1': _assignmentHeadingStyle(20),
+                      'h2': _assignmentHeadingStyle(18),
+                      'h3': _assignmentHeadingStyle(16),
+                      'h4': _assignmentHeadingStyle(15),
+                      'h5': _assignmentHeadingStyle(14),
+                      'h6': _assignmentHeadingStyle(14),
+                      'a': Style(color: AppColors.purple1),
+                    },
+                  ),
+                ],
+              ),
+            ),
     );
   }
+
+  Style _assignmentHeadingStyle(double fontSize) => Style(
+    margin: Margins.only(bottom: 10),
+    color: AppColors.mainBg,
+    fontSize: FontSize(fontSize),
+    fontWeight: FontWeight.w700,
+    lineHeight: const LineHeight(1.35),
+  );
 }

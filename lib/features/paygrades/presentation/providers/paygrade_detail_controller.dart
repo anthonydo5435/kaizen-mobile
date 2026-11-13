@@ -1,3 +1,5 @@
+import 'dart:async';
+
 import 'package:flutter/material.dart';
 
 import '../../../../core/constants/app_strings.dart';
@@ -6,6 +8,7 @@ import '../../data/datasources/paygrade_remote_data_source.dart';
 import '../../data/repositories/paygrade_repository_impl.dart';
 import '../../domain/entities/paygrade_detail.dart';
 import '../../domain/usecases/get_paygrades_usecase.dart';
+import 'paygrade_share_controller.dart';
 
 enum PaygradeDetailTab { primary, ancillary }
 
@@ -21,11 +24,22 @@ class PaygradeDetailController extends ChangeNotifier {
   String? _paygradeGenerationErrorMessage;
   String? _deletingPaygradeId;
   String _paygradeId = '';
+  bool _isShared = false;
+  bool _includesPayRates = true;
+  int _loadVersion = 0;
+  int _detailVersion = 0;
+  bool _isDisposed = false;
+  PaygradeShareController? _shareController;
   PaygradeDetailTab _selectedTab = PaygradeDetailTab.primary;
   final Map<PaygradeDetailTab, PaygradeDetail> _detailsByTab =
       <PaygradeDetailTab, PaygradeDetail>{};
 
   bool get isLoading => _isLoading;
+  bool get isShared => _isShared;
+  bool get includesPayRates => _includesPayRates;
+  String get payRateLabel => _isShared
+      ? AppStrings.paygradesRateForUnit(detail?.paygradeUnit ?? '')
+      : AppStrings.paygradesRate;
   bool get isGeneratingPaygrades => _isGeneratingPaygrades;
   bool get isUpdatingPaygrade => _isUpdatingPaygrade;
   String? get errorMessage => _errorMessage;
@@ -33,14 +47,95 @@ class PaygradeDetailController extends ChangeNotifier {
   bool get isPrimaryTab => _selectedTab == PaygradeDetailTab.primary;
   PaygradeDetailTab get selectedTab => _selectedTab;
   PaygradeDetail? get detail => _detailsByTab[_selectedTab];
+  PaygradeShareController? get shareController => _shareController;
 
   bool isDeletingPaygrade(String paygradeId) {
     return _deletingPaygradeId == paygradeId;
   }
 
+  bool canEditPayRate(PaygradeEntry entry) {
+    return !_isDisposed &&
+        !_isShared &&
+        _includesPayRates &&
+        AppManager.instance.currentUserCanManagePaygrades &&
+        !_isLoading &&
+        !_isGeneratingPaygrades &&
+        !_isUpdatingPaygrade &&
+        _deletingPaygradeId == null &&
+        entry.id.trim().isNotEmpty &&
+        (detail?.payGrades.any((item) => item.id == entry.id) ?? false);
+  }
+
+  Future<void> updatePayRate({
+    required PaygradeEntry entry,
+    required String payRate,
+  }) async {
+    if (!canEditPayRate(entry)) {
+      throw StateError(AppStrings.paygradesPayRateSaveFailed);
+    }
+    final rate = payRate.trim();
+    if (!PaygradeEntry.isValidPayRate(rate)) {
+      throw ArgumentError(AppStrings.paygradesPayRateInvalid);
+    }
+
+    final tab = _selectedTab;
+    final detailVersion = _detailVersion;
+    final organizationId = AppManager.instance.currentOrganizationId;
+    _isUpdatingPaygrade = true;
+    notifyListeners();
+    try {
+      await _getPaygradesUseCase.updatePayRate(
+        paygradeId: entry.id,
+        payRate: rate,
+      );
+      if (_isDisposed ||
+          detailVersion != _detailVersion ||
+          organizationId != AppManager.instance.currentOrganizationId) {
+        return;
+      }
+      _replaceEntry(
+        PaygradeEntry(
+          id: entry.id,
+          type: entry.type,
+          title: entry.title,
+          payRate: rate,
+          level: entry.level,
+          description: entry.description,
+          promotionRequirement: entry.promotionRequirement,
+        ),
+        tab: tab,
+      );
+    } finally {
+      if (!_isDisposed && detailVersion == _detailVersion) {
+        _isUpdatingPaygrade = false;
+        notifyListeners();
+      }
+    }
+  }
+
   Future<void> initialize(String paygradeId) async {
-    _paygradeId = paygradeId;
+    _resetDetail(paygradeId, isShared: false);
     await _loadSelectedTab(forceReload: true);
+  }
+
+  Future<void> initializeShared(String publicId) async {
+    _resetDetail(publicId, isShared: true);
+    await _loadSelectedTab(forceReload: true);
+  }
+
+  void _resetDetail(String id, {required bool isShared}) {
+    _shareController?.dispose();
+    _shareController = null;
+    _loadVersion++;
+    _detailVersion++;
+    _isUpdatingPaygrade = false;
+    _paygradeId = id.trim();
+    _isShared = isShared;
+    _includesPayRates = !isShared;
+    _isLoading = false;
+    _errorMessage = null;
+    _selectedTab = PaygradeDetailTab.primary;
+    _detailsByTab.clear();
   }
 
   Future<void> selectTab(PaygradeDetailTab tab) async {
@@ -58,7 +153,8 @@ class PaygradeDetailController extends ChangeNotifier {
   }
 
   Future<bool> generatePaygradesWithAi({required int numPaygrades}) async {
-    if (_isGeneratingPaygrades ||
+    if (_isShared ||
+        _isGeneratingPaygrades ||
         _isUpdatingPaygrade ||
         _deletingPaygradeId != null) {
       return false;
@@ -104,11 +200,24 @@ class PaygradeDetailController extends ChangeNotifier {
     required String title,
     required String description,
     required String promotionRequirement,
+    String? payRate,
   }) async {
-    if (_isGeneratingPaygrades ||
+    if (_isShared ||
+        _isGeneratingPaygrades ||
         _isUpdatingPaygrade ||
         _deletingPaygradeId != null) {
       return;
+    }
+
+    if (!AppManager.instance.currentUserCanManagePaygrades) {
+      throw StateError(AppStrings.paygradesPayRateSaveFailed);
+    }
+    final trimmedRate = payRate?.trim();
+    final rate = trimmedRate == null || trimmedRate.isEmpty
+        ? null
+        : trimmedRate;
+    if (rate != null && !PaygradeEntry.isValidPayRate(rate)) {
+      throw ArgumentError(AppStrings.paygradesPayRateInvalid);
     }
 
     final currentDetail = detail;
@@ -135,6 +244,7 @@ class PaygradeDetailController extends ChangeNotifier {
         promotionRequirement: promotionRequirement,
         position: nextPosition,
         fromSandbox: AppManager.instance.usesParentApiEndpoints,
+        payRate: rate,
       );
       if (createdEntry.id.trim().isEmpty) {
         await _loadSelectedTab(forceReload: true);
@@ -149,7 +259,9 @@ class PaygradeDetailController extends ChangeNotifier {
           title: createdEntry.title.trim().isNotEmpty
               ? createdEntry.title
               : title,
-          payRate: createdEntry.payRate,
+          payRate: createdEntry.payRate.trim().isNotEmpty
+              ? createdEntry.payRate
+              : rate ?? createdEntry.payRate,
           level: createdEntry.level > 0 ? createdEntry.level : nextLevel,
           description: createdEntry.description.trim().isNotEmpty
               ? createdEntry.description
@@ -174,13 +286,22 @@ class PaygradeDetailController extends ChangeNotifier {
     required String title,
     required String description,
     required String promotionRequirement,
+    String? payRate,
   }) async {
-    if (_isGeneratingPaygrades ||
-        _isUpdatingPaygrade ||
-        _deletingPaygradeId != null) {
+    if (_isShared) {
       return;
     }
+    if (!canEditPayRate(entry)) {
+      throw StateError(AppStrings.paygradesPayRateSaveFailed);
+    }
+    final rate = payRate?.trim();
+    if (rate != null && !PaygradeEntry.isValidPayRate(rate)) {
+      throw ArgumentError(AppStrings.paygradesPayRateInvalid);
+    }
 
+    final tab = _selectedTab;
+    final detailVersion = _detailVersion;
+    final organizationId = AppManager.instance.currentOrganizationId;
     _isUpdatingPaygrade = true;
     _errorMessage = null;
     notifyListeners();
@@ -191,29 +312,36 @@ class PaygradeDetailController extends ChangeNotifier {
         title: title,
         description: description,
         promotionRequirement: promotionRequirement,
+        payRate: rate,
       );
+      if (_isDisposed ||
+          detailVersion != _detailVersion ||
+          organizationId != AppManager.instance.currentOrganizationId) {
+        return;
+      }
       _replaceEntry(
         PaygradeEntry(
           id: entry.id,
           type: entry.type,
           title: title,
-          payRate: entry.payRate,
+          payRate: rate ?? entry.payRate,
           level: entry.level,
           description: description,
           promotionRequirement: promotionRequirement,
         ),
+        tab: tab,
       );
-    } catch (error) {
-      _errorMessage = error.toString();
-      rethrow;
     } finally {
-      _isUpdatingPaygrade = false;
-      notifyListeners();
+      if (!_isDisposed && detailVersion == _detailVersion) {
+        _isUpdatingPaygrade = false;
+        notifyListeners();
+      }
     }
   }
 
   Future<bool> deletePaygrade(PaygradeEntry entry) async {
-    if (_isGeneratingPaygrades ||
+    if (_isShared ||
+        _isGeneratingPaygrades ||
         _isUpdatingPaygrade ||
         _deletingPaygradeId != null) {
       return false;
@@ -237,7 +365,15 @@ class PaygradeDetailController extends ChangeNotifier {
   }
 
   Future<void> _loadSelectedTab({required bool forceReload}) async {
-    if (_isLoading || _paygradeId.isEmpty) {
+    if (_isLoading) {
+      return;
+    }
+
+    if (_paygradeId.isEmpty) {
+      _errorMessage = _isShared
+          ? AppStrings.sharedPaygradesUnableToLoad
+          : AppStrings.loginSomethingWentWrong;
+      notifyListeners();
       return;
     }
 
@@ -247,24 +383,65 @@ class PaygradeDetailController extends ChangeNotifier {
 
     _isLoading = true;
     _errorMessage = null;
+    final loadVersion = ++_loadVersion;
+    final selectedTab = _selectedTab;
     notifyListeners();
 
     try {
-      _detailsByTab[_selectedTab] = await _getPaygradesUseCase
-          .getPaygradeDetail(
-            paygradeId: _paygradeId,
-            type: _selectedTab.apiValue,
-          );
+      if (_isShared) {
+        final content = await _getPaygradesUseCase.getSharedPaygrades(
+          _paygradeId,
+        );
+        if (loadVersion != _loadVersion) return;
+        _includesPayRates = content.includesPayRates;
+        _detailsByTab[PaygradeDetailTab.primary] = content.primary;
+        _detailsByTab[PaygradeDetailTab.ancillary] = content.ancillary;
+      } else {
+        final detail = await _getPaygradesUseCase.getPaygradeDetail(
+          paygradeId: _paygradeId,
+          type: selectedTab.apiValue,
+        );
+        if (loadVersion != _loadVersion) return;
+        _detailsByTab[selectedTab] = detail;
+        _loadPublicLink(detail);
+      }
     } catch (error) {
-      _errorMessage = error.toString();
+      if (loadVersion != _loadVersion) return;
+      _errorMessage = _isShared
+          ? AppStrings.sharedPaygradesUnableToLoad
+          : error.toString();
     }
 
     _isLoading = false;
     notifyListeners();
+    if (!_isShared && _selectedTab != selectedTab && _errorMessage == null) {
+      await _loadSelectedTab(forceReload: false);
+    }
   }
 
-  void _replaceEntry(PaygradeEntry updatedEntry) {
-    final currentDetail = detail;
+  @override
+  void dispose() {
+    _isDisposed = true;
+    _detailVersion++;
+    _loadVersion++;
+    _shareController?.dispose();
+    super.dispose();
+  }
+
+  void _loadPublicLink(PaygradeDetail detail) {
+    final jobId = detail.id.trim().isNotEmpty ? detail.id.trim() : _paygradeId;
+    if (_shareController?.jobId == jobId) return;
+    _shareController?.dispose();
+    _shareController = PaygradeShareController(
+      _getPaygradesUseCase,
+      jobId: jobId,
+    );
+    unawaited(_shareController!.loadLink());
+  }
+
+  void _replaceEntry(PaygradeEntry updatedEntry, {PaygradeDetailTab? tab}) {
+    final targetTab = tab ?? _selectedTab;
+    final currentDetail = _detailsByTab[targetTab];
     if (currentDetail == null) {
       return;
     }
@@ -273,7 +450,7 @@ class PaygradeDetailController extends ChangeNotifier {
         .map((entry) => entry.id == updatedEntry.id ? updatedEntry : entry)
         .toList(growable: false);
 
-    _detailsByTab[_selectedTab] = PaygradeDetail(
+    _detailsByTab[targetTab] = PaygradeDetail(
       id: currentDetail.id,
       title: currentDetail.title,
       paygradeUnit: currentDetail.paygradeUnit,

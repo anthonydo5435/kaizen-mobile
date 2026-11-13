@@ -12,6 +12,7 @@ import 'package:sparrowkaizen/features/profile/presentation/providers/profile_co
 import '../../../../core/constants/app_colors.dart';
 import '../../../../core/constants/app_strings.dart';
 import '../../../../core/widgets/app_full_screen.dart';
+import '../../../../core/widgets/app_dialog_style.dart';
 import '../../../../core/widgets/app_text_view.dart';
 
 //
@@ -64,7 +65,7 @@ class _ProfileUnavailableState extends StatelessWidget {
   Widget build(BuildContext context) {
     return const Center(
       child: Padding(
-        padding: EdgeInsets.all(24),
+        padding: EdgeInsets.symmetric(horizontal: 12, vertical: 24),
         child: AppTextView.body(
           'Profile data is not available right now.',
           color: AppColors.textPrimary,
@@ -86,13 +87,13 @@ class _ProfileContent extends StatelessWidget {
     return Column(
       children: [
         Padding(
-          padding: const EdgeInsets.fromLTRB(16, 4, 16, 0),
+          padding: const EdgeInsets.fromLTRB(8, 4, 8, 0),
           child: const _ProfileHeaderBar(),
         ),
         const SizedBox(height: 24),
         Expanded(
           child: ListView(
-            padding: const EdgeInsets.fromLTRB(16, 2, 16, 0),
+            padding: const EdgeInsets.fromLTRB(8, 2, 8, 0),
             children: [
               _ProfileHeroCard(
                 controller: controller,
@@ -430,9 +431,7 @@ class _DateOfBirthDialogContent extends StatelessWidget {
         builder: (context, controller, _) {
           return Dialog(
             backgroundColor: AppColors.surfaceDark,
-            shape: RoundedRectangleBorder(
-              borderRadius: BorderRadius.circular(16),
-            ),
+            shape: AppDialogStyle.shape(radius: 16),
             child: Padding(
               padding: const EdgeInsets.fromLTRB(16, 16, 16, 16),
               child: Column(

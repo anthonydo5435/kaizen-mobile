@@ -8,12 +8,16 @@ class ComplianceSearchBar extends StatelessWidget {
     super.key,
     required this.controller,
     required this.onChanged,
+    this.onClearTap,
+    this.showClearButton = false,
     this.onFilterTap,
     this.hintText,
   });
 
   final TextEditingController controller;
   final ValueChanged<String> onChanged;
+  final VoidCallback? onClearTap;
+  final bool showClearButton;
   final VoidCallback? onFilterTap;
   final String? hintText;
 
@@ -24,7 +28,8 @@ class ComplianceSearchBar extends StatelessWidget {
       onChanged: onChanged,
       hintText: hintText ?? AppStrings.auditSearchHint,
       onFilterTap: onFilterTap,
-      showClearButton: false,
+      onClearTap: onClearTap,
+      showClearButton: showClearButton,
     );
   }
 }

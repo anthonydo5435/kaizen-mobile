@@ -24,6 +24,7 @@ class ViewAllTeamMembers extends StatefulWidget {
 }
 
 class _ViewAllTeamMembersState extends State<ViewAllTeamMembers> {
+  late final CheckInController _checkInController;
   late final TextEditingController _searchController;
   late final ScrollController _scrollController;
   late final ValueNotifier<_TeamMembersViewState> _viewStateNotifier;
@@ -31,6 +32,7 @@ class _ViewAllTeamMembersState extends State<ViewAllTeamMembers> {
   @override
   void initState() {
     super.initState();
+    _checkInController = context.read<CheckInController>();
     _searchController = TextEditingController();
     _scrollController = ScrollController()..addListener(_handleScroll);
     _viewStateNotifier = ValueNotifier<_TeamMembersViewState>(
@@ -40,9 +42,8 @@ class _ViewAllTeamMembersState extends State<ViewAllTeamMembers> {
 
   @override
   void dispose() {
-    final controller = context.read<CheckInController>();
-    if (controller.teamMembersSearchQuery.trim().isNotEmpty) {
-      unawaited(controller.resetTeamMembersSearch());
+    if (_checkInController.teamMembersSearchQuery.trim().isNotEmpty) {
+      unawaited(_checkInController.resetTeamMembersSearch());
     }
 
     _scrollController
@@ -67,7 +68,7 @@ class _ViewAllTeamMembersState extends State<ViewAllTeamMembers> {
       child: SafeArea(
         bottom: false,
         child: Padding(
-          padding: const EdgeInsets.fromLTRB(16, 0, 16, 0),
+          padding: const EdgeInsets.symmetric(horizontal: 8),
           child: Column(
             children: [
               _Header(onClose: () => Navigator.of(context).pop()),

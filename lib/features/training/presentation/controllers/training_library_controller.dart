@@ -1,18 +1,20 @@
 import 'dart:async';
 
 import 'package:flutter/material.dart';
+import 'package:flutter/rendering.dart' show ScrollDirection;
 
 import '../../../../core/constants/app_strings.dart';
 import '../../../../core/utils/custom_functions.dart';
-import '../../../check_in/domain/repositories/audit_repository.dart';
 import '../../../seat_profile/domain/entities/seat_profile_detail.dart';
 import '../../../seat_profile/domain/usecases/get_seat_profiles_usecase.dart';
 import '../../data/repositories/training_library_repository_impl.dart';
 import '../../domain/entities/seat_description_training_route.dart';
 import '../../domain/entities/training_library_module.dart';
+import '../../domain/repositories/training_library_repository.dart';
 import '../../domain/usecases/get_training_library_modules_usecase.dart';
 import '../models/training_library_filter_tag.dart';
 import 'training_library_detail_controller.dart';
+import 'training_library_thumbnail_controller.dart';
 
 enum TrainingLibraryViewMode { grid, list }
 
@@ -29,11 +31,13 @@ class TrainingLibraryController extends ChangeNotifier {
     this._getTrainingLibraryModulesUseCase, {
     required GetSeatProfilesUseCase getSeatProfilesUseCase,
     bool Function()? canCreateTraining,
-    AuditRepository? auditRepository,
+    TrainingLibraryRepository? trainingRepository,
     bool Function(String seatProfileId)? canManageSeatTraining,
+    ValueChanged<bool>? onNavigationBarsVisibilityChanged,
   }) : _getSeatProfilesUseCase = getSeatProfilesUseCase,
        _canCreateTraining = canCreateTraining,
-       _auditRepository = auditRepository,
+       _trainingRepository = trainingRepository,
+       _onNavigationBarsVisibilityChanged = onNavigationBarsVisibilityChanged,
        _canManageSeatTraining = canManageSeatTraining {
     scrollController.addListener(_handleScroll);
   }
@@ -41,12 +45,23 @@ class TrainingLibraryController extends ChangeNotifier {
   final GetTrainingLibraryModulesUseCase _getTrainingLibraryModulesUseCase;
   final GetSeatProfilesUseCase _getSeatProfilesUseCase;
   final bool Function()? _canCreateTraining;
-  final AuditRepository? _auditRepository;
+  final TrainingLibraryRepository? _trainingRepository;
   final bool Function(String seatProfileId)? _canManageSeatTraining;
+  final ValueChanged<bool>? _onNavigationBarsVisibilityChanged;
+  bool _navigationBarsVisible = true;
+  double _previousScrollOffset = 0;
+  double _scrollTravel = 0;
+  static const double _navigationScrollThreshold = 12;
+
+  bool get navigationBarsVisible => _navigationBarsVisible;
   bool _isShowingModuleActions = false;
   final ScrollController scrollController = ScrollController();
   bool _isDisposed = false;
-  static const int _pageSize = 10;
+  static const int _pageSize = 25;
+  static const int _prefetchRemainingItems = 9;
+  final TrainingLibraryThumbnailController thumbnailCache = TrainingLibraryThumbnailController();
+  int _listingVersion = 0;
+  String? _loadMoreErrorMessage;
   static const Duration _searchDebounceDuration = Duration(milliseconds: 400);
 
   bool _isInitialLoading = false;
@@ -72,8 +87,7 @@ class TrainingLibraryController extends ChangeNotifier {
   bool _isLoadingSeatOptions = false;
   String? _seatOptionsError;
   int _seatRequestId = 0;
-  List<TrainingLibraryDepartment> _departments =
-      const <TrainingLibraryDepartment>[];
+  List<TrainingLibraryDepartment> _departments = const <TrainingLibraryDepartment>[];
   String _departmentSearchQuery = '';
   List<TrainingLibraryModule> _items = const <TrainingLibraryModule>[];
   Timer? _searchDebounceTimer;
@@ -87,10 +101,7 @@ class TrainingLibraryController extends ChangeNotifier {
   bool get canCreateTraining => _canCreateTraining?.call() ?? false;
   bool get hasSearchQuery => _hasActiveSearch;
   List<TrainingLibraryDepartment> get departmentTabs => [
-    const TrainingLibraryDepartment(
-      id: 'all',
-      name: AppStrings.trainingLibraryAllFilter,
-    ),
+    const TrainingLibraryDepartment(id: 'all', name: AppStrings.trainingLibraryAllFilter),
     ..._departments.take(3),
   ];
 
@@ -107,28 +118,24 @@ class TrainingLibraryController extends ChangeNotifier {
   static String displayModuleLessonCount(TrainingLibraryModule module) =>
       AppStrings.trainingLibraryVideosCount(module.lessonsCount);
 
-  static String displayModuleDuration(TrainingLibraryModule module) {
-    final duration = CustomFunctions.formatDuration(module.totalDuration);
-    return module.totalDuration < 3600
-        ? AppStrings.trainingLibraryMinutesDuration(duration)
-        : duration;
+  static String displayModuleDuration(TrainingLibraryModule module) =>
+      displayDuration(module.totalDuration);
+
+  static String displayDuration(int seconds) {
+    final duration = CustomFunctions.formatDuration(seconds);
+    return seconds < 3600 ? AppStrings.trainingLibraryMinutesDuration(duration) : duration;
   }
 
   Future<void> openLesson(
     TrainingLibraryModule module, {
-    required Future<void> Function(SeatDescriptionTrainingRoute route)
-    openDetails,
+    required Future<void> Function(SeatDescriptionTrainingRoute route) openDetails,
   }) async {
     final lessonId = module.id.trim();
     final descriptionId = module.trainingDescriptionId.trim();
-    if (_isDisposed ||
-        !module.isLessonListing ||
-        lessonId.isEmpty ||
-        descriptionId.isEmpty) {
+    if (_isDisposed || !module.isLessonListing || lessonId.isEmpty || descriptionId.isEmpty) {
       return;
     }
-    final canManageTraining =
-        _canManageSeatTraining?.call(module.seat.id) ?? false;
+    final canManageTraining = _canManageSeatTraining?.call(module.seat.id) ?? false;
     await openDetails(
       SeatDescriptionTrainingRoute(
         job: module.seat.id,
@@ -144,7 +151,7 @@ class TrainingLibraryController extends ChangeNotifier {
 
   bool canShowModuleActions(TrainingLibraryModule module) =>
       !_isDisposed &&
-      _auditRepository != null &&
+      _trainingRepository != null &&
       module.isLessonListing &&
       module.id.trim().isNotEmpty &&
       module.lessons.length == 1 &&
@@ -166,7 +173,7 @@ class TrainingLibraryController extends ChangeNotifier {
     final actionsController = TrainingLibraryDetailController(
       initialModule: module,
       getTrainingLibraryModules: _getTrainingLibraryModulesUseCase,
-      auditRepository: _auditRepository!,
+      trainingRepository: _trainingRepository!,
       canManageSeatTraining: (seatId) =>
           !_isDisposed && (_canManageSeatTraining?.call(seatId) ?? false),
       view: _viewMode.name,
@@ -191,21 +198,79 @@ class TrainingLibraryController extends ChangeNotifier {
   }
 
   void _handleScroll() {
-    if (scrollController.hasClients &&
-        scrollController.position.extentAfter <= 360) {
+    if (!scrollController.hasClients) {
+      return;
+    }
+    _updateNavigationBarsForScroll();
+  }
+
+  void preloadThumbnails(List<TrainingLibraryModule> modules) {
+    if (_isDisposed) return;
+    thumbnailCache.preload(
+      modules
+          .map((module) => CustomFunctions.resolveImageUrl(module.thumbnailLink))
+          .whereType<String>(),
+    );
+  }
+
+  void onItemVisible(String moduleId) {
+    if (_isDisposed || _loadMoreErrorMessage != null) return;
+    final visible = visibleItems;
+    final index = visible.indexWhere((module) => module.id == moduleId);
+    if (index >= 0 && visible.length - index - 1 <= _prefetchRemainingItems) {
       unawaited(loadNextPage());
     }
+  }
+
+  void _updateNavigationBarsForScroll() {
+    final position = scrollController.position;
+    final offset = position.pixels;
+    final delta = offset - _previousScrollOffset;
+    _previousScrollOffset = offset;
+
+    if (offset <= position.minScrollExtent ||
+        position.maxScrollExtent <= position.minScrollExtent) {
+      _scrollTravel = 0;
+      _setNavigationBarsVisible(true);
+      return;
+    }
+    // Ignore programmatic jumps, layout corrections, and overscroll rebound.
+    final direction = position.userScrollDirection;
+    if (position.outOfRange ||
+        direction == ScrollDirection.idle ||
+        (direction == ScrollDirection.reverse && delta < 0) ||
+        (direction == ScrollDirection.forward && delta > 0)) {
+      _scrollTravel = 0;
+      return;
+    }
+    if (delta == 0) {
+      return;
+    }
+    _scrollTravel = _scrollTravel.sign == delta.sign ? _scrollTravel + delta : delta;
+    if (_scrollTravel.abs() >= _navigationScrollThreshold) {
+      _setNavigationBarsVisible(delta < 0);
+      _scrollTravel = 0;
+    }
+  }
+
+  void _setNavigationBarsVisible(bool visible) {
+    if (_navigationBarsVisible == visible) {
+      return;
+    }
+    _navigationBarsVisible = visible;
+    _onNavigationBarsVisibilityChanged?.call(visible);
+    notifyListeners();
   }
 
   bool get isInitialLoading => _isInitialLoading;
   bool get isRefreshing => _isRefreshing;
   bool get isViewSyncing => _isViewSyncing;
   bool get isLoadingMore => _isLoadingMore;
+  String? get loadMoreErrorMessage => _loadMoreErrorMessage;
   bool get isInlineLoading =>
       _applyingSelectionField == _LibrarySelectionField.filterTag ||
       (!isApplyingSelection &&
-          ((_isRefreshing && !_isPreservingListDuringRefresh) ||
-              _isViewSyncing));
+          ((_isRefreshing && !_isPreservingListDuringRefresh) || _isViewSyncing));
   bool get isApplyingSelection => _applyingSelectionField != null;
   bool get canApplySelection =>
       !isApplyingSelection &&
@@ -216,8 +281,7 @@ class TrainingLibraryController extends ChangeNotifier {
   String? get selectionErrorMessage => _selectionErrorMessage;
 
   bool isApplyingSeatSelection(String? seatId) =>
-      _applyingSelectionField == _LibrarySelectionField.seat &&
-      _applyingSelectionId == seatId;
+      _applyingSelectionField == _LibrarySelectionField.seat && _applyingSelectionId == seatId;
 
   bool isApplyingDepartmentSelection(String departmentId) =>
       _applyingSelectionField == _LibrarySelectionField.department &&
@@ -303,27 +367,19 @@ class TrainingLibraryController extends ChangeNotifier {
   String? get selectedCategoryId => _selectedCategory?.id;
   String? get selectedDescriptionId => _selectedDescription?.id;
   List<TrainingLibraryFilterTag> get appliedFilterTags => [
-    if (_selectedSeat != null)
-      (type: TrainingLibraryFilter.seat, label: _selectedSeat!.title),
+    if (_selectedSeat != null) (type: TrainingLibraryFilter.seat, label: _selectedSeat!.title),
     if (_selectedCategory != null)
       (type: TrainingLibraryFilter.category, label: _selectedCategory!.title),
     if (_selectedDescription != null)
-      (
-        type: TrainingLibraryFilter.description,
-        label: _selectedDescription!.name,
-      ),
+      (type: TrainingLibraryFilter.description, label: _selectedDescription!.name),
   ];
   String? get pendingSeatSelectionId => _pendingSeatSelection?.id;
   TrainingLibrarySeat? get pendingSeatSelection => _pendingSeatSelection;
-  SeatProfileCategory? get pendingCategorySelection =>
-      _pendingCategorySelection;
-  SeatProfileDescription? get pendingDescriptionSelection =>
-      _pendingDescriptionSelection;
+  SeatProfileCategory? get pendingCategorySelection => _pendingCategorySelection;
+  SeatProfileDescription? get pendingDescriptionSelection => _pendingDescriptionSelection;
 
   List<TrainingLibrarySeat> get seatOptions => List.unmodifiable(
-    _seatProfiles.map(
-      (profile) => TrainingLibrarySeat(id: profile.id, title: profile.title),
-    ),
+    _seatProfiles.map((profile) => TrainingLibrarySeat(id: profile.id, title: profile.title)),
   );
   List<SeatProfileCategory> get categoryOptions {
     for (final profile in _seatProfiles) {
@@ -344,9 +400,7 @@ class TrainingLibraryController extends ChangeNotifier {
   List<TrainingLibraryDepartment> get departmentOptions {
     final query = _departmentSearchQuery.trim().toLowerCase();
     return List<TrainingLibraryDepartment>.unmodifiable(
-      _departments.where(
-        (department) => department.name.toLowerCase().contains(query),
-      ),
+      _departments.where((department) => department.name.toLowerCase().contains(query)),
     );
   }
 
@@ -358,8 +412,7 @@ class TrainingLibraryController extends ChangeNotifier {
     notifyListeners();
   }
 
-  List<TrainingLibraryModule> get items =>
-      List<TrainingLibraryModule>.unmodifiable(_items);
+  List<TrainingLibraryModule> get items => List<TrainingLibraryModule>.unmodifiable(_items);
   bool get _hasActiveSearch => _searchQuery.trim().isNotEmpty;
   bool get _hasActiveDepartmentFilter => _selectedDepartmentId != 'all';
 
@@ -375,13 +428,10 @@ class TrainingLibraryController extends ChangeNotifier {
 
   Iterable<TrainingLibraryModule> get _filteredItems => _items.where(
     (item) =>
-        (!_hasActiveDepartmentFilter ||
-            item.department.id == _selectedDepartmentId) &&
+        (!_hasActiveDepartmentFilter || item.department.id == _selectedDepartmentId) &&
         (_selectedSeatId == null || item.seat.id == _selectedSeatId) &&
-        (_selectedCategory == null ||
-            item.category.id == _selectedCategory!.id) &&
-        (_selectedDescription == null ||
-            item.trainingDescriptionId == _selectedDescription!.id),
+        (_selectedCategory == null || item.category.id == _selectedCategory!.id) &&
+        (_selectedDescription == null || item.trainingDescriptionId == _selectedDescription!.id),
   );
 
   Future<void> openSeatSelection() {
@@ -406,8 +456,7 @@ class TrainingLibraryController extends ChangeNotifier {
   }
 
   void updatePendingCategorySelection(SeatProfileCategory? category) {
-    if (isApplyingSelection ||
-        (category != null && !categoryOptions.contains(category))) {
+    if (isApplyingSelection || (category != null && !categoryOptions.contains(category))) {
       return;
     }
     if (category?.id != _pendingCategorySelection?.id) {
@@ -419,8 +468,7 @@ class TrainingLibraryController extends ChangeNotifier {
   }
 
   void updatePendingDescriptionSelection(SeatProfileDescription? description) {
-    if (isApplyingSelection ||
-        (description != null && !descriptionOptions.contains(description))) {
+    if (isApplyingSelection || (description != null && !descriptionOptions.contains(description))) {
       return;
     }
     _pendingDescriptionSelection = description;
@@ -443,9 +491,7 @@ class TrainingLibraryController extends ChangeNotifier {
     id: _selectedSeatId,
     apply: () => _selectSeatFilter(
       filter == TrainingLibraryFilter.seat ? null : _selectedSeat,
-      category: filter == TrainingLibraryFilter.description
-          ? _selectedCategory
-          : null,
+      category: filter == TrainingLibraryFilter.description ? _selectedCategory : null,
     ),
   );
 
@@ -465,8 +511,7 @@ class TrainingLibraryController extends ChangeNotifier {
     notifyListeners();
 
     try {
-      final profiles = await _getSeatProfilesUseCase
-          .seatProfileCategoryTrainings();
+      final profiles = await _getSeatProfilesUseCase.seatProfileCategoryTrainings();
       if (requestId != _seatRequestId) {
         return;
       }
@@ -477,8 +522,7 @@ class TrainingLibraryController extends ChangeNotifier {
         final title = profile.title.trim();
         if (id.isNotEmpty &&
             title.isNotEmpty &&
-            (!_hasActiveDepartmentFilter ||
-                profile.department?.id == _selectedDepartmentId)) {
+            (!_hasActiveDepartmentFilter || profile.department?.id == _selectedDepartmentId)) {
           seats[id] = profile;
         }
       }
@@ -488,9 +532,7 @@ class TrainingLibraryController extends ChangeNotifier {
           .where((category) => category.id == _pendingCategorySelection?.id)
           .firstOrNull;
       _pendingDescriptionSelection = descriptionOptions
-          .where(
-            (description) => description.id == _pendingDescriptionSelection?.id,
-          )
+          .where((description) => description.id == _pendingDescriptionSelection?.id)
           .firstOrNull;
     } catch (_) {
       if (requestId == _seatRequestId) {
@@ -541,12 +583,12 @@ class TrainingLibraryController extends ChangeNotifier {
   }
 
   Future<void> refresh({bool preservePosition = false}) async {
-    if (_isInitialLoading || _isRefreshing) {
+    if (_isDisposed || _isInitialLoading || _isRefreshing) {
       return;
     }
 
     final loadedPages = _currentPage;
-    _isPreservingListDuringRefresh = preservePosition && _items.isNotEmpty;
+    _isPreservingListDuringRefresh = preservePosition;
     final previousItems = _items;
     final previousDepartments = _departments;
     final previousHasNextPage = _hasNextPage;
@@ -561,8 +603,10 @@ class TrainingLibraryController extends ChangeNotifier {
       await _reloadModules(
         keepExistingItems: _isPreservingListDuringRefresh,
         minimumPageCount: _isPreservingListDuringRefresh ? loadedPages : 1,
+        forceRefresh: true,
       );
     } catch (error) {
+      if (_isDisposed) return;
       _errorMessage = error.toString();
       if (_isPreservingListDuringRefresh) {
         _items = previousItems;
@@ -572,6 +616,7 @@ class TrainingLibraryController extends ChangeNotifier {
       }
     }
 
+    if (_isDisposed) return;
     _isRefreshing = false;
     _isPreservingListDuringRefresh = false;
     _itemsDuringPositionPreservingRefresh = null;
@@ -658,7 +703,8 @@ class TrainingLibraryController extends ChangeNotifier {
   }
 
   Future<void> loadNextPage() async {
-    if (_isInitialLoading ||
+    if (_isDisposed ||
+        _isInitialLoading ||
         _isRefreshing ||
         _isViewSyncing ||
         _isLoadingMore ||
@@ -667,35 +713,52 @@ class TrainingLibraryController extends ChangeNotifier {
     }
 
     _isLoadingMore = true;
+    _loadMoreErrorMessage = null;
+    final version = _listingVersion;
     notifyListeners();
 
     try {
       await _loadPage(_currentPage + 1);
+    } catch (_) {
+      if (!_isDisposed && version == _listingVersion) {
+        _loadMoreErrorMessage = AppStrings.trainingLibraryUnableToLoadMore;
+      }
     } finally {
-      _isLoadingMore = false;
-      notifyListeners();
-      _flushPendingSearchRefresh();
+      if (!_isDisposed && version == _listingVersion) {
+        _isLoadingMore = false;
+        notifyListeners();
+        _flushPendingSearchRefresh();
+      }
     }
   }
 
   Future<void> _reloadModules({
     bool keepExistingItems = false,
     int minimumPageCount = 1,
+    bool forceRefresh = false,
   }) async {
+    _listingVersion++;
+    _isLoadingMore = false;
+    _loadMoreErrorMessage = null;
+    if (!keepExistingItems) {
+      _scrollTravel = 0;
+      _setNavigationBarsVisible(true);
+    }
     _currentPage = 0;
     _hasNextPage = true;
     if (!isApplyingSelection && !keepExistingItems) {
       _items = const <TrainingLibraryModule>[];
     }
     // Keep department choices visible until the replacement page arrives.
-    await _loadPage(1, replace: true);
+    await _loadPage(1, replace: true, forceRefresh: forceRefresh);
     while (_currentPage < minimumPageCount && _hasNextPage && !_isDisposed) {
-      await _loadPage(_currentPage + 1);
+      await _loadPage(_currentPage + 1, forceRefresh: forceRefresh);
     }
-    await _loadUntilFiltersHaveVisibleItems();
+    await _loadUntilFiltersHaveVisibleItems(forceRefresh: forceRefresh);
   }
 
-  Future<void> _loadPage(int page, {bool replace = false}) async {
+  Future<void> _loadPage(int page, {bool replace = false, bool forceRefresh = false}) async {
+    final version = _listingVersion;
     final response = await _getTrainingLibraryModulesUseCase(
       view: _viewMode.name,
       page: page,
@@ -706,39 +769,32 @@ class TrainingLibraryController extends ChangeNotifier {
       jobId: _selectedSeatId,
       jobCategoryId: _selectedCategory?.id,
       jobCategoryDescriptionId: _selectedDescription?.id,
+      forceRefresh: forceRefresh,
     );
 
-    final seenIds = replace
-        ? <String>{}
-        : _items.map((item) => item.id).toSet();
-    final newItems = response.items
-        .where((item) => seenIds.add(item.id))
-        .toList(growable: false);
-    final nextItems = replace
-        ? newItems
-        : <TrainingLibraryModule>[..._items, ...newItems];
+    if (_isDisposed || version != _listingVersion) return;
+
+    final seenIds = replace ? <String>{} : _items.map((item) => item.id).toSet();
+    final newItems = response.items.where((item) => seenIds.add(item.id)).toList(growable: false);
+    final nextItems = replace ? newItems : <TrainingLibraryModule>[..._items, ...newItems];
     _currentPage = page;
     // Stop if the endpoint repeats a page while searching for an exact match.
     _hasNextPage = response.hasNextPage && newItems.isNotEmpty;
     _items = List<TrainingLibraryModule>.unmodifiable(nextItems);
-    _departments = List<TrainingLibraryDepartment>.unmodifiable(
-      _resolveVisibleDepartments(_items),
-    );
+    _departments = List<TrainingLibraryDepartment>.unmodifiable(_resolveVisibleDepartments(_items));
     _syncSelectedDepartment();
   }
 
-  Future<void> _loadUntilFiltersHaveVisibleItems() async {
+  Future<void> _loadUntilFiltersHaveVisibleItems({bool forceRefresh = false}) async {
     while ((_hasActiveDepartmentFilter || _selectedSeatId != null) &&
         _filteredItems.isEmpty &&
         _hasNextPage &&
         !_isDisposed) {
-      await _loadPage(_currentPage + 1);
+      await _loadPage(_currentPage + 1, forceRefresh: forceRefresh);
     }
   }
 
-  List<TrainingLibraryDepartment> _resolveDepartments(
-    List<TrainingLibraryModule> modules,
-  ) {
+  List<TrainingLibraryDepartment> _resolveDepartments(List<TrainingLibraryModule> modules) {
     final seenDepartmentIds = <String>{};
     final departments = <TrainingLibraryDepartment>[];
 
@@ -757,9 +813,7 @@ class TrainingLibraryController extends ChangeNotifier {
     return departments;
   }
 
-  List<TrainingLibraryDepartment> _resolveVisibleDepartments(
-    List<TrainingLibraryModule> modules,
-  ) {
+  List<TrainingLibraryDepartment> _resolveVisibleDepartments(List<TrainingLibraryModule> modules) {
     final resolvedDepartments = _resolveDepartments(modules);
     if (!_hasActiveSearch && !_hasActiveDepartmentFilter) {
       return resolvedDepartments;
@@ -769,10 +823,7 @@ class TrainingLibraryController extends ChangeNotifier {
   }
 
   Future<bool> _reloadModulesForActiveFilters() async {
-    if (_isInitialLoading ||
-        _isRefreshing ||
-        _isViewSyncing ||
-        _isLoadingMore) {
+    if (_isInitialLoading || _isRefreshing || _isViewSyncing || _isLoadingMore) {
       _hasPendingSearchRefresh = true;
       return false;
     }
@@ -839,6 +890,7 @@ class TrainingLibraryController extends ChangeNotifier {
   @override
   void dispose() {
     _isDisposed = true;
+    thumbnailCache.dispose();
     scrollController
       ..removeListener(_handleScroll)
       ..dispose();
@@ -861,10 +913,7 @@ class TrainingLibraryController extends ChangeNotifier {
   }
 
   Future<void> _runDebouncedSearchRefresh() async {
-    if (_isInitialLoading ||
-        _isRefreshing ||
-        _isViewSyncing ||
-        _isLoadingMore) {
+    if (_isInitialLoading || _isRefreshing || _isViewSyncing || _isLoadingMore) {
       _hasPendingSearchRefresh = true;
       return;
     }

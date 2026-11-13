@@ -65,7 +65,6 @@ extension _EditTrainingSectionViewStateDialogs
 
     if (didDelete == true) {
       await _syncSelectedTabData(controller);
-      _showNonApiSnackBar(AppStrings.trainingModuleDeletedSuccess);
       return;
     }
 
@@ -91,11 +90,6 @@ extension _EditTrainingSectionViewStateDialogs
     );
 
     if (!mounted) {
-      return;
-    }
-
-    if (didDelete == true) {
-      _showNonApiSnackBar(AppStrings.trainingQuestionDeletedSuccess);
       return;
     }
 
@@ -156,6 +150,21 @@ extension _EditTrainingSectionViewStateDialogs
     if (!mounted || didGenerate != true) {
       return;
     }
+  }
+
+  Future<void> _handleGenerateAssignmentTap(
+    TrainingModuleController controller,
+  ) async {
+    if (!controller.canGenerateAssignmentForSelectedModule) {
+      return;
+    }
+
+    await _showTrainingModalBottomSheet<bool>(
+      builder: (_) => ChangeNotifierProvider<TrainingModuleController>.value(
+        value: controller,
+        child: const _GenerateAssignmentDialog(),
+      ),
+    );
   }
 
   Future<void> _showAddQuestionDialog(

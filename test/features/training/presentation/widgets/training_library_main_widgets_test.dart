@@ -260,6 +260,8 @@ void main() {
           await controller.refresh();
         }
 
+        final nextPage = Completer<TrainingLibraryPage>();
+        repository.response = nextPage.future;
         await tester.pumpWidget(
           MaterialApp(
             home: Scaffold(
@@ -280,10 +282,8 @@ void main() {
           ),
         );
 
-        final nextPage = Completer<TrainingLibraryPage>();
-        repository.response = nextPage.future;
-        final loading = controller.loadNextPage();
         await tester.pump();
+        expect(controller.isLoadingMore, isTrue);
 
         final footer = find.byType(FastCircularProgressIndicator);
         expect(footer, findsOneWidget);
@@ -297,7 +297,6 @@ void main() {
         nextPage.complete(
           TrainingLibraryPage(items: controller.items, hasNextPage: false),
         );
-        await loading;
         await tester.pump();
         expect(footer, findsNothing);
       },
@@ -353,6 +352,7 @@ class _LibraryRepository extends Fake implements TrainingLibraryRepository {
     String? jobId,
     String? jobCategoryId,
     String? jobCategoryDescriptionId,
+    bool forceRefresh = false,
   }) async =>
       response ??
       TrainingLibraryPage(

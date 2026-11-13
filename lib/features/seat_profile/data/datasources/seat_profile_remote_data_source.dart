@@ -14,15 +14,67 @@ class SeatProfileRemoteDataSource {
 
   final ApiCallExecutor _apiCallExecutor;
 
+  Future<String?> getSeatProfilePublicLink(String seatId) async {
+    try {
+      return await _apiCallExecutor.processApi<String?>(
+        apiCallType: ApiCallType.get,
+        endpoint: ApiEndPoints.seatProfilePublicLink(seatId),
+        invalidateCacheBeforeRequest: true,
+        decoder: _decodePublicLink,
+      );
+    } on ApiError catch (error) {
+      if (error.statusCode == 404) return null;
+      rethrow;
+    }
+  }
+
+  Future<String> createSeatProfilePublicLink(String seatId) {
+    return _apiCallExecutor.processApi<String>(
+      apiCallType: ApiCallType.post,
+      endpoint: ApiEndPoints.seatProfilePublicLink(seatId),
+      decoder: (json) =>
+          _decodePublicLink(json) ?? (throw const ApiError.invalidResponse()),
+    );
+  }
+
+  Future<void> deleteSeatProfilePublicLink(String seatId) {
+    return _apiCallExecutor.processApi<void>(
+      apiCallType: ApiCallType.delete,
+      endpoint: ApiEndPoints.seatProfilePublicLink(seatId),
+      decoder: (_) {},
+    );
+  }
+
+  String? _decodePublicLink(dynamic json) {
+    if (json is! Map<String, dynamic>) {
+      throw const ApiError.invalidResponse();
+    }
+    if (json['active'] == false) return null;
+    final path = json['public_path'];
+    final uri = path is String ? Uri.tryParse(path.trim()) : null;
+    if (json['active'] != true ||
+        json['view_type'] != 'seat_profile' ||
+        uri == null ||
+        uri.hasScheme ||
+        uri.hasAuthority ||
+        !uri.path.startsWith('/shared/seat-profile/') ||
+        uri.pathSegments.last.isEmpty) {
+      throw const ApiError.invalidResponse();
+    }
+    return Uri.parse(ApiEndPoints.publicWebBaseUrl).resolveUri(uri).toString();
+  }
+
   Future<SeatProfilePageModel> getSeatProfiles({
     required int page,
     int pageSize = 10,
     String? departmentId,
     String title = '',
+    bool forceRefresh = false,
   }) {
     return _apiCallExecutor.processApi<SeatProfilePageModel>(
       apiCallType: ApiCallType.get,
       endpoint: ApiEndPoints.jobs,
+      invalidateCacheBeforeRequest: forceRefresh,
       parameters: {
         if (title.trim().isNotEmpty) 'title': title.trim(),
         'page': page,
@@ -220,6 +272,24 @@ class SeatProfileRemoteDataSource {
         }
 
         return SeatProfileDetailModel.fromApiJson(json);
+      },
+    );
+  }
+
+  Future<SeatProfileDetailModel> getSharedSeatProfileDetail(String publicId) {
+    return _apiCallExecutor.processApi<SeatProfileDetailModel>(
+      apiCallType: ApiCallType.get,
+      endpoint: ApiEndPoints.sharedContent(publicId),
+      authToken: '',
+      allowAutoRefresh: false,
+      decoder: (json) {
+        if (json is! Map) {
+          throw const ApiError.invalidResponse();
+        }
+
+        return SeatProfileDetailModel.fromSharedContentJson(
+          Map<String, dynamic>.from(json),
+        );
       },
     );
   }

@@ -255,12 +255,13 @@ class _KaizengramChatViewState extends State<_KaizengramChatView>
     }
 
     final wasDeleted = controller.deleteCurrentChannel();
-    final message = wasDeleted
-        ? AppStrings.channelDeletedSnackBar(deletedChannel)
-        : AppStrings.lastChannelError;
-    ScaffoldMessenger.of(context)
-      ..hideCurrentSnackBar()
-      ..showSnackBar(SnackBar(content: Text(message)));
+    if (!wasDeleted) {
+      ScaffoldMessenger.of(context)
+        ..hideCurrentSnackBar()
+        ..showSnackBar(
+          const SnackBar(content: Text(AppStrings.lastChannelError)),
+        );
+    }
     if (wasDeleted && context.mounted) {
       Navigator.of(context).pop();
     }

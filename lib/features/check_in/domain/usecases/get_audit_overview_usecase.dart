@@ -13,6 +13,7 @@ class GetAuditOverviewUseCase {
     int pageSize = 12,
     String? search,
     String? jobUuid,
+    bool forceRefresh = false,
   }) {
     return _repository.getAuditMainList(
       page: page,
@@ -21,6 +22,7 @@ class GetAuditOverviewUseCase {
       quarter: quarter,
       search: search,
       jobUuid: jobUuid,
+      forceRefresh: forceRefresh,
     );
   }
 }

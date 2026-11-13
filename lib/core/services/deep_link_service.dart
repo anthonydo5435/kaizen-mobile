@@ -6,6 +6,7 @@ import 'package:app_links/app_links.dart';
 import '../../routes/app_router.dart';
 import '../managers/app_manager.dart';
 import '../managers/app_manager_remote_data_source.dart';
+import '../navigation/browser_app_link.dart';
 import '../preference/app_preference.dart';
 
 class DeepLinkService {
@@ -170,7 +171,10 @@ class DeepLinkService {
     _navigateWhenReady(target);
   }
 
-  Future<DeepLinkTarget?> _resolveTarget(Uri uri) async {
+  Future<DeepLinkTarget?> _resolveTarget(Uri incomingUri) async {
+    final uri = resolveBrowserAppLink(incomingUri);
+    if (uri == null) return null;
+
     final scheme = uri.scheme.toLowerCase();
     if (scheme == 'https' || scheme == 'http') {
       return _resolveUniversalLink(uri);
@@ -220,15 +224,32 @@ class DeepLinkService {
         .toList();
     final normalizedPath = uri.path.trim().toLowerCase();
 
-    // Accept reset links from the production web app. Google callbacks on
-    // this domain are handled separately by the active sign-in attempt.
-    if (host == 'app.kaizenteams.ai') {
-      return _resolvePasswordResetTarget(uri);
+    const supportedHosts = <String>{
+      'app.kaizenteams.ai',
+      'dev.kaizenteams.ai',
+      'api.kaizenteams.ai',
+    };
+    if (!supportedHosts.contains(host)) {
+      return null;
     }
 
-    const supportedHosts = <String>{'dev.kaizenteams.ai', 'api.kaizenteams.ai'};
+    final sharedLmsTarget = _resolveSharedLmsTarget(segments);
+    if (sharedLmsTarget != null) {
+      return sharedLmsTarget;
+    }
 
-    if (!supportedHosts.contains(host)) {
+    final sharedPaygradesTarget = _resolveSharedPaygradesTarget(segments);
+    if (sharedPaygradesTarget != null) {
+      return sharedPaygradesTarget;
+    }
+
+    final sharedSeatProfileTarget = _resolveSharedSeatProfileTarget(segments);
+    if (sharedSeatProfileTarget != null) {
+      return sharedSeatProfileTarget;
+    }
+
+    // Google callbacks belong to the active sign-in attempt on either host.
+    if (normalizedPath == '/auth/google/callback') {
       return null;
     }
 
@@ -288,6 +309,51 @@ class DeepLinkService {
     }
 
     return const DeepLinkTarget.profile(clearStack: true);
+  }
+
+  DeepLinkTarget? _resolveSharedLmsTarget(List<String> segments) {
+    if (segments.length != 3 ||
+        segments[0].toLowerCase() != 'shared' ||
+        segments[1].toLowerCase() != 'lms') {
+      return null;
+    }
+
+    final publicId = segments[2].trim();
+    if (!RegExp(r'^[A-Za-z0-9_-]+$').hasMatch(publicId)) {
+      return null;
+    }
+
+    return DeepLinkTarget.sharedLms(publicId);
+  }
+
+  DeepLinkTarget? _resolveSharedPaygradesTarget(List<String> segments) {
+    if (segments.length != 3 ||
+        segments[0].toLowerCase() != 'shared' ||
+        segments[1].toLowerCase() != 'paygrades') {
+      return null;
+    }
+
+    final publicId = segments[2].trim();
+    if (!RegExp(r'^[A-Za-z0-9_-]+$').hasMatch(publicId)) {
+      return null;
+    }
+
+    return DeepLinkTarget.sharedPaygrades(publicId);
+  }
+
+  DeepLinkTarget? _resolveSharedSeatProfileTarget(List<String> segments) {
+    if (segments.length != 3 ||
+        segments[0].toLowerCase() != 'shared' ||
+        segments[1].toLowerCase() != 'seat-profile') {
+      return null;
+    }
+
+    final publicId = segments[2].trim();
+    if (!RegExp(r'^[A-Za-z0-9_-]+$').hasMatch(publicId)) {
+      return null;
+    }
+
+    return DeepLinkTarget.sharedSeatProfile(publicId);
   }
 
   DeepLinkTarget? _resolvePasswordResetTarget(Uri uri) {
@@ -515,7 +581,10 @@ class DeepLinkService {
     }
 
     final currentRouteName = AppManager.instance.currentRouteName;
-    if (currentRouteName == target.routeName) {
+    if (currentRouteName == target.routeName &&
+        target.routeName != AppRouter.sharedLms &&
+        target.routeName != AppRouter.sharedPaygrades &&
+        target.routeName != AppRouter.sharedSeatProfile) {
       if (target.clearStack) {
         _markNavigationStarted(target);
         navigator.pushNamedAndRemoveUntil(
@@ -628,7 +697,9 @@ class DeepLinkService {
     required String? originRouteName,
     required bool hasRetried,
   }) {
-    if (hasRetried) {
+    // Shared links can push new content on the same route. An unchanged
+    // route name cannot identify a failed navigation in that case.
+    if (hasRetried || originRouteName == target.routeName) {
       return;
     }
 
@@ -687,6 +758,27 @@ class DeepLinkTarget {
          requiresAuthentication: true,
          organizationId: organizationId,
        );
+
+  DeepLinkTarget.sharedLms(String publicId)
+    : this._(
+        routeName: AppRouter.sharedLms,
+        arguments: SharedLmsRouteArgs(publicId: publicId),
+        requiresAuthentication: false,
+      );
+
+  DeepLinkTarget.sharedPaygrades(String publicId)
+    : this._(
+        routeName: AppRouter.sharedPaygrades,
+        arguments: SharedPaygradesRouteArgs(publicId: publicId),
+        requiresAuthentication: false,
+      );
+
+  DeepLinkTarget.sharedSeatProfile(String publicId)
+    : this._(
+        routeName: AppRouter.sharedSeatProfile,
+        arguments: SharedSeatProfileRouteArgs(publicId: publicId),
+        requiresAuthentication: false,
+      );
 
   final String routeName;
   final Object? arguments;

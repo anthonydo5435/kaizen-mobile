@@ -2,6 +2,7 @@ import 'package:flutter/material.dart';
 import 'package:flutter_html/flutter_html.dart';
 
 import '../../../../../core/constants/app_colors.dart';
+import '../../../../../core/constants/app_strings.dart';
 import '../../../../../core/widgets/app_text_view.dart';
 import '../../../domain/entities/compliance_track_item_detail.dart';
 
@@ -15,10 +16,12 @@ class ComplianceTrainingDocumentScreen extends StatelessWidget {
     return Container(
       padding: const EdgeInsets.all(18),
       decoration: BoxDecoration(
-        color: AppColors.surfaceDark,
+        color: AppColors.textPrimary,
         borderRadius: BorderRadius.circular(12),
       ),
-      child: SingleChildScrollView(child: _TrainingDocumentHtml(detail.trainingDocument)),
+      child: SingleChildScrollView(
+        child: _TrainingDocumentHtml(detail.trainingDocument),
+      ),
     );
   }
 }
@@ -33,8 +36,8 @@ class _TrainingDocumentHtml extends StatelessWidget {
     final value = html?.trim();
     if (value == null || value.isEmpty) {
       return const AppTextView.body3(
-        'No content available.',
-        color: AppColors.textPrimary,
+        AppStrings.noContentAvailable,
+        color: AppColors.surfaceDark,
         height: 1.7,
       );
     }
@@ -46,12 +49,15 @@ class _TrainingDocumentHtml extends StatelessWidget {
         'body': Style(
           margin: Margins.zero,
           padding: HtmlPaddings.zero,
-          color: AppColors.textPrimary,
+          color: AppColors.surfaceDark,
           fontSize: FontSize(13),
           fontWeight: FontWeight.w400,
           lineHeight: const LineHeight(1.65),
         ),
-        'p': Style(margin: Margins.only(bottom: 12), lineHeight: const LineHeight(1.65)),
+        'p': Style(
+          margin: Margins.only(bottom: 12),
+          lineHeight: const LineHeight(1.65),
+        ),
         'ul': Style(margin: Margins.only(bottom: 12)),
         'ol': Style(margin: Margins.only(bottom: 12)),
         'li': Style(margin: Margins.only(bottom: 6)),
@@ -68,7 +74,7 @@ class _TrainingDocumentHtml extends StatelessWidget {
 
   Style _headingStyle(double fontSize) => Style(
     margin: Margins.only(bottom: 10),
-    color: AppColors.textPrimary,
+    color: AppColors.surfaceDark,
     fontSize: FontSize(fontSize),
     fontWeight: FontWeight.w700,
     lineHeight: const LineHeight(1.35),

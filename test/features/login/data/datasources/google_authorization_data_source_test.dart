@@ -14,16 +14,13 @@ void main() {
   TestWidgetsFlutterBinding.ensureInitialized();
 
   group('OAuth configuration', () {
-    test('default browser request uses the production Web client and callback together', () async {
+    test('default browser request uses the configured Web client and callback together', () async {
       final harness = _Harness(clientId: null);
       addTearDown(harness.close);
       final pending = harness.source.authorize();
       final request = await harness.firstRequest.future;
-      expect(request.queryParameters['client_id'], _productionWebClientId);
-      expect(
-        request.queryParameters['redirect_uri'],
-        'https://app.kaizenteams.ai/auth/google/callback',
-      );
+      expect(request.queryParameters['client_id'], GoogleOAuthConfiguration.current.clientId);
+      expect(request.queryParameters['redirect_uri'], GoogleOAuthConfiguration.current.redirectUri);
       expect(request.path, '/o/oauth2/v2/auth');
       expect(request.queryParameters['state'], isNot('[REDACTED]'));
       harness.callbacks.add(harness.callback());
@@ -128,7 +125,7 @@ void main() {
   });
 
   test('browser request and backend exchange use the same redirect and a fresh state', () async {
-    final harness = _Harness();
+    final harness = _Harness(redirectUri: GoogleOAuthConfiguration.production.redirectUri);
     addTearDown(harness.close);
     final first = harness.source.authorize();
     final request = harness.requests.single;
@@ -167,6 +164,52 @@ void main() {
     expect(completed, isFalse);
     harness.callbacks.add(callback);
     expect((await result)!.code, 'test-code');
+  });
+
+  for (final host in ['app.kaizenteams.ai', 'dev.kaizenteams.ai']) {
+    test('browser Open app resumes an active Google sign-in on $host', () async {
+      final harness = _Harness(redirectUri: 'https://$host/auth/google/callback');
+      addTearDown(harness.close);
+      final pending = harness.source.authorize();
+      final callback = harness.callback(code: 'code+/with_underscores').replace(fragment: '_=_');
+      harness.callbacks.add(
+        Uri.parse('kaizenteams://open?url=${Uri.encodeComponent(callback.toString())}'),
+      );
+      final result = await pending;
+      expect(result!.code, 'code+/with_underscores');
+      expect(result.redirectUri, harness.source.redirectUri);
+      expect(harness.requests.single.queryParameters['redirect_uri'], result.redirectUri);
+    });
+  }
+
+  test('browser handoffs cannot bypass Google callback or state validation', () async {
+    final harness = _Harness(redirectUri: GoogleOAuthConfiguration.production.redirectUri);
+    addTearDown(harness.close);
+    var completed = false;
+    final pending = harness.source.authorize()..then((_) => completed = true);
+    final callback = harness.callback();
+    for (final uri in [
+      callback.replace(host: 'example.com'),
+      callback.replace(host: 'dev.kaizenteams.ai'),
+      callback.replace(scheme: 'http'),
+      callback.replace(path: '/auth/google/callback/extra'),
+      callback.replace(queryParameters: {'code': 'unsolicited'}),
+      callback.replace(queryParameters: {'code': 'stale', 'state': 'old'}),
+      callback.replace(
+        queryParameters: {
+          'code': 'duplicate',
+          'state': [callback.queryParameters['state']!, callback.queryParameters['state']!],
+        },
+      ),
+    ]) {
+      harness.callbacks.add(
+        Uri.parse('kaizenteams://open?url=${Uri.encodeComponent(uri.toString())}'),
+      );
+    }
+    await Future<void>.delayed(Duration.zero);
+    expect(completed, isFalse);
+    harness.callbacks.add(callback);
+    expect((await pending)!.code, 'test-code');
   });
 
   test(

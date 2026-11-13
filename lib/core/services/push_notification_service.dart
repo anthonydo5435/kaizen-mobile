@@ -146,5 +146,4 @@ class PushNotificationService {
 
 void _logNotificationMessage(String message) {
   debugPrint(message);
-  print(message);
 }

@@ -1,5 +1,6 @@
 import 'package:flutter/material.dart';
 
+import '../../../../core/constants/app_colors.dart';
 import '../../../../core/constants/app_strings.dart';
 import '../../../../core/navigation/app_menu_type.dart';
 import '../../../../core/widgets/drawer_main_screen.dart';
@@ -34,26 +35,28 @@ class TrainingLibraryContent extends StatelessWidget {
       title: AppStrings.trainingLibraryTitle,
       selectedMenu: AppMenuType.library,
       centerTitle: true,
+      navigationBarsVisible: controller.navigationBarsVisible,
+      appBarActions: [
+        if (!controller.isShowingFullscreenLoading &&
+            controller.canCreateTraining)
+          TrainingLibraryCreateAction(
+            onTap: () => controller.openCreateFlow(onOpen: onCreate),
+          ),
+      ],
       child: SafeArea(
         top: false,
         bottom: false,
-        child: Column(
-          children: [
-            Expanded(
-              child: controller.isShowingFullscreenLoading
-                  ? Center(child: FastCircularProgressIndicator(width: 24, height: 24))
-                  : _TrainingLibraryFiltersAndResults(
-                      controller: controller,
-                      onModuleTap: (module) =>
-                          controller.openLesson(module, openDetails: onOpenLesson),
-                      onSelectSeat: onSelectSeat,
-                      onModuleActions: onModuleActions,
-                    ),
-            ),
-            if (!controller.isShowingFullscreenLoading && controller.canCreateTraining)
-              TrainingLibraryCreateAction(onTap: () => controller.openCreateFlow(onOpen: onCreate)),
-          ],
-        ),
+        child: controller.isShowingFullscreenLoading
+            ? Center(
+                child: FastCircularProgressIndicator(width: 24, height: 24),
+              )
+            : _TrainingLibraryFiltersAndResults(
+                controller: controller,
+                onModuleTap: (module) =>
+                    controller.openLesson(module, openDetails: onOpenLesson),
+                onSelectSeat: onSelectSeat,
+                onModuleActions: onModuleActions,
+              ),
       ),
     );
   }
@@ -77,19 +80,23 @@ class _TrainingLibraryFiltersAndResults extends StatelessWidget {
     final items = controller.visibleItems;
 
     return Padding(
-      padding: const EdgeInsets.fromLTRB(16, 8, 16, 0),
+      padding: const EdgeInsets.fromLTRB(8, 8, 8, 0),
       child: Column(
         crossAxisAlignment: CrossAxisAlignment.stretch,
         children: [
-          TrainingLibrarySearchBar(controller: controller, onSelectSeat: onSelectSeat),
+          TrainingLibrarySearchBar(
+            controller: controller,
+            onSelectSeat: onSelectSeat,
+          ),
           if (controller.appliedFilterTags.isNotEmpty) ...[
             const SizedBox(height: 12),
             TrainingLibraryFilterTags(controller: controller),
           ],
           const SizedBox(height: 24),
           Expanded(
-            child: RefreshIndicator.noSpinner(
-              onRefresh: controller.refresh,
+            child: RefreshIndicator(
+              color: AppColors.purple2,
+              onRefresh: () => controller.refresh(preservePosition: true),
               child: TrainingLibraryResultArea(
                 controller: controller,
                 items: items,

@@ -4,6 +4,7 @@ import '../../../../core/constants/app_colors.dart';
 import '../../../../core/constants/app_strings.dart';
 import '../../../../core/widgets/app_button.dart';
 import '../../../../core/widgets/app_overlay_close_button.dart';
+import '../../../../core/widgets/app_dialog_style.dart';
 import '../../../../core/widgets/app_text_view.dart';
 
 class DescriptionTextCommentDialog extends StatefulWidget {
@@ -42,7 +43,7 @@ class _DescriptionTextCommentDialogState extends State<DescriptionTextCommentDia
             decoration: BoxDecoration(
               color: AppColors.surfaceDark,
               borderRadius: BorderRadius.circular(12),
-              border: Border.all(color: AppColors.grey2.withValues(alpha: 0.55)),
+              border: AppDialogStyle.border,
             ),
             child: Column(
               mainAxisSize: MainAxisSize.min,

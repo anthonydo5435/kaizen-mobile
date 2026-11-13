@@ -80,7 +80,7 @@ class _DepartmentsScreenViewState extends State<_DepartmentsScreenView> {
       listenable: AppManager.instance,
       builder: (context, _) {
         final canManageContent =
-            AppManager.instance.canCurrentOrganizationModifyContent;
+            AppManager.instance.currentUserCanEditDepartments;
 
         return DrawerMainScreen(
           title: AppStrings.departmentsTitle,
@@ -103,7 +103,7 @@ class _DepartmentsScreenViewState extends State<_DepartmentsScreenView> {
     bool canManageContent,
   ) {
     return Padding(
-      padding: const EdgeInsets.fromLTRB(16, 0, 16, 24),
+      padding: const EdgeInsets.fromLTRB(8, 0, 8, 24),
       child: Column(
         children: [
           SeatProfileSearchBar(
@@ -166,12 +166,12 @@ class _DepartmentsScreenViewState extends State<_DepartmentsScreenView> {
   }
 
   Future<void> _openEditDialog(Department department) async {
-    if (!AppManager.instance.canCurrentOrganizationModifyContent ||
+    if (!AppManager.instance.currentUserCanEditDepartments ||
         _isPrivilegedDepartment(department)) {
       return;
     }
 
-    final didSave = await showEditDepartmentDialog(
+    await showEditDepartmentDialog(
       context,
       department: department,
       onSave: (name, colorHex) {
@@ -182,18 +182,6 @@ class _DepartmentsScreenViewState extends State<_DepartmentsScreenView> {
         );
       },
     );
-
-    if (!mounted || !didSave) {
-      return;
-    }
-
-    ScaffoldMessenger.of(context)
-      ..hideCurrentSnackBar()
-      ..showSnackBar(
-        SnackBar(
-          content: AppTextView.body2(AppStrings.departmentsUpdateSuccess),
-        ),
-      );
   }
 
   bool _isPrivilegedDepartment(Department department) {

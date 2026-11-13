@@ -158,22 +158,13 @@ class SplashController extends ChangeNotifier {
   String _resolveStartupErrorMessage(Object error) {
     if (error is ApiError) {
       final message = error.message.trim();
-      if (message.isNotEmpty) {
+      if (message == AppStrings.apiUnableToConnectServer ||
+          message == AppStrings.apiRequestTimedOut) {
         return message;
       }
     }
 
-    final message = error.toString().trim();
-    if (message.isEmpty) {
-      return AppStrings.splashStartupFailed;
-    }
-
-    final normalizedMessage = message.startsWith(AppStrings.apiErrorPrefix)
-        ? message.substring(AppStrings.apiErrorPrefix.length).trim()
-        : message;
-
-    return normalizedMessage.isEmpty
-        ? AppStrings.splashStartupFailed
-        : normalizedMessage;
+    // Server bodies and exception details can contain HTML or long diagnostics.
+    return AppStrings.splashStartupFailed;
   }
 }

@@ -52,7 +52,7 @@
 	<key>LSRequiresIPhoneOS</key>
 	<true/>
 	<key>NSCameraUsageDescription</key>
-	<string>Allow KaizenTeams to use the camera so you can record training videos and attach photos or videos in audits.</string>
+	<string>Allow KaizenTeams to use the camera so you can photograph compliance documents, record training videos, and attach photos or videos in audits.</string>
 	<key>NSMicrophoneUsageDescription</key>
 	<string>Allow KaizenTeams to access the microphone so you can record training videos and use audio-related recording features.</string>
 	<key>NSPhotoLibraryUsageDescription</key>

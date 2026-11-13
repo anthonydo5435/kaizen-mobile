@@ -1,120 +1,5 @@
 part of 'package:sparrowkaizen/features/training/presentation/pages/edit_training_screen.dart';
 
-class _GradientTrainingActionButton extends StatelessWidget {
-  const _GradientTrainingActionButton({
-    required this.label,
-    required this.icon,
-    required this.onTap,
-    this.isEnabled = true,
-    this.isLoading = false,
-    this.showLoaderInIconSlot = false,
-    this.verticalPadding = 11,
-  });
-
-  final String label;
-  final IconData? icon;
-  final bool isEnabled;
-  final bool isLoading;
-  final bool showLoaderInIconSlot;
-  final VoidCallback? onTap;
-  final double verticalPadding;
-
-  @override
-  Widget build(BuildContext context) {
-    final isEnabledAppearance = isEnabled && onTap != null;
-    final isInteractive = isEnabledAppearance && !isLoading;
-
-    return Material(
-      color: Colors.transparent,
-      child: InkWell(
-        onTap: isInteractive ? onTap : null,
-        borderRadius: BorderRadius.circular(14),
-        child: Ink(
-          padding: EdgeInsets.symmetric(horizontal: 16, vertical: verticalPadding),
-          decoration: BoxDecoration(
-            gradient: isEnabledAppearance
-                ? const LinearGradient(
-                    begin: Alignment.centerLeft,
-                    end: Alignment.centerRight,
-                    colors: [AppColors.purple1, AppColors.secondaryColor],
-                  )
-                : null,
-            color: isEnabledAppearance ? null : AppColors.surfaceDark,
-            borderRadius: BorderRadius.circular(14),
-            border: Border.all(
-              color: isEnabledAppearance
-                  ? AppColors.lightPurple1.withValues(alpha: 0.35)
-                  : AppColors.fieldBorder.withValues(alpha: 0.22),
-            ),
-            boxShadow: isEnabledAppearance
-                ? [
-                    BoxShadow(
-                      color: AppColors.purple1.withValues(alpha: 0.36),
-                      blurRadius: 10,
-                      offset: const Offset(-6, 0),
-                      spreadRadius: -1,
-                    ),
-                    BoxShadow(
-                      color: AppColors.secondaryColor.withValues(alpha: 0.42),
-                      blurRadius: 16,
-                      offset: const Offset(12, 0),
-                      spreadRadius: -2,
-                    ),
-                  ]
-                : const <BoxShadow>[],
-          ),
-          child: Row(
-            mainAxisSize: MainAxisSize.min,
-            children: [
-              if (icon != null) ...[
-                SizedBox.square(
-                  dimension: 16,
-                  child: showLoaderInIconSlot && isLoading
-                      ? const FastCircularProgressIndicator(width: 16, height: 16)
-                      : Icon(
-                          icon,
-                          size: 16,
-                          color: isEnabledAppearance
-                              ? Colors.white.withValues(alpha: 0.96)
-                              : AppColors.textSecondary,
-                        ),
-                ),
-                const SizedBox(width: 8),
-              ],
-              Stack(
-                alignment: Alignment.center,
-                children: [
-                  Opacity(
-                    opacity: icon == null && isLoading ? 0 : 1,
-                    child: _buildLabel(label, isEnabledAppearance),
-                  ),
-                  if (icon == null && isLoading)
-                    const SizedBox.square(
-                      dimension: 16,
-                      child: FastCircularProgressIndicator(width: 16, height: 16),
-                    ),
-                ],
-              ),
-              if (icon != null && isLoading && !showLoaderInIconSlot) ...[
-                const SizedBox(width: 10),
-                FastCircularProgressIndicator(width: 14, height: 14),
-              ],
-            ],
-          ),
-        ),
-      ),
-    );
-  }
-
-  Widget _buildLabel(String text, bool isEnabledAppearance) {
-    return AppTextView.body2(
-      text,
-      color: isEnabledAppearance ? AppColors.textPrimary : AppColors.textSecondary,
-      fontWeight: FontWeight.w700,
-    );
-  }
-}
-
 class _TrainingCreateWithAiButton extends StatelessWidget {
   const _TrainingCreateWithAiButton({
     required this.isEnabled,
@@ -263,15 +148,16 @@ class _TrainingSectionHeader extends StatelessWidget {
 }
 
 class _TrainingDisplayCard extends StatelessWidget {
-  const _TrainingDisplayCard({required this.child});
+  const _TrainingDisplayCard({required this.child, this.padding = const EdgeInsets.all(16)});
 
   final Widget child;
+  final EdgeInsetsGeometry padding;
 
   @override
   Widget build(BuildContext context) {
     return Container(
       width: double.infinity,
-      padding: const EdgeInsets.all(16),
+      padding: padding,
       decoration: BoxDecoration(
         color: AppColors.surfaceDark2.withValues(alpha: 0.4),
         borderRadius: BorderRadius.circular(18),
@@ -288,12 +174,10 @@ class _TrainingEditableTextCard extends StatelessWidget {
     required this.hintText,
     required this.minLines,
     required this.maxLines,
-    this.readOnly = false,
     this.wrapWithCard = true,
     this.expands = false,
     this.textColor = AppColors.textPrimary,
     this.hintColor,
-    this.scrollPhysics,
     this.padding = const EdgeInsets.all(16),
   });
 
@@ -301,12 +185,10 @@ class _TrainingEditableTextCard extends StatelessWidget {
   final String hintText;
   final int minLines;
   final int maxLines;
-  final bool readOnly;
   final bool wrapWithCard;
   final bool expands;
   final Color textColor;
   final Color? hintColor;
-  final ScrollPhysics? scrollPhysics;
   final EdgeInsetsGeometry padding;
 
   @override
@@ -315,8 +197,6 @@ class _TrainingEditableTextCard extends StatelessWidget {
       padding: padding,
       child: TextField(
         controller: controller,
-        scrollPhysics: scrollPhysics,
-        readOnly: readOnly,
         cursorColor: textColor,
         cursorHeight: 15,
         expands: expands,
@@ -344,49 +224,6 @@ class _TrainingEditableTextCard extends StatelessWidget {
     }
 
     return _TrainingDisplayCard(child: textField);
-  }
-}
-
-class _TrainingSingleLineInputCard extends StatelessWidget {
-  const _TrainingSingleLineInputCard({
-    required this.controller,
-    required this.hintText,
-    this.readOnly = false,
-  });
-
-  final TextEditingController controller;
-  final String hintText;
-  final bool readOnly;
-
-  @override
-  Widget build(BuildContext context) {
-    return _TrainingDisplayCard(
-      child: TextField(
-        controller: controller,
-        readOnly: readOnly,
-        cursorColor: Colors.white,
-        cursorHeight: 15,
-        maxLines: 1,
-        textInputAction: TextInputAction.done,
-        style: const TextStyle(
-          color: AppColors.textPrimary,
-          fontSize: 13,
-          fontWeight: FontWeight.w600,
-          height: 1.4,
-        ),
-        decoration: InputDecoration(
-          isCollapsed: true,
-          border: InputBorder.none,
-          hintText: hintText,
-          hintStyle: TextStyle(
-            color: AppColors.textSecondary.withValues(alpha: 0.74),
-            fontSize: 13,
-            fontWeight: FontWeight.w500,
-            height: 1.4,
-          ),
-        ),
-      ),
-    );
   }
 }
 

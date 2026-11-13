@@ -42,6 +42,7 @@ class ComplianceDocumentModel extends ComplianceDocument {
       category: category,
       status: requiresExpiry ? 'Expiry Required' : 'No Expiry',
       updatedAt: '',
+      hasExpiry: requiresExpiry,
       seatProfiles: allJobs
           ? const <String>['All Jobs']
           : (jobs ?? const <String>[]),

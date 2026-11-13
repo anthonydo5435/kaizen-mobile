@@ -26,7 +26,11 @@ class _DialogErrorMessageCard extends StatelessWidget {
         borderRadius: BorderRadius.circular(12),
         border: Border.all(color: AppColors.red.withValues(alpha: 0.22)),
       ),
-      child: AppTextView.body3(message, color: AppColors.textPrimary, height: 1.45),
+      child: AppTextView.body3(
+        message,
+        color: AppColors.textPrimary,
+        height: 1.45,
+      ),
     );
   }
 }
@@ -94,7 +98,11 @@ class _QuizGenerationStepper extends StatelessWidget {
 }
 
 class _StepperActionButton extends StatelessWidget {
-  const _StepperActionButton({required this.icon, required this.tooltip, required this.onTap});
+  const _StepperActionButton({
+    required this.icon,
+    required this.tooltip,
+    required this.onTap,
+  });
 
   final IconData icon;
   final String tooltip;
@@ -115,7 +123,11 @@ class _StepperActionButton extends StatelessWidget {
 }
 
 class _QuizDifficultyChip extends StatelessWidget {
-  const _QuizDifficultyChip({required this.label, required this.isSelected, required this.onTap});
+  const _QuizDifficultyChip({
+    required this.label,
+    required this.isSelected,
+    required this.onTap,
+  });
 
   final String label;
   final bool isSelected;
@@ -128,7 +140,9 @@ class _QuizDifficultyChip extends StatelessWidget {
       child: TextButton(
         onPressed: onTap,
         style: TextButton.styleFrom(
-          backgroundColor: isSelected ? AppColors.secondaryColor : Colors.transparent,
+          backgroundColor: isSelected
+              ? AppColors.secondaryColor
+              : Colors.transparent,
           disabledBackgroundColor: isSelected
               ? AppColors.secondaryColor.withValues(alpha: 0.55)
               : Colors.transparent,
@@ -166,7 +180,10 @@ class _DividerDot extends StatelessWidget {
       width: 10,
       height: 10,
       margin: const EdgeInsets.symmetric(horizontal: 2),
-      decoration: const BoxDecoration(color: AppColors.hex51597a, shape: BoxShape.circle),
+      decoration: const BoxDecoration(
+        color: AppColors.hex51597a,
+        shape: BoxShape.circle,
+      ),
     );
   }
 }
@@ -243,10 +260,15 @@ class _SopAlertCard extends StatelessWidget {
               ),
               filled: true,
               fillColor: AppColors.surfaceDark2,
-              contentPadding: const EdgeInsets.symmetric(horizontal: 16, vertical: 14),
+              contentPadding: const EdgeInsets.symmetric(
+                horizontal: 16,
+                vertical: 14,
+              ),
               enabledBorder: OutlineInputBorder(
                 borderRadius: BorderRadius.circular(14),
-                borderSide: BorderSide(color: Colors.white.withValues(alpha: 0.08)),
+                borderSide: BorderSide(
+                  color: Colors.white.withValues(alpha: 0.08),
+                ),
               ),
               focusedBorder: OutlineInputBorder(
                 borderRadius: BorderRadius.circular(14),

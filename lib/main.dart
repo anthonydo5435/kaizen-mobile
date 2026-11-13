@@ -1,6 +1,7 @@
 import 'dart:async';
 
 import 'package:flutter/material.dart';
+import 'package:flutter/services.dart';
 import 'package:provider/provider.dart';
 import 'package:sparrowkaizen/core/managers/app_manager.dart';
 import 'package:sparrowkaizen/core/preference/app_preference.dart';
@@ -17,6 +18,9 @@ const bool _showTrainingVideoUploadBanner = true;
 
 void main() async {
   WidgetsFlutterBinding.ensureInitialized();
+  await SystemChrome.setPreferredOrientations(const [
+    DeviceOrientation.portraitUp,
+  ]);
   await AppPreference.init();
   await AppManager.instance.hydrateCurrentUser();
   await DeepLinkService.instance.initialize();

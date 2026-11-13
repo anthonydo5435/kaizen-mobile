@@ -38,6 +38,27 @@ class AppPermissionUtils {
     return !isChildOrganization(currentOrganization);
   }
 
+  static bool canEditDepartments({
+    required User? user,
+    required Organization? currentOrganization,
+  }) {
+    // Department editing allows explicit owners in child organisations too.
+    return user?.isOwner == true ||
+        canModifyCurrentOrganizationContent(
+          currentOrganization: currentOrganization,
+        );
+  }
+
+  static bool canManagePublicLinks({
+    required User? user,
+    required Organization? currentOrganization,
+  }) {
+    return canModifyCurrentOrganizationContent(
+          currentOrganization: currentOrganization,
+        ) &&
+        user?.isOwner == true;
+  }
+
   static bool canAccessScopedCreateEntry(
     User? user, {
     required Organization? currentOrganization,
@@ -226,6 +247,28 @@ class AppPermissionUtils {
     }
 
     return false;
+  }
+
+  static bool canViewTrainingQuizAndAssignment({
+    required User? user,
+    required Organization? currentOrganization,
+    required String seatProfileId,
+  }) {
+    // Sandbox adds managed-seat viewing even in child organisations. Owners
+    // keep their existing access, and editing permissions remain separate.
+    final canViewWithSandbox =
+        user?.hasSandboxAccess == true &&
+        (user?.isOwner == true ||
+            user?.hierarchyMemberships?.any(
+                  (membership) => membership.managesSeatProfile(seatProfileId),
+                ) ==
+                true);
+    return canViewWithSandbox ||
+        canManageTrainingForSeatProfile(
+          user: user,
+          currentOrganization: currentOrganization,
+          seatProfileId: seatProfileId,
+        );
   }
 
   static bool canManagePaygrades({

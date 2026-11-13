@@ -9,18 +9,75 @@ class AuthController {
   AuthController._();
 
   static final ApiCallExecutor _apiCallExecutor = const ApiCallExecutor();
+  static Future<String>? _refreshOperation;
+  static int? _refreshSessionVersion;
+  static Future<void>? _logoutOperation;
 
   static Future<void> logout() async {
-    await AppPreference.clearUserSession();
+    final pending = _logoutOperation;
+    if (pending != null) return pending;
+    if (AppPreference.getAuthToken().isEmpty &&
+        AppPreference.getRefreshToken().isEmpty &&
+        AppManager.instance.currentUser == null) {
+      return;
+    }
+
+    final operation = _logout();
+    _logoutOperation = operation;
+    try {
+      await operation;
+    } finally {
+      if (identical(_logoutOperation, operation)) _logoutOperation = null;
+    }
+  }
+
+  static Future<void> _logout() async {
+    final clearing = AppPreference.clearUserSession();
+    final version = AppPreference.sessionVersion;
+    ApiCallExecutor.clearGetCache();
+    await clearing;
+    if (version != AppPreference.sessionVersion) return;
     AppManager.instance.resetSessionState();
     await AppRouter.resetToLogin();
   }
 
-  static Future<String> requestRefreshToken() async {
+  static Future<String> requestRefreshToken({
+    String? failedAccessToken,
+    int? sessionVersion,
+  }) async {
+    final version = sessionVersion ?? AppPreference.sessionVersion;
+    if (version != AppPreference.sessionVersion) {
+      throw ApiError.requestFailed(401);
+    }
+    final pending = _refreshOperation;
+    if (pending != null && _refreshSessionVersion == version) return pending;
+
+    // A late 401 can belong to a token that another request already refreshed.
+    final currentAccessToken = AppPreference.getAuthToken().trim();
+    if (failedAccessToken != null &&
+        currentAccessToken.isNotEmpty &&
+        failedAccessToken != currentAccessToken) {
+      return currentAccessToken;
+    }
+
+    final operation = _refreshToken(version);
+    _refreshOperation = operation;
+    _refreshSessionVersion = version;
+    try {
+      return await operation;
+    } finally {
+      if (identical(_refreshOperation, operation)) {
+        _refreshOperation = null;
+        _refreshSessionVersion = null;
+      }
+    }
+  }
+
+  static Future<String> _refreshToken(int sessionVersion) async {
     final refreshToken = AppPreference.getRefreshToken().trim();
     if (refreshToken.isEmpty) {
       await logout();
-      throw const ApiError.invalidResponse();
+      throw ApiError.requestFailed(401);
     }
 
     try {
@@ -48,13 +105,23 @@ class AuthController {
         },
       );
 
-      await AppPreference.clearTokens();
-      await AppPreference.setAuthToken(response['access']!);
-      await AppPreference.setRefreshToken(response['refresh']!);
+      if (sessionVersion != AppPreference.sessionVersion) {
+        throw ApiError.requestFailed(401);
+      }
+      // Update both cached preferences before yielding, keeping this session's
+      // version stable so other requests can reuse the rotated credentials.
+      await Future.wait<void>([
+        AppPreference.setAuthToken(response['access']!),
+        AppPreference.setRefreshToken(response['refresh']!),
+      ]);
+      if (sessionVersion != AppPreference.sessionVersion) {
+        throw ApiError.requestFailed(401);
+      }
 
       return response['access']!;
     } on ApiError catch (error) {
-      if (error.statusCode == 400 || error.statusCode == 401) {
+      if (sessionVersion == AppPreference.sessionVersion &&
+          (error.statusCode == 400 || error.statusCode == 401)) {
         await logout();
       }
 

@@ -1,3 +1,5 @@
+import 'dart:async';
+
 import 'package:flutter/material.dart';
 
 import '../../../../core/constants/app_strings.dart';
@@ -6,6 +8,7 @@ import '../../data/repositories/seat_profile_repository_impl.dart';
 import '../../domain/entities/seat_profile_category_draft.dart';
 import '../../domain/entities/seat_profile_detail.dart';
 import '../../domain/usecases/get_seat_profiles_usecase.dart';
+import 'seat_profile_share_controller.dart';
 
 enum SeatProfileDetailContentSpecificity {
   low('low'),
@@ -56,8 +59,10 @@ class SeatProfileDetailController extends ChangeNotifier {
   String? _errorMessage;
   SeatProfileDetail? _detail;
   String _seatId = '';
+  bool _isShared = false;
+  bool _isDisposed = false;
+  SeatProfileShareController? _shareController;
   String? _seatContentGenerationErrorMessage;
-  final Set<String> _expandedCategoryIds = <String>{};
   final Set<String> _deletingDescriptionIds = <String>{};
   SeatProfileDetailContentSpecificity _selectedSpecificity =
       SeatProfileDetailContentSpecificity.medium;
@@ -68,6 +73,7 @@ class SeatProfileDetailController extends ChangeNotifier {
   bool get isGeneratingSeatContent => _isGeneratingSeatContent;
   String? get errorMessage => _errorMessage;
   SeatProfileDetail? get detail => _detail;
+  SeatProfileShareController? get shareController => _shareController;
   String? get seatContentGenerationErrorMessage =>
       _seatContentGenerationErrorMessage;
   SeatProfileDetailContentSpecificity get selectedSpecificity =>
@@ -94,7 +100,15 @@ class SeatProfileDetailController extends ChangeNotifier {
     }
 
     _seatId = seatId;
+    _isShared = false;
     await _loadDetail(seatId, showBlockingLoader: true);
+  }
+
+  Future<void> initializeShared(String publicId) async {
+    if (_isLoading) return;
+    _seatId = publicId;
+    _isShared = true;
+    await _loadDetail(publicId, showBlockingLoader: true);
   }
 
   Future<void> refresh() async {
@@ -109,6 +123,7 @@ class SeatProfileDetailController extends ChangeNotifier {
   Future<void> saveSeatCategoryDrafts(
     List<SeatProfileCategoryDraft> categories,
   ) async {
+    _ensureEditable();
     final detail = _detail;
     if (detail == null) {
       throw StateError(AppStrings.loginSomethingWentWrong);
@@ -133,6 +148,7 @@ class SeatProfileDetailController extends ChangeNotifier {
     required String auditFactorType,
     String? milestoneDays,
   }) async {
+    _ensureEditable();
     final resolvedSeatId = _actionTargetId;
     if (resolvedSeatId.isEmpty || categoryId.trim().isEmpty) {
       throw StateError(AppStrings.loginSomethingWentWrong);
@@ -156,6 +172,7 @@ class SeatProfileDetailController extends ChangeNotifier {
     required String auditFactorType,
     String? milestoneDays,
   }) async {
+    _ensureEditable();
     final resolvedDescriptionId = description.resolvedDescriptionId;
     if (resolvedDescriptionId.isEmpty) {
       throw StateError(AppStrings.loginSomethingWentWrong);
@@ -181,6 +198,7 @@ class SeatProfileDetailController extends ChangeNotifier {
   }
 
   Future<bool> deleteSeatDescription(SeatProfileDescription description) async {
+    _ensureEditable();
     final resolvedDescriptionId = description.resolvedDescriptionId;
     if (resolvedDescriptionId.isEmpty) {
       throw StateError(AppStrings.loginSomethingWentWrong);
@@ -203,26 +221,6 @@ class SeatProfileDetailController extends ChangeNotifier {
       _deletingDescriptionIds.remove(resolvedDescriptionId);
       notifyListeners();
     }
-  }
-
-  bool isCategoryExpanded(String categoryId) {
-    return _expandedCategoryIds.contains(categoryId.trim());
-  }
-
-  void setCategoryExpanded(String categoryId, bool isExpanded) {
-    final resolvedCategoryId = categoryId.trim();
-    if (resolvedCategoryId.isEmpty) {
-      return;
-    }
-
-    final didChange = isExpanded
-        ? _expandedCategoryIds.add(resolvedCategoryId)
-        : _expandedCategoryIds.remove(resolvedCategoryId);
-    if (!didChange) {
-      return;
-    }
-
-    notifyListeners();
   }
 
   void selectSpecificity(SeatProfileDetailContentSpecificity value) {
@@ -255,6 +253,7 @@ class SeatProfileDetailController extends ChangeNotifier {
   }
 
   Future<bool> generateSeatContentWithAi() async {
+    if (_isShared) return false;
     final detail = _detail;
     if (_isGeneratingSeatContent || detail == null) {
       return false;
@@ -288,6 +287,7 @@ class SeatProfileDetailController extends ChangeNotifier {
   }
 
   String get _actionTargetId {
+    if (_isShared) return '';
     final resolvedDetailId = _detail?.resolvedSeatId.trim() ?? '';
     if (resolvedDetailId.isNotEmpty) {
       return resolvedDetailId;
@@ -308,34 +308,62 @@ class SeatProfileDetailController extends ChangeNotifier {
     }
 
     try {
-      final loadedDetail = await _getSeatProfilesUseCase.getSeatProfileDetail(
-        seatId,
-      );
-      _detail = _normalizeDetail(loadedDetail, fallbackSeatId: seatId);
-      _syncExpandedCategories();
+      final loadedDetail = _isShared
+          ? await _getSeatProfilesUseCase.getSharedSeatProfileDetail(seatId)
+          : await _getSeatProfilesUseCase.getSeatProfileDetail(seatId);
+      if (_isDisposed) return;
+      _detail = _isShared
+          ? loadedDetail
+          : _normalizeDetail(loadedDetail, fallbackSeatId: seatId);
+      _loadPublicLink();
       _errorMessage = null;
     } catch (error) {
+      if (_isDisposed) return;
       if (_detail == null || shouldShowBlockingLoader) {
-        _errorMessage = error.toString();
+        _errorMessage = _isShared
+            ? AppStrings.sharedSeatProfileUnableToLoad
+            : error.toString();
       }
     } finally {
       if (shouldShowBlockingLoader) {
         _isLoading = false;
       }
 
-      notifyListeners();
+      if (!_isDisposed) notifyListeners();
     }
   }
 
-  void _syncExpandedCategories() {
-    final availableCategoryIds =
-        (_detail?.categories ?? const <SeatProfileCategory>[])
-            .map((category) => category.id.trim())
-            .where((categoryId) => categoryId.isNotEmpty)
-            .toSet();
-    _expandedCategoryIds.removeWhere(
-      (categoryId) => !availableCategoryIds.contains(categoryId),
-    );
+  void _loadPublicLink() {
+    final detail = _detail;
+    if (_isShared || detail == null) {
+      _shareController?.dispose();
+      _shareController = null;
+      return;
+    }
+    final departmentId = detail.department?.id ?? '';
+    if (_shareController?.seatId != detail.resolvedSeatId ||
+        _shareController?.departmentId != departmentId) {
+      _shareController?.dispose();
+      _shareController = SeatProfileShareController(
+        _getSeatProfilesUseCase,
+        seatId: detail.resolvedSeatId,
+        departmentId: departmentId,
+      );
+    }
+    unawaited(_shareController!.loadLink());
+  }
+
+  @override
+  void dispose() {
+    _isDisposed = true;
+    _shareController?.dispose();
+    super.dispose();
+  }
+
+  void _ensureEditable() {
+    if (_isShared) {
+      throw StateError(AppStrings.loginSomethingWentWrong);
+    }
   }
 
   SeatProfileDetail _normalizeDetail(

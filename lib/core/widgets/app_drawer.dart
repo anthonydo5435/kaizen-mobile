@@ -18,11 +18,7 @@ class AppDrawer extends StatelessWidget {
     this.imageUrl,
     required this.selectedMenu,
     this.onProfileTap,
-    this.onLearningTracksTap,
     this.onComplianceTap,
-    this.onLibraryTap,
-    this.onAuditsTap,
-    this.onPerformanceSnapshotTap,
     this.onSeatProfilesTap,
     this.onPaygradesTap,
     this.onDepartmentsTap,
@@ -40,11 +36,7 @@ class AppDrawer extends StatelessWidget {
   final String? imageUrl;
   final AppMenuType? selectedMenu;
   final VoidCallback? onProfileTap;
-  final VoidCallback? onLearningTracksTap;
   final VoidCallback? onComplianceTap;
-  final VoidCallback? onLibraryTap;
-  final VoidCallback? onAuditsTap;
-  final VoidCallback? onPerformanceSnapshotTap;
   final VoidCallback? onSeatProfilesTap;
   final VoidCallback? onPaygradesTap;
   final VoidCallback? onDepartmentsTap;
@@ -91,13 +83,6 @@ class AppDrawer extends StatelessWidget {
       return [
         _buildDrawerItem(
           context,
-          icon: Icons.video_library_outlined,
-          title: AppStrings.homeLibrary,
-          isSelected: selectedMenu == AppMenuType.library,
-          onTap: onLibraryTap,
-        ),
-        _buildDrawerItem(
-          context,
           icon: Icons.event_seat_outlined,
           title: AppStrings.homeSeatProfiles,
           isSelected: selectedMenu == AppMenuType.seatProfiles,
@@ -121,13 +106,6 @@ class AppDrawer extends StatelessWidget {
     }
 
     return [
-      _buildDrawerItem(
-        context,
-        icon: Icons.folder_open_outlined,
-        title: AppStrings.homeCompliance,
-        isSelected: selectedMenu == AppMenuType.compliance,
-        onTap: onComplianceTap,
-      ),
       // _buildDrawerItem(
       //   context,
       //   icon: Icons.auto_awesome_outlined,
@@ -137,31 +115,10 @@ class AppDrawer extends StatelessWidget {
       // ),
       _buildDrawerItem(
         context,
-        icon: Icons.verified_user_outlined,
-        title: AppStrings.homeLearningTracks,
-        isSelected: selectedMenu == AppMenuType.learningTracks,
-        onTap: onLearningTracksTap,
-      ),
-      _buildDrawerItem(
-        context,
-        icon: Icons.video_library_outlined,
-        title: AppStrings.homeLibrary,
-        isSelected: selectedMenu == AppMenuType.library,
-        onTap: onLibraryTap,
-      ),
-      _buildDrawerItem(
-        context,
-        icon: Icons.fact_check_outlined,
-        title: AppStrings.weeklyCheckIns,
-        isSelected: selectedMenu == AppMenuType.audits,
-        onTap: onAuditsTap,
-      ),
-      _buildDrawerItem(
-        context,
-        icon: Icons.insights_outlined,
-        title: AppStrings.performanceSnapshot,
-        isSelected: selectedMenu == AppMenuType.performanceSnapshot,
-        onTap: onPerformanceSnapshotTap,
+        icon: Icons.folder_open_outlined,
+        title: AppStrings.homeDocumentCenter,
+        isSelected: selectedMenu == AppMenuType.compliance,
+        onTap: onComplianceTap,
       ),
       _buildDrawerItem(
         context,

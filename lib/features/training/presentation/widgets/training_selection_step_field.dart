@@ -6,14 +6,14 @@ import '../../../../core/widgets/app_text_view.dart';
 class TrainingSelectionStepField extends StatelessWidget {
   const TrainingSelectionStepField({
     super.key,
-    required this.stepNumber,
+    this.stepNumber,
     required this.hintText,
     required this.selectedText,
     required this.enabled,
     required this.onTap,
   });
 
-  final int stepNumber;
+  final int? stepNumber;
   final String hintText;
   final String? selectedText;
   final bool enabled;
@@ -45,22 +45,24 @@ class TrainingSelectionStepField extends StatelessWidget {
           ),
           child: Row(
             children: <Widget>[
-              Container(
-                width: 22,
-                height: 22,
-                alignment: Alignment.center,
-                decoration: BoxDecoration(
-                  color: enabled ? AppColors.secondaryColor : AppColors.grey1,
-                  shape: BoxShape.circle,
+              if (stepNumber != null) ...[
+                Container(
+                  width: 22,
+                  height: 22,
+                  alignment: Alignment.center,
+                  decoration: BoxDecoration(
+                    color: enabled ? AppColors.secondaryColor : AppColors.grey1,
+                    shape: BoxShape.circle,
+                  ),
+                  child: AppTextView.body(
+                    '$stepNumber',
+                    color: enabled ? AppColors.textPrimary : AppColors.mainBg,
+                    fontSize: 13,
+                    fontWeight: FontWeight.w500,
+                  ),
                 ),
-                child: AppTextView.body(
-                  '$stepNumber',
-                  color: enabled ? AppColors.textPrimary : AppColors.mainBg,
-                  fontSize: 13,
-                  fontWeight: FontWeight.w500,
-                ),
-              ),
-              const SizedBox(width: 10),
+                const SizedBox(width: 10),
+              ],
               Expanded(
                 child: AppTextView.body(
                   hasSelection ? resolvedText! : hintText,

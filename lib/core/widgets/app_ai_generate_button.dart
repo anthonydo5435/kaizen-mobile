@@ -16,7 +16,9 @@ class AppAiGenerateButton extends StatelessWidget {
     this.minHeight,
     this.textSize,
     this.maxLines = 1,
-    this.fontWeight = FontWeight.w600,
+    this.fontWeight = FontWeight.w700,
+    this.outerPadding = const EdgeInsets.all(6),
+    this.contentPadding = const EdgeInsets.symmetric(horizontal: 20, vertical: 7),
   });
 
   final String label;
@@ -29,6 +31,8 @@ class AppAiGenerateButton extends StatelessWidget {
   final double? textSize;
   final int? maxLines;
   final FontWeight fontWeight;
+  final EdgeInsetsGeometry outerPadding;
+  final EdgeInsetsGeometry contentPadding;
 
   @override
   Widget build(BuildContext context) {
@@ -36,27 +40,43 @@ class AppAiGenerateButton extends StatelessWidget {
 
     return Padding(
       // Keep the glow inside the surrounding scroll view or page clip.
-      padding: const EdgeInsets.all(6),
+      padding: outerPadding,
       child: DecoratedBox(
         decoration: BoxDecoration(
           borderRadius: BorderRadius.circular(12),
+          gradient: LinearGradient(
+            begin: Alignment.centerLeft,
+            end: Alignment.centerRight,
+            colors: isInteractive
+                ? const [AppColors.secondaryColor, AppColors.purple1]
+                : [
+                    AppColors.secondaryColor.withValues(alpha: 0.55),
+                    AppColors.purple1.withValues(alpha: 0.55),
+                  ],
+          ),
+          border: showOutline
+              ? Border.all(
+                  color: AppColors.lightPurple1.withValues(alpha: isInteractive ? 0.9 : 0.45),
+                  width: 1.2,
+                )
+              : null,
           boxShadow: isInteractive
               ? [
                   BoxShadow(
-                    color: AppColors.purple1.withValues(alpha: 0.55),
-                    blurRadius: 8,
+                    color: AppColors.purple1.withValues(alpha: 0.38),
+                    blurRadius: 9,
                     spreadRadius: -1,
                     offset: const Offset(-2, 0),
                   ),
                   BoxShadow(
-                    color: AppColors.secondaryColor.withValues(alpha: 0.6),
-                    blurRadius: 8,
+                    color: AppColors.secondaryColor.withValues(alpha: 0.42),
+                    blurRadius: 10,
                     spreadRadius: -1,
                     offset: const Offset(2, 0),
                   ),
                   BoxShadow(
-                    color: Colors.black.withValues(alpha: 0.16),
-                    blurRadius: 6,
+                    color: Colors.black.withValues(alpha: 0.12),
+                    blurRadius: 4,
                     offset: const Offset(0, 3),
                   ),
                 ]
@@ -68,24 +88,30 @@ class AppAiGenerateButton extends StatelessWidget {
             onPressed: isInteractive ? onTap : null,
             clipBehavior: Clip.antiAlias,
             style: TextButton.styleFrom(
-              backgroundColor: AppColors.secondaryColor,
+              backgroundColor: Colors.transparent,
               foregroundColor: AppColors.textPrimary,
-              disabledBackgroundColor: AppColors.secondaryColor.withValues(alpha: 0.5),
+              disabledBackgroundColor: Colors.transparent,
               disabledForegroundColor: AppColors.textSecondary,
-              minimumSize: Size(0, minHeight ?? 34),
-              padding: const EdgeInsets.symmetric(horizontal: 16, vertical: 8),
+              minimumSize: Size(0, minHeight ?? 38),
+              padding: contentPadding,
               tapTargetSize: MaterialTapTargetSize.shrinkWrap,
-              side: showOutline && isInteractive
-                  ? BorderSide(color: AppColors.lightPurple1.withValues(alpha: 0.7))
-                  : BorderSide.none,
-              shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(12)),
+              side: BorderSide.none,
+              shape: const RoundedRectangleBorder(
+                borderRadius: BorderRadius.all(Radius.circular(12)),
+              ),
             ),
-            icon: isLoading
-                ? FastCircularProgressIndicator(width: 16, height: 16)
-                : const Icon(Icons.auto_awesome_rounded, size: 18),
+            icon: SizedBox.square(
+              dimension: 20,
+              child: Center(
+                child: isLoading
+                    ? const FastCircularProgressIndicator(width: 16, height: 16)
+                    : const Icon(Icons.auto_awesome_rounded, size: 20),
+              ),
+            ),
             label: AppTextView.body2(
               label,
-              fontSize: textSize ?? 13,
+              color: isInteractive ? AppColors.textPrimary : AppColors.textSecondary,
+              fontSize: textSize ?? 15,
               fontWeight: fontWeight,
               maxLines: maxLines,
               overflow: maxLines == null ? TextOverflow.visible : TextOverflow.ellipsis,

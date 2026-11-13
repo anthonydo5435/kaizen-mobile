@@ -7,7 +7,8 @@
         "paths": [
           "/verify_token/*",
           "/organization/*",
-          "/auth/*"
+          "/auth/*",
+          /shared/*
         ]
       }
     ]

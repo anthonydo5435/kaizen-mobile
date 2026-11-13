@@ -5,6 +5,7 @@ import '../../../../core/constants/app_strings.dart';
 import '../../../../core/widgets/app_button.dart';
 import '../../../../core/widgets/app_dot_divider.dart';
 import '../../../../core/widgets/app_overlay_close_button.dart';
+import '../../../../core/widgets/app_dialog_style.dart';
 import '../../../../core/widgets/app_text_view.dart';
 
 Future<bool> showSeatAdditionDialogue(
@@ -63,7 +64,7 @@ class _SeatAdditionDialogueState extends State<SeatAdditionDialogue> {
           child: Dialog(
             backgroundColor: AppColors.surfaceDark,
             insetPadding: const EdgeInsets.symmetric(horizontal: 16, vertical: 24),
-            shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(28)),
+            shape: AppDialogStyle.shape(radius: 28),
             child: ConstrainedBox(
               constraints: const BoxConstraints(maxWidth: 620),
               child: SingleChildScrollView(

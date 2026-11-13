@@ -17,17 +17,16 @@ class ComplianceRepositoryImpl implements ComplianceRepository {
   final ComplianceRemoteDataSource _remoteDataSource;
 
   @override
-  Future<ComplianceOverview> getComplianceOverview({
-    bool forceRefresh = false,
-  }) {
-    return _remoteDataSource.getComplianceOverview(forceRefresh: forceRefresh);
+  Future<ComplianceOverview> getComplianceOverview({bool forceRefresh = false, String? name}) {
+    return _remoteDataSource.getComplianceOverview(forceRefresh: forceRefresh, name: name);
   }
 
   @override
   Future<List<ComplianceDocument>> getComplianceDocuments({
     bool forceRefresh = false,
+    String? name,
   }) {
-    return _remoteDataSource.getComplianceDocuments(forceRefresh: forceRefresh);
+    return _remoteDataSource.getComplianceDocuments(forceRefresh: forceRefresh, name: name);
   }
 
   @override
@@ -145,12 +144,16 @@ class ComplianceRepositoryImpl implements ComplianceRepository {
     required String complianceDocumentId,
     required String fileName,
     required String documentUrl,
+    String? name,
+    String description = '',
     String? expiryDate,
   }) {
     return _remoteDataSource.uploadComplianceDocumentRecord(
       complianceDocumentId: complianceDocumentId,
       fileName: fileName,
       documentUrl: documentUrl,
+      name: name,
+      description: description,
       expiryDate: expiryDate,
     );
   }

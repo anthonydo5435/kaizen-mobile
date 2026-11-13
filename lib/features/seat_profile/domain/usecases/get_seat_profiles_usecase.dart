@@ -10,17 +10,31 @@ class GetSeatProfilesUseCase {
 
   final SeatProfileRepository _repository;
 
+  Future<String?> getSeatProfilePublicLink(String seatId) {
+    return _repository.getSeatProfilePublicLink(seatId);
+  }
+
+  Future<String> createSeatProfilePublicLink(String seatId) {
+    return _repository.createSeatProfilePublicLink(seatId);
+  }
+
+  Future<void> deleteSeatProfilePublicLink(String seatId) {
+    return _repository.deleteSeatProfilePublicLink(seatId);
+  }
+
   Future<SeatProfilePage> call({
     required int page,
     int pageSize = 10,
     String? departmentId,
     String title = '',
+    bool forceRefresh = false,
   }) {
     return _repository.getSeatProfiles(
       page: page,
       pageSize: pageSize,
       departmentId: departmentId,
       title: title,
+      forceRefresh: forceRefresh,
     );
   }
 
@@ -70,10 +84,7 @@ class GetSeatProfilesUseCase {
     required String actualId,
     required List<SeatProfileCategoryDraft> categories,
   }) {
-    return _repository.bulkUpsertSeatProfileCategories(
-      actualId: actualId,
-      categories: categories,
-    );
+    return _repository.bulkUpsertSeatProfileCategories(actualId: actualId, categories: categories);
   }
 
   Future<void> createSeatProfileDescription({
@@ -111,9 +122,7 @@ class GetSeatProfilesUseCase {
   }
 
   Future<void> deleteSeatProfileDescription({required String descriptionId}) {
-    return _repository.deleteSeatProfileDescription(
-      descriptionId: descriptionId,
-    );
+    return _repository.deleteSeatProfileDescription(descriptionId: descriptionId);
   }
 
   Future<SeatProfileCreationResult> getSeatProfileJobContent(String actualId) {
@@ -122,6 +131,10 @@ class GetSeatProfilesUseCase {
 
   Future<SeatProfileDetail> getSeatProfileDetail(String seatId) {
     return _repository.getSeatProfileDetail(seatId);
+  }
+
+  Future<SeatProfileDetail> getSharedSeatProfileDetail(String publicId) {
+    return _repository.getSharedSeatProfileDetail(publicId);
   }
 
   Future<List<SeatProfileDetail>> seatProfileCategoryTrainings() {

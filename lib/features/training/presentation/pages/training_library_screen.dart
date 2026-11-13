@@ -2,14 +2,14 @@ import 'package:flutter/material.dart';
 import 'package:provider/provider.dart';
 
 import '../../../../core/managers/app_manager.dart';
+import '../../../../core/navigation/app_menu_type.dart';
+import '../../../../core/navigation/main_navigation_controller.dart';
 import '../../../../routes/app_router.dart';
-import '../../../check_in/data/datasources/audit_remote_data_source.dart';
-import '../../../check_in/data/repositories/audit_repository_impl.dart';
+import '../../data/datasources/training_library_remote_data_source.dart';
+import '../../data/repositories/training_library_repository_impl.dart';
 import '../../../seat_profile/data/datasources/seat_profile_remote_data_source.dart';
 import '../../../seat_profile/data/repositories/seat_profile_repository_impl.dart';
 import '../../../seat_profile/domain/usecases/get_seat_profiles_usecase.dart';
-import '../../data/datasources/training_library_remote_data_source.dart';
-import '../../data/repositories/training_library_repository_impl.dart';
 import '../../domain/usecases/get_training_library_modules_usecase.dart';
 import '../controllers/training_library_controller.dart';
 import '../widgets/training_library_content.dart';
@@ -27,15 +27,26 @@ class TrainingLibraryScreen extends StatelessWidget {
         Provider<TrainingLibraryRemoteDataSource>(
           create: (_) => createTrainingLibraryRemoteDataSource(),
         ),
-        ProxyProvider<TrainingLibraryRemoteDataSource, TrainingLibraryRepositoryImpl>(
-          update: (_, remoteDataSource, __) => createTrainingLibraryRepository(remoteDataSource),
+        ProxyProvider<
+          TrainingLibraryRemoteDataSource,
+          TrainingLibraryRepositoryImpl
+        >(
+          update: (_, remoteDataSource, __) =>
+              createTrainingLibraryRepository(remoteDataSource),
         ),
-        ProxyProvider<TrainingLibraryRepositoryImpl, GetTrainingLibraryModulesUseCase>(
-          update: (_, repository, __) => createGetTrainingLibraryModulesUseCase(repository),
+        ProxyProvider<
+          TrainingLibraryRepositoryImpl,
+          GetTrainingLibraryModulesUseCase
+        >(
+          update: (_, repository, __) =>
+              createGetTrainingLibraryModulesUseCase(repository),
         ),
-        Provider<SeatProfileRemoteDataSource>(create: (_) => createSeatProfileRemoteDataSource()),
+        Provider<SeatProfileRemoteDataSource>(
+          create: (_) => createSeatProfileRemoteDataSource(),
+        ),
         ProxyProvider<SeatProfileRemoteDataSource, SeatProfileRepositoryImpl>(
-          update: (_, remoteDataSource, __) => SeatProfileRepositoryImpl(remoteDataSource),
+          update: (_, remoteDataSource, __) =>
+              SeatProfileRepositoryImpl(remoteDataSource),
         ),
         ProxyProvider<SeatProfileRepositoryImpl, GetSeatProfilesUseCase>(
           update: (_, repository, __) => GetSeatProfilesUseCase(repository),
@@ -44,10 +55,16 @@ class TrainingLibraryScreen extends StatelessWidget {
           create: (context) => TrainingLibraryController(
             context.read<GetTrainingLibraryModulesUseCase>(),
             getSeatProfilesUseCase: context.read<GetSeatProfilesUseCase>(),
-            canCreateTraining: () => AppManager.instance.currentUserCanOpenTrainingModuleCreateFlow,
-            auditRepository: AuditRepositoryImpl(AuditRemoteDataSource()),
-            canManageSeatTraining: (seatId) => AppManager.instance
-                .canCurrentUserManageTrainingForSeatProfile(seatProfileId: seatId),
+            canCreateTraining: () =>
+                AppManager.instance.currentUserCanOpenTrainingModuleCreateFlow,
+            onNavigationBarsVisibilityChanged: (visible) => context
+                .read<MainNavigationController?>()
+                ?.setNavigationBarsVisible(AppMenuType.library, visible),
+            trainingRepository: context.read<TrainingLibraryRepositoryImpl>(),
+            canManageSeatTraining: (seatId) =>
+                AppManager.instance.canCurrentUserManageTrainingForSeatProfile(
+                  seatProfileId: seatId,
+                ),
           )..initialize(),
         ),
       ],
@@ -68,19 +85,25 @@ class _TrainingLibraryScreenView extends StatelessWidget {
         controller: controller,
         onModuleActions: (module) => controller.openModuleActions(
           module,
-          showActions: (actionsController, lesson) => showTrainingLibraryLessonActions(
-            context,
-            controller: actionsController,
-            lesson: lesson,
-          ),
+          showActions: (actionsController, lesson) =>
+              showTrainingLibraryLessonActions(
+                context,
+                controller: actionsController,
+                lesson: lesson,
+              ),
         ),
         onOpenLesson: (route) => Navigator.of(context).push<void>(
           MaterialPageRoute<void>(
-            builder: (_) =>
-                EditTrainingScreen(trainingRoute: route, useNonBlockingVideoUpload: true),
+            builder: (_) => EditTrainingScreen(
+              trainingRoute: route,
+              useNonBlockingVideoUpload: true,
+            ),
           ),
         ),
-        onSelectSeat: () => showTrainingLibrarySeatSelectionSheet(context, controller: controller),
+        onSelectSeat: () => showTrainingLibrarySeatSelectionSheet(
+          context,
+          controller: controller,
+        ),
         onCreate: () async {
           await AppRouter.pushNamed<void>(
             context,

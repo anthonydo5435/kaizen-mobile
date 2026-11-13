@@ -13,11 +13,13 @@ class ComplianceQuizScreen extends StatefulWidget {
     required this.trackAssignmentUuid,
     required this.trainingModuleUuid,
     required this.isActive,
+    this.isReadOnly = false,
   });
 
   final String trackAssignmentUuid;
   final String trainingModuleUuid;
   final bool isActive;
+  final bool isReadOnly;
 
   @override
   State<ComplianceQuizScreen> createState() => _ComplianceQuizScreenState();
@@ -61,7 +63,7 @@ class _ComplianceQuizScreenState extends State<ComplianceQuizScreen> {
   }
 
   void _syncQuizTimer(ComplianceQuizController controller) {
-    if (widget.isActive) {
+    if (widget.isActive && !widget.isReadOnly) {
       controller.startQuizTimer();
       return;
     }
@@ -88,15 +90,17 @@ class _ComplianceQuizScreenState extends State<ComplianceQuizScreen> {
     }
 
     return Padding(
-      padding: const EdgeInsets.only(left: 1, top: 12, right: 1),
+      padding: const EdgeInsets.only(top: 12),
       child: Column(
         crossAxisAlignment: CrossAxisAlignment.stretch,
         children: [
-          Align(
-            alignment: Alignment.centerLeft,
-            child: _QuizTimerPill(timeText: controller.quizElapsedTimeText),
-          ),
-          const SizedBox(height: 12),
+          if (!widget.isReadOnly) ...[
+            Align(
+              alignment: Alignment.centerLeft,
+              child: _QuizTimerPill(timeText: controller.quizElapsedTimeText),
+            ),
+            const SizedBox(height: 12),
+          ],
           Expanded(
             child: ListView.separated(
               itemCount: questions.length,
@@ -111,12 +115,14 @@ class _ComplianceQuizScreenState extends State<ComplianceQuizScreen> {
                   selectedOptionUuid: controller.selectedOptionUuid(
                     question.uuid,
                   ),
-                  onOptionTap: (optionUuid) {
-                    controller.selectOption(
-                      questionUuid: question.uuid,
-                      optionUuid: optionUuid,
-                    );
-                  },
+                  onOptionTap: widget.isReadOnly
+                      ? null
+                      : (optionUuid) {
+                          controller.selectOption(
+                            questionUuid: question.uuid,
+                            optionUuid: optionUuid,
+                          );
+                        },
                 );
               },
             ),
@@ -155,13 +161,13 @@ class _QuizQuestionCard extends StatelessWidget {
     required this.number,
     required this.question,
     required this.selectedOptionUuid,
-    required this.onOptionTap,
+    this.onOptionTap,
   });
 
   final int number;
   final ComplianceQuizQuestion question;
   final String? selectedOptionUuid;
-  final ValueChanged<String> onOptionTap;
+  final ValueChanged<String>? onOptionTap;
 
   @override
   Widget build(BuildContext context) {
@@ -186,7 +192,9 @@ class _QuizQuestionCard extends StatelessWidget {
             return _QuizOption(
               text: option.text,
               isSelected: selectedOptionUuid == option.uuid,
-              onTap: () => onOptionTap(option.uuid),
+              onTap: onOptionTap == null
+                  ? null
+                  : () => onOptionTap!(option.uuid),
             );
           }),
         ],
@@ -202,17 +210,17 @@ class _QuizOption extends StatelessWidget {
     required this.onTap,
   });
 
-  static const double _singleLineTopSpacing = 4;
+  static const double _singleLineTopSpacing = 10;
   static const double _multiLineTopSpacing = 12;
   static const double _singleLineTextHeight = 1.2;
   static const double _multiLineTextHeight = 1.4;
-  static const double _indicatorSize = 18;
+  static const double _indicatorSize = 14;
   static const double _indicatorLeftPadding = 6;
   static const double _indicatorRightPadding = 10;
 
   final String text;
   final bool isSelected;
-  final VoidCallback onTap;
+  final VoidCallback? onTap;
 
   @override
   Widget build(BuildContext context) {
@@ -249,14 +257,14 @@ class _QuizOption extends StatelessWidget {
                         color: isSelected
                             ? AppColors.secondaryColor
                             : AppColors.textPrimary,
-                        width: 2,
+                        width: 1.5,
                       ),
                     ),
                     child: isSelected
                         ? Center(
                             child: Container(
-                              width: 8,
-                              height: 8,
+                              width: 6,
+                              height: 6,
                               decoration: const BoxDecoration(
                                 color: AppColors.secondaryColor,
                                 shape: BoxShape.circle,

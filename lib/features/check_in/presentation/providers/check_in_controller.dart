@@ -37,6 +37,9 @@ import '../../domain/usecases/submit_description_audit_usecase.dart';
 import '../../../login/domain/entities/user.dart';
 import 'check_in_media_upload_controller.dart';
 import 'check_in_state.dart';
+import 'check_in_descriptions_list_filters_state.dart';
+
+enum CheckInDetailsPeriodMode { quarter, dateRange }
 
 class CheckInController extends ChangeNotifier {
   static const Duration _certifiedReportPdfUrlCacheTtl = Duration(minutes: 10);
@@ -74,7 +77,17 @@ class CheckInController extends ChangeNotifier {
       ? null
       : SubmitDescriptionAuditUseCase(_auditRepository);
   int _singleAuditDetailsGeneration = 0;
+  int _detailsRequestGeneration = 0;
+  int _evaluationChartRequestGeneration = 0;
+  String? _detailsProfileJobId;
+  CheckInDetailsPeriodMode _detailsPeriodMode =
+      CheckInDetailsPeriodMode.quarter;
+  DateTime? _detailsStartDate;
+  DateTime? _detailsEndDate;
+  bool _hasDetailsLoadError = false;
   bool _isDisposed = false;
+  bool _isDescriptionsList = false;
+  AuditProfile? _performanceReportProfile;
   CheckInState _state = const CheckInState();
   AuditMainList? _activeMainListCache;
   AuditMainList? _myCheckInMainListCache;
@@ -86,6 +99,8 @@ class CheckInController extends ChangeNotifier {
   final TextEditingController descriptionSearchController =
       TextEditingController();
   String _descriptionSearchQuery = '';
+  CheckInDescriptionsListFiltersState _descriptionFilters =
+      const CheckInDescriptionsListFiltersState();
   bool _isSeatProfileFilterLoading = false;
   List<String> _seatProfileOptions = const <String>[];
   Map<String, String> _seatProfileJobUuids = const <String, String>{};
@@ -96,7 +111,10 @@ class CheckInController extends ChangeNotifier {
       <String, _CachedCertifiedReportPdfUrl>{};
 
   CheckInState get state => _state;
+  AuditProfile? get performanceReportProfile => _performanceReportProfile;
   String get descriptionSearchQuery => _descriptionSearchQuery;
+  CheckInDescriptionsListFiltersState get descriptionFilters =>
+      _descriptionFilters;
 
   void updateDescriptionSearchQuery(String query) {
     final normalizedQuery = query.trim().toLowerCase();
@@ -122,6 +140,256 @@ class CheckInController extends ChangeNotifier {
           ),
         )
         .toList(growable: false);
+  }
+
+  List<QuarterlyAuditDescription> filteredDescriptions(
+    QuarterlyAudit audit, {
+    required String date,
+  }) {
+    final filtersState = _descriptionFilters;
+    return searchDescriptions(
+      audit.descriptions
+          .where((description) {
+            if (!_isDescriptionEligibleForDisplay(audit, description, date)) {
+              return false;
+            }
+
+            final categoryTitle = CustomFunctions.resolveAuditCategoryOption(
+              audit: audit,
+              description: description,
+            );
+            final milestone = CustomFunctions.normalizeAuditMilestone(
+              description.milestoneDay,
+            );
+            final auditTiming = CustomFunctions.resolveAuditTiming(description);
+            final auditType = CustomFunctions.normalizeAuditType(
+              description.auditFactorType,
+            );
+
+            final matchesCategory =
+                filtersState.selectedCategories.isEmpty ||
+                filtersState.selectedCategories.contains(categoryTitle);
+            final matchesMilestone =
+                filtersState.selectedMilestones.isEmpty ||
+                filtersState.selectedMilestones.contains(milestone);
+            final matchesAuditTiming =
+                filtersState.selectedAuditTimings.isEmpty ||
+                filtersState.selectedAuditTimings.contains(auditTiming);
+            final matchesAuditType =
+                filtersState.selectedAuditTypes.isEmpty ||
+                filtersState.selectedAuditTypes.contains(auditType);
+
+            return matchesCategory &&
+                matchesMilestone &&
+                matchesAuditTiming &&
+                matchesAuditType;
+          })
+          .toList(growable: false),
+    );
+  }
+
+  bool _isDescriptionAudited(QuarterlyAuditDescription description) {
+    return description.hasAudit || description.totalRatings > 0;
+  }
+
+  bool _isDescriptionEligibleForDisplay(
+    QuarterlyAudit audit,
+    QuarterlyAuditDescription description,
+    String date,
+  ) {
+    if (!_isDescriptionEligibleForFilterOptions(audit, description, date)) {
+      return false;
+    }
+
+    final isAudited = _isDescriptionAudited(description);
+    if (audit.isMismatch && !isAudited) {
+      return false;
+    }
+
+    if (_descriptionFilters.showAuditedOnly && !isAudited) {
+      return false;
+    }
+
+    return true;
+  }
+
+  bool _isDescriptionEligibleForFilterOptions(
+    QuarterlyAudit audit,
+    QuarterlyAuditDescription description,
+    String date,
+  ) {
+    final isAudited = _isDescriptionAudited(description);
+    final isSelectedAuditDateBeforeToday = CustomFunctions.isDateBeforeToday(
+      date,
+    );
+    final shouldIncludeUnauditedContinueDescriptions =
+        _shouldIncludeUnauditedContinueDescriptions(audit, date);
+
+    if (audit.isMismatch && !isAudited) {
+      return false;
+    }
+
+    if (isSelectedAuditDateBeforeToday &&
+        !isAudited &&
+        !shouldIncludeUnauditedContinueDescriptions) {
+      return false;
+    }
+
+    return true;
+  }
+
+  bool _shouldIncludeUnauditedContinueDescriptions(
+    QuarterlyAudit audit,
+    String date,
+  ) {
+    return !audit.isMismatch &&
+        CustomFunctions.isAuditWithinContinueWindow(date);
+  }
+
+  List<String> descriptionCategoryOptions(
+    QuarterlyAudit audit, {
+    required String date,
+  }) {
+    final options =
+        audit.descriptions
+            .where(
+              (description) => _isDescriptionEligibleForFilterOptions(
+                audit,
+                description,
+                date,
+              ),
+            )
+            .map(
+              (description) => CustomFunctions.resolveAuditCategoryOption(
+                audit: audit,
+                description: description,
+              ),
+            )
+            .where((value) => value.isNotEmpty)
+            .toSet()
+            .toList()
+          ..sort();
+    return options;
+  }
+
+  List<String> descriptionMilestoneOptions(
+    QuarterlyAudit audit, {
+    required String date,
+  }) {
+    final options =
+        audit.descriptions
+            .where(
+              (description) => _isDescriptionEligibleForFilterOptions(
+                audit,
+                description,
+                date,
+              ),
+            )
+            .map(
+              (description) => CustomFunctions.normalizeAuditMilestone(
+                description.milestoneDay,
+              ),
+            )
+            .where((value) => value.isNotEmpty)
+            .toSet()
+            .toList()
+          ..sort();
+    return options;
+  }
+
+  List<String> descriptionAuditTimingOptions(
+    QuarterlyAudit audit, {
+    required String date,
+  }) {
+    final preferredOrder = AppStrings.auditTimingOptions;
+    final availableOptions = audit.descriptions
+        .where(
+          (description) =>
+              _isDescriptionEligibleForFilterOptions(audit, description, date),
+        )
+        .map(CustomFunctions.resolveAuditTiming)
+        .where((value) => value.isNotEmpty)
+        .toSet();
+
+    return preferredOrder
+        .where(availableOptions.contains)
+        .toList(growable: false);
+  }
+
+  List<String> descriptionAuditTypeOptions(
+    QuarterlyAudit audit, {
+    required String date,
+  }) {
+    final preferredOrder = AppStrings.auditTypeOptions;
+    final availableOptions = audit.descriptions
+        .where(
+          (description) =>
+              _isDescriptionEligibleForFilterOptions(audit, description, date),
+        )
+        .map(
+          (description) =>
+              CustomFunctions.normalizeAuditType(description.auditFactorType),
+        )
+        .where((value) => value.isNotEmpty)
+        .toSet();
+
+    return preferredOrder
+        .where(availableOptions.contains)
+        .toList(growable: false);
+  }
+
+  void toggleDescriptionFilterOptions() {
+    _descriptionFilters = _descriptionFilters.copyWith(
+      isFilterOptionsVisible: !_descriptionFilters.isFilterOptionsVisible,
+    );
+    notifyListeners();
+  }
+
+  void toggleDescriptionCategory(String value) {
+    _descriptionFilters = _descriptionFilters.toggleCategory(value);
+    notifyListeners();
+  }
+
+  void toggleShowAuditedDescriptionsOnly() {
+    _descriptionFilters = _descriptionFilters.copyWith(
+      showAuditedOnly: !_descriptionFilters.showAuditedOnly,
+    );
+    notifyListeners();
+  }
+
+  void toggleDescriptionMilestone(String value) {
+    _descriptionFilters = _descriptionFilters.toggleMilestone(value);
+    notifyListeners();
+  }
+
+  void toggleDescriptionAuditTiming(String value) {
+    _descriptionFilters = _descriptionFilters.toggleAuditTiming(value);
+    notifyListeners();
+  }
+
+  void toggleDescriptionAuditType(String value) {
+    _descriptionFilters = _descriptionFilters.toggleAuditType(value);
+    notifyListeners();
+  }
+
+  void clearDescriptionFilters() {
+    _descriptionFilters = const CheckInDescriptionsListFiltersState();
+    notifyListeners();
+  }
+
+  bool isCurrentAuditMember(QuarterlyAudit audit, AuditProfile member) {
+    final memberAuditUuid = member.uuid.trim();
+    final auditUuid = audit.uuid.trim();
+    if (memberAuditUuid.isNotEmpty && auditUuid.isNotEmpty) {
+      return memberAuditUuid == auditUuid;
+    }
+    final memberProfileUuid = member.profileUuid.trim();
+    final memberProfileJob = member.profileJob.trim();
+
+    return memberProfileUuid.isNotEmpty &&
+            memberProfileUuid == audit.profileUuid.trim() ||
+        memberProfileJob.isNotEmpty &&
+            memberProfileJob == audit.profileJob.trim();
   }
 
   PerformanceReportViewData? get performanceReportViewData {
@@ -231,10 +499,114 @@ class CheckInController extends ChangeNotifier {
     );
   }
 
-  Color resolvePerformanceReportPaygradeDisplayColor(String value) {
-    return _isUnavailablePerformanceReportPaygradeDisplay(value)
+  PerformanceReportPaygradeSummaryData buildPerformanceReportPaygradeSummary(
+    PerformanceReport report,
+  ) {
+    final currentStepIndex = report.paygradePipeline.indexWhere(
+      (step) => step.isCurrent,
+    );
+    final currentStep = currentStepIndex >= 0
+        ? report.paygradePipeline[currentStepIndex]
+        : null;
+
+    return PerformanceReportPaygradeSummaryData(
+      currentPosition: _performanceReportCurrentPositionFallbackTitle(
+        report,
+        position: currentStepIndex >= 0 ? currentStepIndex + 1 : 1,
+      ),
+      currentPay: formatPerformanceReportPaygradeDisplay(
+        paygradeDisplay: currentStep?.payRateDisplay ?? report.currentPaygrade,
+        paygradeUnit: report.paygradeUnit,
+      ),
+      totalLevels: '${report.paygradePipeline.length}',
+    );
+  }
+
+  PerformanceReportPaygradeStageStatus
+  resolvePerformanceReportPaygradeStageStatus({
+    required PerformanceReportPaygradeStep step,
+    required int index,
+    required int currentStepIndex,
+  }) {
+    if (step.isCurrent) {
+      return PerformanceReportPaygradeStageStatus(
+        label: AppStrings.performanceReportPaygradeStatusCurrent,
+        accentColor: AppColors.secondaryColor,
+        borderColor: AppColors.secondaryColor,
+        surfaceColor: AppColors.bgGlow.withValues(alpha: 0.55),
+        badgeBackgroundColor: AppColors.secondaryColor,
+        badgeTextColor: AppColors.textPrimary,
+        indicatorFillColor: AppColors.secondaryColor,
+      );
+    }
+
+    if (currentStepIndex >= 0 && index < currentStepIndex) {
+      return PerformanceReportPaygradeStageStatus(
+        label: AppStrings.performanceReportPaygradeStatusAchieved,
+        accentColor: AppColors.progressColor,
+        borderColor: AppColors.secondaryColor,
+        surfaceColor: AppColors.surfaceDark1,
+        badgeBackgroundColor: AppColors.progressColor.withValues(alpha: 0.16),
+        badgeTextColor: AppColors.progressColor,
+        indicatorFillColor: AppColors.secondaryColor.withValues(alpha: 0.08),
+      );
+    }
+
+    if (currentStepIndex >= 0 && index == currentStepIndex + 1) {
+      return PerformanceReportPaygradeStageStatus(
+        label: AppStrings.performanceReportPaygradeStatusNext,
+        accentColor: AppColors.orange1,
+        borderColor: AppColors.secondaryColor,
+        surfaceColor: AppColors.surfaceDark1,
+        badgeBackgroundColor: AppColors.orange1.withValues(alpha: 0.16),
+        badgeTextColor: AppColors.orange1,
+        indicatorFillColor: AppColors.secondaryColor.withValues(alpha: 0.08),
+      );
+    }
+
+    return PerformanceReportPaygradeStageStatus(
+      label: AppStrings.performanceReportPaygradeStatusUpcoming,
+      accentColor: AppColors.textSecondary,
+      borderColor: AppColors.secondaryColor,
+      surfaceColor: AppColors.surfaceDark,
+      badgeBackgroundColor: AppColors.textSecondary.withValues(alpha: 0.12),
+      badgeTextColor: AppColors.textSecondary,
+      indicatorFillColor: AppColors.secondaryColor.withValues(alpha: 0.05),
+    );
+  }
+
+  Color resolvePerformanceReportPaygradeDisplayColor(
+    String value, {
+    double? payRateAmount,
+  }) {
+    return (payRateAmount != null && payRateAmount <= 0) ||
+            _isUnavailablePerformanceReportPaygradeDisplay(value)
         ? AppColors.secondaryColor
         : AppColors.textPrimary;
+  }
+
+  String _performanceReportCurrentPositionFallbackTitle(
+    PerformanceReport report, {
+    int position = 1,
+  }) {
+    final seatProfileCode = _performanceReportSeatProfileCode(
+      report.profile.seatProfile,
+    );
+    return '$seatProfileCode $position';
+  }
+
+  String _performanceReportSeatProfileCode(String seatProfile) {
+    final words = seatProfile
+        .trim()
+        .split(RegExp(r'\s+'))
+        .where((word) => word.isNotEmpty)
+        .take(3)
+        .toList(growable: false);
+    if (words.isEmpty) {
+      return '--';
+    }
+
+    return words.map((word) => word[0].toUpperCase()).join();
   }
 
   double _parsePerformanceReportPayRateDisplay(String value) {
@@ -281,6 +653,12 @@ class CheckInController extends ChangeNotifier {
   int get selectedAuditQuarter =>
       _state.selectedAuditQuarter ??
       CustomFunctions.currentYearQuarter().quarter;
+
+  bool get isSelectedAuditPeriodCurrent {
+    final currentPeriod = CustomFunctions.currentYearQuarter();
+    return selectedAuditYear == currentPeriod.year &&
+        selectedAuditQuarter == currentPeriod.quarter;
+  }
 
   PerformanceReportCoreValueVisualSpec
   resolvePerformanceReportCoreValueVisualSpec(
@@ -329,6 +707,79 @@ class CheckInController extends ChangeNotifier {
 
   String get selectedAuditYearQuarterLabel =>
       '$selectedAuditYear - Q$selectedAuditQuarter';
+
+  CheckInDetailsPeriodMode get detailsPeriodMode => _detailsPeriodMode;
+  bool get hasDetailsLoadError => _hasDetailsLoadError;
+
+  String get detailsDateRangeLabel {
+    final range = detailsDateRange;
+    return AppStrings.auditDateRangeLabel(
+      CustomFunctions.apiDateString(date: range.start),
+      CustomFunctions.apiDateString(date: range.end),
+    );
+  }
+
+  ({DateTime start, DateTime end}) get detailsDateRange {
+    if (_detailsPeriodMode == CheckInDetailsPeriodMode.dateRange &&
+        _detailsStartDate != null &&
+        _detailsEndDate != null) {
+      return (start: _detailsStartDate!, end: _detailsEndDate!);
+    }
+    return CustomFunctions.currentQuarterDateRange(
+      date: DateTime(selectedAuditYear, (selectedAuditQuarter - 1) * 3 + 1),
+    );
+  }
+
+  List<int> get detailsYearOptions {
+    final years = {...auditYearOptions, selectedAuditYear}.toList()
+      ..sort((left, right) => right.compareTo(left));
+    return years;
+  }
+
+  Future<void> selectDetailsPeriodMode(CheckInDetailsPeriodMode mode) async {
+    if (_detailsPeriodMode == mode) return;
+    _detailsPeriodMode = mode;
+    await _reloadDetailsPeriod();
+  }
+
+  Future<void> selectDetailsQuarter(String? value) async {
+    if (value == null || value == selectedAuditYearQuarterLabel) return;
+    final period = _parseYearQuarterLabel(value);
+    if (period == null) return;
+    _detailsPeriodMode = CheckInDetailsPeriodMode.quarter;
+    _detailsStartDate = null;
+    _detailsEndDate = null;
+    await _reloadDetailsPeriod(year: period.year, quarter: period.quarter);
+  }
+
+  Future<void> applyDetailsDateRange({
+    required DateTime startDate,
+    required DateTime endDate,
+  }) async {
+    final start = DateUtils.dateOnly(startDate);
+    final end = DateUtils.dateOnly(endDate);
+    if (end.isBefore(start)) return;
+    _detailsStartDate = start;
+    _detailsEndDate = end;
+    _detailsPeriodMode = CheckInDetailsPeriodMode.dateRange;
+    await _reloadDetailsPeriod();
+  }
+
+  Future<void> _reloadDetailsPeriod({int? year, int? quarter}) async {
+    final profileJobId = _detailsProfileJobId;
+    if (profileJobId == null) return;
+    _state = _state.copyWith(
+      selectedAuditYear: year,
+      selectedAuditQuarter: quarter,
+    );
+    await initializeDetails(
+      profileJobId,
+      year: year ?? selectedAuditYear,
+      quarter: quarter ?? selectedAuditQuarter,
+      profileUuid: selectedAuditDetailsProfileUuid,
+      preserveDetails: true,
+    );
+  }
 
   bool get isSeatProfileFilterLoading => _isSeatProfileFilterLoading;
 
@@ -428,6 +879,7 @@ class CheckInController extends ChangeNotifier {
   }
 
   Future<void> initialize() async {
+    _isDescriptionsList = false;
     try {
       final user = await AppPreference.getUser();
       final isOwner = _hasTeamMemberTabsAccess(user);
@@ -475,6 +927,15 @@ class CheckInController extends ChangeNotifier {
       notifyListeners();
       _logRecoverableError('initialize', error);
     }
+  }
+
+  Future<void> refresh() async {
+    if (_isDisposed || _state.isLoading || _state.isLoadingMore) {
+      return;
+    }
+    _cancelPendingMainListSearchRefresh();
+    _clearMainListCaches(clearDefaultCaches: true);
+    await _refreshMainListSearchResults(showLoader: true, forceRefresh: true);
   }
 
   Future<void> loadNextPage() async {
@@ -563,9 +1024,15 @@ class CheckInController extends ChangeNotifier {
     int? quarter,
     bool clearEvaluationCharts = true,
     String? profileUuid,
+    bool preserveDetails = false,
   }) async {
+    final generation = ++_detailsRequestGeneration;
+    _detailsProfileJobId = profileJobId;
+    _evaluationChartRequestGeneration++;
     try {
       final user = await AppPreference.getUser();
+      if (_isDisposed || generation != _detailsRequestGeneration) return;
+      _hasDetailsLoadError = false;
       final isOwner = _hasTeamMemberTabsAccess(user);
       final isActualOwner = _isActualOwner(user);
       final currentYearQuarter = CustomFunctions.currentYearQuarter();
@@ -582,7 +1049,7 @@ class CheckInController extends ChangeNotifier {
         isLoading: true,
         isOwner: isOwner,
         isActualOwner: isActualOwner,
-        isSelfAudit: false,
+        isSelfAudit: preserveDetails ? _state.isSelfAudit : false,
         selectedAuditYear: resolvedYear,
         selectedAuditQuarter: resolvedQuarter,
         selectedYearQuarter: selectedYearQuarterLabel,
@@ -590,8 +1057,9 @@ class CheckInController extends ChangeNotifier {
         selectedAuditDetailsProfileUuid: normalizedSelectedProfileUuid,
         clearSelectedAuditDetailsProfileUuid:
             normalizedSelectedProfileUuid == null,
-        clearDetails: true,
+        clearDetails: !preserveDetails,
         clearEvaluationCharts: clearEvaluationCharts,
+        isEvaluationChartLoading: false,
       );
       notifyListeners();
 
@@ -607,14 +1075,26 @@ class CheckInController extends ChangeNotifier {
         year: resolvedYear,
         quarter: resolvedQuarter,
         profileUuid: profileUuid,
+        startDate: _detailsPeriodMode == CheckInDetailsPeriodMode.dateRange
+            ? detailsDateRange.start
+            : null,
+        endDate: _detailsPeriodMode == CheckInDetailsPeriodMode.dateRange
+            ? detailsDateRange.end
+            : null,
       );
+      if (_isDisposed || generation != _detailsRequestGeneration) return;
       _state = _state.copyWith(
         isLoading: false,
         details: details,
         isSelfAudit: _isSelfAudit(details, user),
       );
       notifyListeners();
+      if (showGraph) {
+        await refreshEvaluationChart(profileJobId, profileUuid: profileUuid);
+      }
     } catch (error) {
+      if (_isDisposed || generation != _detailsRequestGeneration) return;
+      _hasDetailsLoadError = true;
       _state = _state.copyWith(isLoading: false);
       notifyListeners();
       _logRecoverableError('initializeDetails', error);
@@ -633,37 +1113,23 @@ class CheckInController extends ChangeNotifier {
       notifyListeners();
       return;
     }
-
-    _state = _state.copyWith(isEvaluationChartLoading: true);
-    notifyListeners();
-
-    try {
-      final evaluationCharts = await _getAuditEvaluationChartUseCase(
-        profileJobId: profileJobId,
-        profileUuid: profileUuid,
-      );
-      _state = _state.copyWith(
-        evaluationCharts: evaluationCharts,
-        isEvaluationChartLoading: false,
-      );
-      notifyListeners();
-    } catch (error) {
-      _state = _state.copyWith(isEvaluationChartLoading: false);
-      notifyListeners();
-      _logRecoverableError('showEvaluationChart', error);
-    }
+    await refreshEvaluationChart(profileJobId, profileUuid: profileUuid);
   }
 
   Future<void> refreshEvaluationChart(
     String profileJobId, {
     String? profileUuid,
   }) async {
-    if (_state.isEvaluationChartLoading ||
-        profileJobId.trim().isEmpty ||
+    if (profileJobId.trim().isEmpty ||
         _getAuditEvaluationChartUseCase == null) {
       return;
     }
 
+    final generation = ++_evaluationChartRequestGeneration;
+    final dateRange = detailsDateRange;
+    final useCurrentQuarter =
+        _detailsPeriodMode == CheckInDetailsPeriodMode.quarter &&
+        isSelectedAuditPeriodCurrent;
     _state = _state.copyWith(isEvaluationChartLoading: true);
     notifyListeners();
 
@@ -671,13 +1137,21 @@ class CheckInController extends ChangeNotifier {
       final evaluationCharts = await _getAuditEvaluationChartUseCase(
         profileJobId: profileJobId,
         profileUuid: profileUuid,
+        startDate: useCurrentQuarter ? null : dateRange.start,
+        endDate: useCurrentQuarter ? null : dateRange.end,
       );
+      if (_isDisposed || generation != _evaluationChartRequestGeneration) {
+        return;
+      }
       _state = _state.copyWith(
         evaluationCharts: evaluationCharts,
         isEvaluationChartLoading: false,
       );
       notifyListeners();
     } catch (error) {
+      if (_isDisposed || generation != _evaluationChartRequestGeneration) {
+        return;
+      }
       _state = _state.copyWith(isEvaluationChartLoading: false);
       notifyListeners();
       _logRecoverableError('refreshEvaluationChart', error);
@@ -708,6 +1182,7 @@ class CheckInController extends ChangeNotifier {
     _state = _state.copyWith(
       isLoading: false,
       quarterlyAudit: quarterlyAudit,
+      quarterlyAuditDate: date,
       clearSelectedQuarterlyAuditDescription: true,
     );
     notifyListeners();
@@ -718,12 +1193,16 @@ class CheckInController extends ChangeNotifier {
     required String date,
     int? year,
     int? quarter,
+    bool? isSelfAudit,
   }) async {
-    _singleAuditDetailsGeneration += 1;
+    _isDescriptionsList = true;
+    final generation = ++_singleAuditDetailsGeneration;
     descriptionSearchController.clear();
     _descriptionSearchQuery = '';
+    _descriptionFilters = const CheckInDescriptionsListFiltersState();
     try {
       final user = await AppPreference.getUser();
+      if (_isDisposed || generation != _singleAuditDetailsGeneration) return;
       final isOwner = _hasTeamMemberTabsAccess(user);
       final isActualOwner = _isActualOwner(user);
       final currentYearQuarter = CustomFunctions.currentYearQuarter();
@@ -774,6 +1253,9 @@ class CheckInController extends ChangeNotifier {
       if (teamMembersFuture != null) {
         try {
           teamMembers = _sortedMainList(await teamMembersFuture);
+          if (_isDisposed || generation != _singleAuditDetailsGeneration) {
+            return;
+          }
           if (teamMembers != null) {
             _cacheMainList(
               _state.selectedStatus,
@@ -789,17 +1271,147 @@ class CheckInController extends ChangeNotifier {
         }
       }
 
+      if (_isDisposed || generation != _singleAuditDetailsGeneration) return;
       _state = _state.copyWith(
         isLoading: false,
         mainList: teamMembers,
         quarterlyAudit: quarterlyAudit,
+        quarterlyAuditDate: date,
+        isSelfAudit:
+            isSelfAudit ??
+            (quarterlyAudit.profileUuid.trim().isNotEmpty &&
+                quarterlyAudit.profileUuid.trim() == user?.uuid?.trim()),
         clearSelectedQuarterlyAuditDescription: true,
       );
       notifyListeners();
     } catch (error) {
+      if (_isDisposed || generation != _singleAuditDetailsGeneration) return;
       _state = _state.copyWith(isLoading: false);
       notifyListeners();
       _logRecoverableError('initializeSingleAuditDetails', error);
+    }
+  }
+
+  Future<String?> selectSingleAuditMember(AuditProfile member) async {
+    final currentAudit = _state.quarterlyAudit;
+    final quarterlyAuditId = member.uuid.trim();
+    final getQuarterlyAudit = _getQuarterlyAuditUseCase;
+    if (_isDisposed ||
+        !_state.isOwner ||
+        currentAudit == null ||
+        isCurrentAuditMember(currentAudit, member) ||
+        quarterlyAuditId.isEmpty ||
+        getQuarterlyAudit == null) {
+      return null;
+    }
+
+    final date = CustomFunctions.apiDateString();
+    final generation = ++_singleAuditDetailsGeneration;
+    descriptionSearchController.clear();
+    _descriptionSearchQuery = '';
+    _descriptionFilters = const CheckInDescriptionsListFiltersState();
+    final teamMembers = _teamMembersSearchQuery.trim().isNotEmpty
+        ? _restoreDefaultMainListCaches()
+        : null;
+    _resetTeamMembersSearchState();
+    _state = _state.copyWith(
+      isLoading: true,
+      mainList: teamMembers,
+      clearSelectedQuarterlyAuditDescription: true,
+    );
+    notifyListeners();
+
+    try {
+      final audit = await getQuarterlyAudit(
+        quarterlyAuditId: quarterlyAuditId,
+        date: date,
+      );
+      if (_isDisposed || generation != _singleAuditDetailsGeneration) {
+        return null;
+      }
+
+      final firstDescription = audit.descriptions.firstOrNull;
+      final descriptionId = firstDescription?.uuid.trim();
+      final user = await AppPreference.getUser();
+      if (_isDisposed || generation != _singleAuditDetailsGeneration) {
+        return null;
+      }
+      _state = _state.copyWith(
+        isLoading: false,
+        quarterlyAudit: audit,
+        quarterlyAuditDate: date,
+        isSelfAudit:
+            audit.profileUuid.trim().isNotEmpty &&
+            audit.profileUuid.trim() == user?.uuid?.trim(),
+        selectedQuarterlyAuditDescriptionUuid: descriptionId,
+        clearSelectedQuarterlyAuditDescription:
+            descriptionId == null || descriptionId.isEmpty,
+      );
+      notifyListeners();
+      if (firstDescription != null &&
+          descriptionId != null &&
+          descriptionId.isNotEmpty) {
+        return await _loadSelectedMemberDescription(
+          audit: audit,
+          description: firstDescription,
+          quarterlyAuditId: audit.uuid.trim().isEmpty
+              ? quarterlyAuditId
+              : audit.uuid,
+          date: date,
+          generation: generation,
+        );
+      }
+      return null;
+    } catch (error) {
+      if (_isDisposed || generation != _singleAuditDetailsGeneration) {
+        return null;
+      }
+      _state = _state.copyWith(isLoading: false);
+      notifyListeners();
+      _logRecoverableError('selectSingleAuditMember', error);
+      return AppStrings.auditDetailsLoadFailed;
+    }
+  }
+
+  Future<String?> _loadSelectedMemberDescription({
+    required QuarterlyAudit audit,
+    required QuarterlyAuditDescription description,
+    required String quarterlyAuditId,
+    required String date,
+    required int generation,
+  }) async {
+    try {
+      final descriptionAudit = await loadAuditDescription(
+        quarterlyAuditId: quarterlyAuditId,
+        descriptionId: description.uuid,
+        date: date,
+      );
+      if (_isDisposed ||
+          generation != _singleAuditDetailsGeneration ||
+          !identical(_state.quarterlyAudit, audit)) {
+        return null;
+      }
+      final counts = descriptionAudit.ratingCounts;
+      _state = _state.copyWith(
+        quarterlyAudit: audit.withDescriptionRatingCounts(
+          descriptionId: description.uuid,
+          auditId: descriptionAudit.uuid.trim().isEmpty
+              ? description.auditUuid
+              : descriptionAudit.uuid,
+          hasAudit:
+              description.hasAudit ||
+              (counts?.values.any((count) => count > 0) ?? false),
+          counts: counts ?? const {},
+        ),
+      );
+      notifyListeners();
+      return null;
+    } catch (error) {
+      if (_isDisposed || generation != _singleAuditDetailsGeneration) {
+        return null;
+      }
+      _logRecoverableError('selectSingleAuditMember.loadDescription', error);
+      return AppStrings.auditUnableToLoadDescriptionDetails;
     }
   }
 
@@ -821,6 +1433,7 @@ class CheckInController extends ChangeNotifier {
 
     _state = _state.copyWith(
       quarterlyAudit: quarterlyAudit,
+      quarterlyAuditDate: date,
       clearSelectedQuarterlyAuditDescription: true,
     );
     notifyListeners();
@@ -1128,8 +1741,8 @@ class CheckInController extends ChangeNotifier {
           ? await getAuditTeamMembersUseCase(
               page: 1,
               pageSize: _resolvedTeamMembersPageSize(),
-              year: selectedAuditYear,
-              quarter: selectedAuditQuarter,
+              year: _isDescriptionsList ? null : selectedAuditYear,
+              quarter: _isDescriptionsList ? null : selectedAuditQuarter,
               search: _teamMembersSearchQuery,
             )
           : await _loadTeamMembers(
@@ -1454,6 +2067,7 @@ class CheckInController extends ChangeNotifier {
   }
 
   Future<void> initializePerformanceReport(AuditProfile profile) async {
+    _performanceReportProfile = profile;
     _state = _state.copyWith(
       isPerformanceReportLoading: true,
       clearPerformanceReport: true,
@@ -1482,8 +2096,10 @@ class CheckInController extends ChangeNotifier {
 
   Future<void> selectPerformanceReportTimeRange(String timeRange) async {
     final currentReport = _state.performanceReport;
-    if (currentReport == null ||
-        _state.performanceReportTimeRange == timeRange) {
+    final profile = currentReport?.profile ?? _performanceReportProfile;
+    if (profile == null ||
+        (currentReport != null &&
+            _state.performanceReportTimeRange == timeRange)) {
       return;
     }
 
@@ -1496,7 +2112,7 @@ class CheckInController extends ChangeNotifier {
       );
       notifyListeners();
 
-      await _loadQuarterPerformanceReport(currentReport.profile);
+      await _loadQuarterPerformanceReport(profile);
       return;
     }
 
@@ -1513,8 +2129,9 @@ class CheckInController extends ChangeNotifier {
     required DateTime endDate,
   }) async {
     final auditRepository = _auditRepository;
-    final currentReport = _state.performanceReport;
-    if (auditRepository == null || currentReport == null) {
+    final profile =
+        _state.performanceReport?.profile ?? _performanceReportProfile;
+    if (auditRepository == null || profile == null) {
       return;
     }
 
@@ -1530,7 +2147,7 @@ class CheckInController extends ChangeNotifier {
       late final PerformanceReport report;
       try {
         report = await auditRepository.getPerformanceReportOverview(
-          profile: currentReport.profile,
+          profile: profile,
           startDate: startDate,
           endDate: endDate,
         );
@@ -1542,15 +2159,13 @@ class CheckInController extends ChangeNotifier {
           return;
         }
 
-        report = _buildOpenSeatPerformanceReport(currentReport.profile);
+        report = _buildOpenSeatPerformanceReport(profile);
       }
 
       final certifiedReports = await _loadCertifiedReportsForPerformanceReport(
         auditRepository: auditRepository,
-        profile: currentReport.profile,
+        profile: profile,
         report: report,
-        startDate: startDate,
-        endDate: endDate,
       );
 
       _state = _state.copyWith(
@@ -1642,8 +2257,6 @@ class CheckInController extends ChangeNotifier {
         auditRepository: auditRepository,
         profile: profile,
         report: report,
-        year: currentYearQuarter.year,
-        quarter: currentYearQuarter.quarter,
       );
 
       _state = _state.copyWith(
@@ -1658,6 +2271,24 @@ class CheckInController extends ChangeNotifier {
       notifyListeners();
       _logRecoverableError('_loadQuarterPerformanceReport', error);
     }
+  }
+
+  Future<List<CertifiedReportOption>> loadPerformanceReportHistory({
+    DateTime? startDate,
+    DateTime? endDate,
+  }) async {
+    final repository = _auditRepository;
+    final profile =
+        _state.performanceReport?.profile ?? _performanceReportProfile;
+    if (repository == null || profile == null) {
+      throw StateError('Performance report profile is not configured.');
+    }
+    return repository.getCertifiedReports(
+      profile: profile,
+      startDate: startDate,
+      endDate: endDate,
+      forceRefresh: true,
+    );
   }
 
   Future<void> selectCertifiedReport(String? uuid) async {
@@ -2117,10 +2748,6 @@ class CheckInController extends ChangeNotifier {
         auditRepository: auditRepository,
         profile: currentReport.profile,
         report: currentReport,
-        startDate: isCustomRange ? _state.performanceReportStartDate : null,
-        endDate: isCustomRange ? _state.performanceReportEndDate : null,
-        year: isCustomRange ? null : currentYearQuarter.year,
-        quarter: isCustomRange ? null : currentYearQuarter.quarter,
       );
 
       if (certifiedReportUuid != null &&
@@ -2227,7 +2854,10 @@ class CheckInController extends ChangeNotifier {
     await _refreshMainListSearchResults(showLoader: true);
   }
 
-  Future<void> _refreshMainListSearchResults({required bool showLoader}) async {
+  Future<void> _refreshMainListSearchResults({
+    required bool showLoader,
+    bool forceRefresh = false,
+  }) async {
     final requestKey = _mainListRequestKey;
     _clearMainListCaches();
 
@@ -2235,7 +2865,14 @@ class CheckInController extends ChangeNotifier {
     notifyListeners();
 
     try {
-      final mainList = await _loadListForSelectedStatus(page: 1, pageSize: 12);
+      final mainList = await _loadListForSelectedStatus(
+        page: 1,
+        pageSize: 12,
+        forceRefresh: forceRefresh,
+      );
+      if (_isDisposed) {
+        return;
+      }
       if (requestKey != _mainListRequestKey) {
         _state = _state.copyWith(isLoading: false, isLoadingMore: false);
         notifyListeners();
@@ -2254,6 +2891,9 @@ class CheckInController extends ChangeNotifier {
       );
       notifyListeners();
     } catch (error) {
+      if (_isDisposed) {
+        return;
+      }
       if (requestKey != _mainListRequestKey) {
         _state = _state.copyWith(isLoading: false, isLoadingMore: false);
         notifyListeners();
@@ -2264,7 +2904,9 @@ class CheckInController extends ChangeNotifier {
       notifyListeners();
       _logRecoverableError('refreshMainListSearchResults', error);
     } finally {
-      _flushPendingMainListSearchRefresh();
+      if (!_isDisposed) {
+        _flushPendingMainListSearchRefresh();
+      }
     }
   }
 
@@ -2374,10 +3016,6 @@ class CheckInController extends ChangeNotifier {
     required AuditRepository auditRepository,
     required AuditProfile profile,
     PerformanceReport? report,
-    int? year,
-    int? quarter,
-    DateTime? startDate,
-    DateTime? endDate,
   }) async {
     final normalizedProfileUuid = _normalizeProfileUuid(profile.profileUuid);
     if (normalizedProfileUuid == null ||
@@ -2386,13 +3024,7 @@ class CheckInController extends ChangeNotifier {
     }
 
     try {
-      return await auditRepository.getCertifiedReports(
-        profile: profile,
-        year: year,
-        quarter: quarter,
-        startDate: startDate,
-        endDate: endDate,
-      );
+      return await auditRepository.getCertifiedReports(profile: profile);
     } catch (error) {
       debugPrint(
         'Unable to load certified reports for performance report: $error',
@@ -2487,6 +3119,7 @@ class CheckInController extends ChangeNotifier {
     required int page,
     required int pageSize,
     String? search,
+    bool forceRefresh = false,
   }) {
     final resolvedSearch = search ?? _state.searchQuery;
     if (!_state.isActualOwner &&
@@ -2495,6 +3128,7 @@ class CheckInController extends ChangeNotifier {
         page: page,
         pageSize: pageSize,
         search: resolvedSearch,
+        forceRefresh: forceRefresh,
       );
     }
 
@@ -2502,6 +3136,7 @@ class CheckInController extends ChangeNotifier {
       page: page,
       pageSize: pageSize,
       search: resolvedSearch,
+      forceRefresh: forceRefresh,
     );
   }
 
@@ -2542,8 +3177,19 @@ class CheckInController extends ChangeNotifier {
     required int page,
     required int pageSize,
     String? search,
+    bool forceRefresh = false,
   }) {
     final trimmedSearch = search?.trim();
+    final auditRepository = _auditRepository;
+    if (_isDescriptionsList && auditRepository != null) {
+      return auditRepository.getAuditTeamMembers(
+        page: page,
+        pageSize: pageSize,
+        search: trimmedSearch == null || trimmedSearch.isEmpty
+            ? null
+            : trimmedSearch,
+      );
+    }
     return _getAuditOverviewUseCase(
       page: page,
       pageSize: pageSize,
@@ -2553,6 +3199,7 @@ class CheckInController extends ChangeNotifier {
           ? null
           : trimmedSearch,
       jobUuid: _selectedSeatProfileJobUuid,
+      forceRefresh: forceRefresh,
     );
   }
 
@@ -2560,10 +3207,16 @@ class CheckInController extends ChangeNotifier {
     required int page,
     required int pageSize,
     String? search,
+    bool forceRefresh = false,
   }) {
     final auditRepository = _auditRepository;
     if (auditRepository == null) {
-      return _loadTeamMembers(page: page, pageSize: pageSize, search: search);
+      return _loadTeamMembers(
+        page: page,
+        pageSize: pageSize,
+        search: search,
+        forceRefresh: forceRefresh,
+      );
     }
 
     return auditRepository.getMyAudits(
@@ -2572,6 +3225,7 @@ class CheckInController extends ChangeNotifier {
       year: selectedAuditYear,
       quarter: selectedAuditQuarter,
       search: search,
+      forceRefresh: forceRefresh,
     );
   }
 
@@ -2841,6 +3495,38 @@ class PerformanceReportViewData {
   final bool shouldShowCompleteReportUi;
   final bool shouldShowMessageOnly;
   final PerformanceReportPaygradeStep? currentPaygradeStep;
+}
+
+class PerformanceReportPaygradeSummaryData {
+  const PerformanceReportPaygradeSummaryData({
+    required this.currentPosition,
+    required this.currentPay,
+    required this.totalLevels,
+  });
+
+  final String currentPosition;
+  final String currentPay;
+  final String totalLevels;
+}
+
+class PerformanceReportPaygradeStageStatus {
+  const PerformanceReportPaygradeStageStatus({
+    required this.label,
+    required this.accentColor,
+    required this.borderColor,
+    required this.surfaceColor,
+    required this.badgeBackgroundColor,
+    required this.badgeTextColor,
+    required this.indicatorFillColor,
+  });
+
+  final String label;
+  final Color accentColor;
+  final Color borderColor;
+  final Color surfaceColor;
+  final Color badgeBackgroundColor;
+  final Color badgeTextColor;
+  final Color indicatorFillColor;
 }
 
 class PerformanceReportCoreValueVisualSpec {

@@ -26,6 +26,7 @@ class TrainingLessonSelector extends StatelessWidget {
         controller: controller,
         onModuleSelected: onModuleSelected,
         onDeleteModuleTap: onDeleteModuleTap,
+        onAddNewLessonTap: onAddNewLessonTap,
       ),
     );
   }
@@ -277,11 +278,13 @@ class _ModuleSelectionSheet extends StatelessWidget {
     required this.controller,
     required this.onModuleSelected,
     required this.onDeleteModuleTap,
+    this.onAddNewLessonTap,
   });
 
   final TrainingModuleController controller;
   final Future<void> Function(String moduleId) onModuleSelected;
   final Future<void> Function(SeatDescriptionTrainingModule module)? onDeleteModuleTap;
+  final VoidCallback? onAddNewLessonTap;
 
   @override
   Widget build(BuildContext context) {
@@ -336,6 +339,20 @@ class _ModuleSelectionSheet extends StatelessWidget {
                       _DialogCloseButton(onTap: () => Navigator.of(context).pop()),
                     ],
                   ),
+                  if (controller.canManageTraining && onAddNewLessonTap != null) ...[
+                    const SizedBox(height: 18),
+                    _AddNewLessonSheetButton(
+                      onTap:
+                          controller.isLoading ||
+                              controller.isCreatingModule ||
+                              controller.isCreatingNewLessonDraft
+                          ? null
+                          : () {
+                              Navigator.of(context).pop();
+                              onAddNewLessonTap!();
+                            },
+                    ),
+                  ],
                   if (controller.modules.isNotEmpty) ...[
                     const SizedBox(height: 18),
                     ListView.separated(
@@ -386,6 +403,41 @@ class _ModuleSelectionSheet extends StatelessWidget {
       ),
     );
   }
+}
+
+class _AddNewLessonSheetButton extends StatelessWidget {
+  const _AddNewLessonSheetButton({required this.onTap});
+
+  final VoidCallback? onTap;
+
+  @override
+  Widget build(BuildContext context) => CustomPaint(
+    foregroundPainter: _DottedRoundedBorderPainter(
+      color: AppColors.secondaryColor.withValues(alpha: onTap == null ? 0.4 : 0.7),
+      radius: 12,
+      strokeWidth: 1.2,
+      dashLength: 1.2,
+      gapLength: 3,
+    ),
+    child: OutlinedButton.icon(
+      onPressed: onTap,
+      style: OutlinedButton.styleFrom(
+        backgroundColor: Colors.transparent,
+        foregroundColor: AppColors.secondaryColor,
+        minimumSize: const Size.fromHeight(48),
+        padding: const EdgeInsets.symmetric(horizontal: 16, vertical: 14),
+        side: BorderSide.none,
+        shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(12)),
+      ),
+      icon: const Icon(Icons.add_rounded, size: 20),
+      label: AppTextView.body2(
+        AppStrings.trainingAddNewLesson,
+        color: AppColors.secondaryColor.withValues(alpha: onTap == null ? 0.4 : 1),
+        fontSize: 14,
+        fontWeight: FontWeight.w500,
+      ),
+    ),
+  );
 }
 
 class _ModuleSheetTile extends StatelessWidget {

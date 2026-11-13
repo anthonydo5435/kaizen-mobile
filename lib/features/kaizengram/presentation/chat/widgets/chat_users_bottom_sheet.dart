@@ -160,17 +160,15 @@ class KaizengramChatUsersBottomSheet extends StatelessWidget {
 
     final messenger = ScaffoldMessenger.of(context);
     final didRemove = controller.removeUserFromCurrentChannel(user);
-    messenger
-      ..hideCurrentSnackBar()
-      ..showSnackBar(
-        SnackBar(
-          content: Text(
-            didRemove
-                ? AppStrings.userRemovedSnackBar(user.email)
-                : AppStrings.cannotRemoveCurrentUserError,
+    if (!didRemove) {
+      messenger
+        ..hideCurrentSnackBar()
+        ..showSnackBar(
+          const SnackBar(
+            content: Text(AppStrings.cannotRemoveCurrentUserError),
           ),
-        ),
-      );
+        );
+    }
   }
 }
 

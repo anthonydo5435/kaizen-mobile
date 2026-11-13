@@ -110,7 +110,6 @@ class _SeatFilterFields extends StatelessWidget {
       child: Column(
         children: [
           TrainingSelectionStepField(
-            stepNumber: 1,
             hintText: AppStrings.trainingSetupSelectSeat,
             selectedText: controller.pendingSeatSelection?.title,
             enabled: enabled,
@@ -118,7 +117,6 @@ class _SeatFilterFields extends StatelessWidget {
           ),
           const SizedBox(height: 22),
           TrainingSelectionStepField(
-            stepNumber: 2,
             hintText: AppStrings.trainingSetupSelectCategory,
             selectedText: controller.pendingCategorySelection?.title,
             enabled:
@@ -129,7 +127,6 @@ class _SeatFilterFields extends StatelessWidget {
           ),
           const SizedBox(height: 22),
           TrainingSelectionStepField(
-            stepNumber: 3,
             hintText: AppStrings.trainingSetupSelectDescription,
             selectedText: controller.pendingDescriptionSelection?.name,
             enabled:

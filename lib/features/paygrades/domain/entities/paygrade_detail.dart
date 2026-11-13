@@ -32,4 +32,10 @@ class PaygradeEntry {
   final int level;
   final String description;
   final String promotionRequirement;
+
+  static bool isValidPayRate(String value) {
+    final rate = value.trim();
+    return RegExp(r'^\d+(\.\d+)?$').hasMatch(rate) &&
+        (double.tryParse(rate)?.isFinite ?? false);
+  }
 }

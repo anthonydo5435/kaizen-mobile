@@ -22,7 +22,7 @@ class GoogleLoginButton extends StatelessWidget {
         disabledForegroundColor: AppColors.textSecondary,
         minimumSize: const Size.fromHeight(40),
         padding: const EdgeInsets.symmetric(horizontal: 16, vertical: 10),
-        side: const BorderSide(color: AppColors.fieldBorder),
+        side: BorderSide(color: AppColors.fieldBorder.withValues(alpha: 0.5)),
         shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(12)),
       ),
       icon: isLoading

@@ -4,6 +4,7 @@ import 'package:sparrowkaizen/core/constants/app_colors.dart';
 
 import '../../../../../core/constants/app_strings.dart';
 import '../../../../../core/widgets/app_button.dart';
+import '../../../../../core/widgets/app_dialog_style.dart';
 import '../../../../../core/widgets/app_text_view.dart';
 import '../../../domain/entities/compliance_quiz_result.dart';
 
@@ -36,7 +37,7 @@ class _QuizResultDialogState extends State<QuizResultDialog> {
   Widget build(BuildContext context) {
     return Dialog(
       backgroundColor: AppColors.surfaceDark2,
-      shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(16)),
+      shape: AppDialogStyle.shape(radius: 16),
       child: Padding(
         padding: const EdgeInsets.symmetric(vertical: 24.0, horizontal: 24.0),
         child: Column(
@@ -261,9 +262,7 @@ class _QuizResultDialogState extends State<QuizResultDialog> {
       builder: (context) {
         return AlertDialog(
           backgroundColor: AppColors.surfaceDark,
-          shape: RoundedRectangleBorder(
-            borderRadius: BorderRadius.circular(12),
-          ),
+          shape: AppDialogStyle.shape(radius: 12),
           title: const AppTextView.body1(
             'Review Quiz',
             color: AppColors.textPrimary,

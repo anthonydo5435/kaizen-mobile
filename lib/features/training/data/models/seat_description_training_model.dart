@@ -1,4 +1,4 @@
-import '../../../training/domain/entities/seat_description_training.dart';
+import '../../domain/entities/seat_description_training.dart';
 
 class SeatDescriptionTrainingModuleModel extends SeatDescriptionTrainingModule {
   const SeatDescriptionTrainingModuleModel({
@@ -127,7 +127,7 @@ class SeatDescriptionTrainingAssignmentModel
     Map<String, dynamic> json,
   ) {
     return SeatDescriptionTrainingAssignmentModel(
-      uuid: _readString(json['uuid']) ?? '',
+      uuid: _readString(json['uuid']) ?? _readString(json['id']) ?? '',
       title: _readString(json['title']),
       instructions: _readString(json['instructions']),
     );

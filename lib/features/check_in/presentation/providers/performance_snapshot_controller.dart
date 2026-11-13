@@ -41,6 +41,7 @@ class PerformanceSnapshotController extends ChangeNotifier {
   String? _myReportsErrorMessage;
   Timer? _searchDebounceTimer;
   bool _hasPendingSearchRefresh = false;
+  bool _isDisposed = false;
 
   bool get canAccessTeamReports => _canAccessTeamReports;
   bool get isActualOwner => _isActualOwner;
@@ -116,6 +117,17 @@ class PerformanceSnapshotController extends ChangeNotifier {
     }
   }
 
+  Future<void> refresh() async {
+    if (_isDisposed ||
+        _isInitializing ||
+        currentData.isLoading ||
+        currentData.isLoadingMore) {
+      return;
+    }
+    _cancelPendingSearchRefresh();
+    await _refreshSearchResults(showLoader: true, forceRefresh: true);
+  }
+
   void selectTab(AuditMemberStatus status) {
     if (!_canAccessTeamReports) {
       return;
@@ -152,6 +164,7 @@ class PerformanceSnapshotController extends ChangeNotifier {
     bool loadMore = false,
     bool force = false,
     bool showLoader = true,
+    bool forceRefresh = false,
   }) async {
     final currentData = _reportsData;
     if (!force && (currentData.isLoading || currentData.isLoadingMore)) {
@@ -175,7 +188,11 @@ class PerformanceSnapshotController extends ChangeNotifier {
         page: nextPage,
         pageSize: 12,
         search: requestQuery.isEmpty ? null : requestQuery,
+        forceRefresh: forceRefresh,
       );
+      if (_isDisposed) {
+        return;
+      }
       final isStaleRequest =
           requestKey !=
           _requestKeyFor(
@@ -204,6 +221,9 @@ class PerformanceSnapshotController extends ChangeNotifier {
         _defaultReportsData = _reportsData;
       }
     } catch (error) {
+      if (_isDisposed) {
+        return;
+      }
       final isStaleRequest =
           requestKey !=
           _requestKeyFor(
@@ -234,6 +254,7 @@ class PerformanceSnapshotController extends ChangeNotifier {
     bool loadMore = false,
     bool force = false,
     bool showLoader = true,
+    bool forceRefresh = false,
   }) async {
     final currentData = _myReportsData;
     if (!force && (currentData.isLoading || currentData.isLoadingMore)) {
@@ -260,7 +281,11 @@ class PerformanceSnapshotController extends ChangeNotifier {
         page: nextPage,
         pageSize: 12,
         search: requestQuery.isEmpty ? null : requestQuery,
+        forceRefresh: forceRefresh,
       );
+      if (_isDisposed) {
+        return;
+      }
       final isStaleRequest =
           requestKey !=
           _requestKeyFor(
@@ -323,6 +348,9 @@ class PerformanceSnapshotController extends ChangeNotifier {
         );
       }
     } catch (error) {
+      if (_isDisposed) {
+        return;
+      }
       final isStaleRequest =
           requestKey !=
           _requestKeyFor(
@@ -700,6 +728,7 @@ class PerformanceSnapshotController extends ChangeNotifier {
 
   @override
   void dispose() {
+    _isDisposed = true;
     _searchDebounceTimer?.cancel();
     searchController.dispose();
     scrollController
@@ -731,13 +760,24 @@ class PerformanceSnapshotController extends ChangeNotifier {
     await _refreshSearchResults(showLoader: true);
   }
 
-  Future<void> _refreshSearchResults({required bool showLoader}) async {
+  Future<void> _refreshSearchResults({
+    required bool showLoader,
+    bool forceRefresh = false,
+  }) async {
     if (_selectedTab == PerformanceSnapshotTab.reports) {
-      await loadReports(force: true, showLoader: showLoader);
+      await loadReports(
+        force: true,
+        showLoader: showLoader,
+        forceRefresh: forceRefresh,
+      );
       return;
     }
 
-    await loadMyReports(force: true, showLoader: showLoader);
+    await loadMyReports(
+      force: true,
+      showLoader: showLoader,
+      forceRefresh: forceRefresh,
+    );
   }
 
   void _flushPendingSearchRefresh() {

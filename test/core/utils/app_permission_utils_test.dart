@@ -10,6 +10,92 @@ import 'package:sparrowkaizen/features/login/domain/entities/user_hierarchy_memb
 import 'package:sparrowkaizen/features/organizations/domain/entities/organization.dart';
 
 void main() {
+  group('AppPermissionUtils.canEditDepartments', () {
+    test('allows explicit owners to edit in child organisations', () {
+      for (final type in ['child', ' ChIlD ']) {
+        expect(
+          AppPermissionUtils.canEditDepartments(
+            user: User(isOwner: true, roles: const ['team_member']),
+            currentOrganization: _organization(type),
+          ),
+          isTrue,
+        );
+      }
+    });
+
+    test('keeps child departments read-only without the owner flag', () {
+      for (final user in <User?>[
+        null,
+        User(isOwner: false, roles: const ['owner']),
+        User(roles: const ['owner', 'csuite']),
+        User(hasSandboxAccess: true),
+      ]) {
+        expect(
+          AppPermissionUtils.canEditDepartments(
+            user: user,
+            currentOrganization: _organization('child'),
+          ),
+          isFalse,
+        );
+      }
+    });
+
+    test('preserves existing access outside child organisations', () {
+      for (final type in ['parent', 'sandbox']) {
+        for (final user in <User?>[null, User(), User(isOwner: true)]) {
+          expect(
+            AppPermissionUtils.canEditDepartments(
+              user: user,
+              currentOrganization: _organization(type),
+            ),
+            isTrue,
+          );
+        }
+      }
+    });
+  });
+
+  group('AppPermissionUtils.canManagePublicLinks', () {
+    test('requires the explicit owner flag regardless of role names', () {
+      for (final isOwner in <bool?>[null, false, true]) {
+        for (final role in [
+          'owner',
+          'csuite',
+          'c_suite',
+          'dept_lead',
+          'team_lead',
+          'team_member',
+        ]) {
+          expect(
+            AppPermissionUtils.canManagePublicLinks(
+              user: User(isOwner: isOwner, roles: [role]),
+              currentOrganization: _organization('parent'),
+            ),
+            isOwner == true,
+            reason: '$role with isOwner=$isOwner',
+          );
+        }
+      }
+      expect(
+        AppPermissionUtils.canManagePublicLinks(
+          user: null,
+          currentOrganization: null,
+        ),
+        isFalse,
+      );
+    });
+
+    test('keeps child organisations read-only even for explicit owners', () {
+      expect(
+        AppPermissionUtils.canManagePublicLinks(
+          user: User(isOwner: true, roles: ['owner']),
+          currentOrganization: _organization('child'),
+        ),
+        isFalse,
+      );
+    });
+  });
+
   group('AppPermissionUtils.canAccessScopedCreateEntry', () {
     test('allows owner accounts to open scoped create flows', () {
       final canAccess = AppPermissionUtils.canAccessScopedCreateEntry(
@@ -65,6 +151,8 @@ void main() {
         roles: const <String>['team_member'],
       ),
       'owner role': User(roles: const <String>['owner']),
+      'sandbox access': User(hasSandboxAccess: true),
+      'owner with sandbox access': User(isOwner: true, hasSandboxAccess: true),
       'csuite': User(roles: const <String>['csuite']),
       'c_suite alias': User(roles: const <String>['c_suite']),
       for (final role in <String>['dept_lead', 'team_lead'])
@@ -122,6 +210,183 @@ void main() {
       expect(AppPermissionUtils.canAccessSandbox(owner), isTrue);
       expect(AppPermissionUtils.canAccessAuditTeamMembers(owner), isTrue);
     });
+  });
+
+  group('sandbox training permissions', () {
+    for (final type in ['parent', 'sandbox', 'child', ' ChIlD ']) {
+      for (final hasSandboxAccess in <bool?>[null, false, true]) {
+        test('sandbox access $hasSandboxAccess in $type organisations', () {
+          final user = User(
+            isOwner: false,
+            roles: const ['team_member'],
+            hasSandboxAccess: hasSandboxAccess,
+          );
+          final organization = _organization(type);
+          expect(
+            AppPermissionUtils.canManageAnyTrainingModules(
+              user: user,
+              currentOrganization: organization,
+            ),
+            isFalse,
+          );
+          for (final seatProfileId in ['seat-1', '']) {
+            expect(
+              AppPermissionUtils.canManageTrainingForSeatProfile(
+                user: user,
+                currentOrganization: organization,
+                seatProfileId: seatProfileId,
+              ),
+              isFalse,
+            );
+            expect(
+              AppPermissionUtils.canViewTrainingQuizAndAssignment(
+                user: user,
+                currentOrganization: organization,
+                seatProfileId: seatProfileId,
+              ),
+              isFalse,
+            );
+          }
+          expect(
+            AppPermissionUtils.canManagePublicLinks(
+              user: user,
+              currentOrganization: organization,
+            ),
+            isFalse,
+          );
+          expect(
+            AppPermissionUtils.canManagePaygrades(
+              user: user,
+              currentOrganization: organization,
+            ),
+            isFalse,
+          );
+        });
+      }
+    }
+
+    test('owner access remains unchanged across sandbox flags', () {
+      for (final type in ['parent', 'sandbox', 'child']) {
+        for (final hasSandboxAccess in <bool?>[null, false, true]) {
+          final user = User(
+            isOwner: true,
+            roles: const ['team_member'],
+            hasSandboxAccess: hasSandboxAccess,
+          );
+          expect(
+            AppPermissionUtils.canManageAnyTrainingModules(
+              user: user,
+              currentOrganization: _organization(type),
+            ),
+            type != 'child',
+          );
+          expect(
+            AppPermissionUtils.canManageTrainingForSeatProfile(
+              user: user,
+              currentOrganization: _organization(type),
+              seatProfileId: '',
+            ),
+            type != 'child',
+          );
+          expect(
+            AppPermissionUtils.canViewTrainingQuizAndAssignment(
+              user: user,
+              currentOrganization: _organization(type),
+              seatProfileId: '',
+            ),
+            hasSandboxAccess == true || type != 'child',
+          );
+        }
+      }
+    });
+
+    test('sandbox tab access preserves department lead editing scope', () {
+      for (final hasSandboxAccess in [false, true]) {
+        final user = User(
+          roles: const ['dept_lead'],
+          hasSandboxAccess: hasSandboxAccess,
+          hierarchyMemberships: const [
+            UserHierarchyMembership(
+              nodeUuid: 'node',
+              role: 'dept_lead',
+              manageableSeatProfileIds: ['managed-seat'],
+            ),
+          ],
+        );
+        for (final type in ['parent', 'child']) {
+          for (final seat in ['managed-seat', 'other-seat']) {
+            final canEdit = type != 'child' && seat == 'managed-seat';
+            expect(
+              AppPermissionUtils.canManageTrainingForSeatProfile(
+                user: user,
+                currentOrganization: _organization(type),
+                seatProfileId: seat,
+              ),
+              canEdit,
+            );
+            expect(
+              AppPermissionUtils.canViewTrainingQuizAndAssignment(
+                user: user,
+                currentOrganization: _organization(type),
+                seatProfileId: seat,
+              ),
+              (hasSandboxAccess && seat == 'managed-seat') || canEdit,
+            );
+          }
+        }
+      }
+    });
+
+    test(
+      'sandbox viewing requires a managed seat without granting editing',
+      () {
+        for (final type in ['parent', 'sandbox', 'child']) {
+          for (final hasSandboxAccess in <bool?>[null, false, true]) {
+            final user = User(
+              roles: const ['team_member'],
+              hasSandboxAccess: hasSandboxAccess,
+              hierarchyMemberships: const [
+                UserHierarchyMembership(
+                  nodeUuid: 'node',
+                  role: 'team_member',
+                  job: OrganizationHierarchyJob(
+                    uuid: 'own-seat',
+                    title: 'Own Seat',
+                  ),
+                  manageableSeatProfileIds: ['managed-seat'],
+                ),
+              ],
+            );
+            for (final seat in [
+              'managed-seat',
+              ' MANAGED-SEAT ',
+              'own-seat',
+              'other-seat',
+              '',
+            ]) {
+              expect(
+                AppPermissionUtils.canViewTrainingQuizAndAssignment(
+                  user: user,
+                  currentOrganization: _organization(type),
+                  seatProfileId: seat,
+                ),
+                hasSandboxAccess == true &&
+                    seat.trim().toLowerCase() == 'managed-seat',
+                reason: '$type sandbox=$hasSandboxAccess seat=$seat',
+              );
+              expect(
+                AppPermissionUtils.canManageTrainingForSeatProfile(
+                  user: user,
+                  currentOrganization: _organization(type),
+                  seatProfileId: seat,
+                ),
+                isFalse,
+              );
+            }
+          }
+        }
+      },
+    );
   });
 
   group('AppPermissionUtils.canManageTrainingForSeatProfile', () {

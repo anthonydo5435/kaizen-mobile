@@ -146,6 +146,7 @@ class AuditDetailsProfileModel extends AuditDetailsProfile {
 
 class AuditDetailItemModel extends AuditDetailItem {
   const AuditDetailItemModel({
+    super.quarterlyAuditUuid,
     required super.date,
     required super.great,
     required super.needsImprovement,
@@ -159,6 +160,10 @@ class AuditDetailItemModel extends AuditDetailItem {
         : null;
 
     return AuditDetailItemModel(
+      quarterlyAuditUuid:
+          _readString(json['quarterly_audit_uuid']) ??
+          _readString(json['quarterlyAuditUuid']) ??
+          '',
       date: _readString(json['date']) ?? '',
       great: _readInt(auditDetails?['great']) ?? 0,
       needsImprovement: _readInt(auditDetails?['needs_improvement']) ?? 0,

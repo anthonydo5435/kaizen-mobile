@@ -727,7 +727,7 @@ class _FeedStateMessage extends StatelessWidget {
   @override
   Widget build(BuildContext context) {
     return Padding(
-      padding: const EdgeInsets.fromLTRB(24, 56, 24, 24),
+      padding: const EdgeInsets.fromLTRB(12, 56, 12, 24),
       child: AppTextView.body1(
         message,
         color: AppColors.textSecondary,
@@ -799,7 +799,7 @@ class _StoriesRow extends StatelessWidget {
   Widget build(BuildContext context) {
     return Container(
       height: 124,
-      padding: const EdgeInsets.fromLTRB(14, 8, 14, 1),
+      padding: const EdgeInsets.fromLTRB(7, 8, 7, 1),
       decoration: BoxDecoration(
         color: AppColors.surfaceDark.withValues(alpha: 0.64),
         border: Border(

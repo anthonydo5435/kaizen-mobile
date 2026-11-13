@@ -46,8 +46,8 @@ android {
         // For more information, see: https://flutter.dev/to/review-gradle-config.
         minSdk = 24
         targetSdk = flutter.targetSdkVersion
-        versionCode = 6
-        versionName = "1.0.4"
+        versionCode = 10
+        versionName = "1.0.8"
     }
 
     signingConfigs {
@@ -80,4 +80,9 @@ android {
 
 flutter {
     source = "../.."
+}
+
+dependencies {
+    // Already shipped by url_launcher_android; the OAuth bridge also uses it directly.
+    implementation("androidx.browser:browser:1.9.0")
 }

@@ -1,6 +1,7 @@
 import '../../../seat_profile/domain/entities/department.dart';
 import '../entities/paygrade_detail.dart';
 import '../entities/paygrade_page.dart';
+import '../entities/shared_paygrades_content.dart';
 import '../repositories/paygrade_repository.dart';
 
 class GetPaygradesUseCase {
@@ -8,12 +9,25 @@ class GetPaygradesUseCase {
 
   final PaygradeRepository _repository;
 
+  Future<String?> getPaygradesPublicLink(String jobId) {
+    return _repository.getPaygradesPublicLink(jobId);
+  }
+
+  Future<String> createPaygradesPublicLink(String jobId) {
+    return _repository.createPaygradesPublicLink(jobId);
+  }
+
+  Future<void> deletePaygradesPublicLink(String jobId) {
+    return _repository.deletePaygradesPublicLink(jobId);
+  }
+
   Future<PaygradePage> call({
     required int page,
     int pageSize = 10,
     String? departmentId,
     String name = '',
     String? title,
+    bool forceRefresh = false,
   }) {
     return _repository.getPaygrades(
       page: page,
@@ -21,6 +35,7 @@ class GetPaygradesUseCase {
       departmentId: departmentId,
       name: name,
       title: title,
+      forceRefresh: forceRefresh,
     );
   }
 
@@ -33,6 +48,10 @@ class GetPaygradesUseCase {
     required String type,
   }) {
     return _repository.getPaygradeDetail(paygradeId: paygradeId, type: type);
+  }
+
+  Future<SharedPaygradesContent> getSharedPaygrades(String publicId) {
+    return _repository.getSharedPaygrades(publicId);
   }
 
   Future<void> generatePaygrades({
@@ -54,6 +73,7 @@ class GetPaygradesUseCase {
     required String promotionRequirement,
     required int position,
     required bool fromSandbox,
+    String? payRate,
   }) {
     return _repository.createPaygrade(
       jobId: jobId,
@@ -64,6 +84,7 @@ class GetPaygradesUseCase {
       promotionRequirement: promotionRequirement,
       position: position,
       fromSandbox: fromSandbox,
+      payRate: payRate,
     );
   }
 
@@ -72,13 +93,22 @@ class GetPaygradesUseCase {
     required String title,
     required String description,
     required String promotionRequirement,
+    String? payRate,
   }) {
     return _repository.updatePaygrade(
       paygradeId: paygradeId,
       title: title,
       description: description,
       promotionRequirement: promotionRequirement,
+      payRate: payRate,
     );
+  }
+
+  Future<void> updatePayRate({
+    required String paygradeId,
+    required String payRate,
+  }) {
+    return _repository.updatePayRate(paygradeId: paygradeId, payRate: payRate);
   }
 
   Future<void> deletePaygrade(String paygradeId) {

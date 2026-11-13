@@ -16,6 +16,7 @@ class GetTrainingLibraryModulesUseCase {
     String? jobId,
     String? jobCategoryId,
     String? jobCategoryDescriptionId,
+    bool forceRefresh = false,
   }) {
     return _repository.getTrainingLibraryModules(
       view: view,
@@ -27,6 +28,7 @@ class GetTrainingLibraryModulesUseCase {
       jobId: jobId,
       jobCategoryId: jobCategoryId,
       jobCategoryDescriptionId: jobCategoryDescriptionId,
+      forceRefresh: forceRefresh,
     );
   }
 }

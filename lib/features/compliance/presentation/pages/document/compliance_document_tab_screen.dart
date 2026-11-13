@@ -34,10 +34,6 @@ class _ComplianceDocumentTabScreenState extends State<ComplianceDocumentTabScree
     final controller = context.watch<ComplianceDocumentController>();
     final documents = controller.filteredDocuments;
 
-    if (controller.isLoading) {
-      return FastCircularProgressIndicator();
-    }
-
     return RefreshIndicator(
       onRefresh: controller.refresh,
       child: CustomScrollView(
@@ -47,11 +43,23 @@ class _ComplianceDocumentTabScreenState extends State<ComplianceDocumentTabScree
             child: ComplianceSearchBar(
               controller: controller.searchController,
               onChanged: controller.updateSearchQuery,
+              onClearTap: controller.clearSearch,
+              showClearButton: true,
               onFilterTap: () => _showFilterSheet(context, controller),
             ),
           ),
           const SliverToBoxAdapter(child: SizedBox(height: 20)),
-          if (documents.isEmpty)
+          if (controller.isLoading || controller.isSearchLoading)
+            const SliverFillRemaining(
+              hasScrollBody: false,
+              child: Center(child: FastCircularProgressIndicator()),
+            )
+          else if (controller.searchError != null)
+            SliverFillRemaining(
+              hasScrollBody: false,
+              child: ComplianceEmptyState(message: controller.searchError!),
+            )
+          else if (documents.isEmpty)
             const SliverFillRemaining(
               hasScrollBody: false,
               child: ComplianceEmptyState(message: AppStrings.complianceNoDocumentsFound),

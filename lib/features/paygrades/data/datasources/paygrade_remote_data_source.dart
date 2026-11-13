@@ -4,6 +4,7 @@ import '../../../../core/network/api_processor.dart';
 import '../../../seat_profile/data/models/department_model.dart';
 import '../models/paygrade_detail_model.dart';
 import '../models/paygrade_page_model.dart';
+import '../models/shared_paygrades_content_model.dart';
 
 class PaygradeRemoteDataSource {
   PaygradeRemoteDataSource({ApiCallExecutor? apiCallExecutor})
@@ -11,16 +12,68 @@ class PaygradeRemoteDataSource {
 
   final ApiCallExecutor _apiCallExecutor;
 
+  Future<String?> getPaygradesPublicLink(String jobId) async {
+    try {
+      return await _apiCallExecutor.processApi<String?>(
+        apiCallType: ApiCallType.get,
+        endpoint: ApiEndPoints.paygradesPublicLink(jobId),
+        invalidateCacheBeforeRequest: true,
+        decoder: _decodePublicLink,
+      );
+    } on ApiError catch (error) {
+      if (error.statusCode == 404) return null;
+      rethrow;
+    }
+  }
+
+  Future<String> createPaygradesPublicLink(String jobId) {
+    return _apiCallExecutor.processApi<String>(
+      apiCallType: ApiCallType.post,
+      endpoint: ApiEndPoints.paygradesPublicLink(jobId),
+      decoder: (json) =>
+          _decodePublicLink(json) ?? (throw const ApiError.invalidResponse()),
+    );
+  }
+
+  Future<void> deletePaygradesPublicLink(String jobId) {
+    return _apiCallExecutor.processApi<void>(
+      apiCallType: ApiCallType.delete,
+      endpoint: ApiEndPoints.paygradesPublicLink(jobId),
+      decoder: (_) {},
+    );
+  }
+
+  String? _decodePublicLink(dynamic json) {
+    if (json is! Map<String, dynamic>) {
+      throw const ApiError.invalidResponse();
+    }
+    if (json['active'] == false) return null;
+    final path = json['public_path'];
+    final uri = path is String ? Uri.tryParse(path.trim()) : null;
+    if (json['active'] != true ||
+        json['view_type'] != 'paygrades' ||
+        uri == null ||
+        uri.hasScheme ||
+        uri.hasAuthority ||
+        !uri.path.startsWith('/shared/paygrades/') ||
+        uri.pathSegments.last.isEmpty) {
+      throw const ApiError.invalidResponse();
+    }
+    return Uri.parse(ApiEndPoints.publicWebBaseUrl).resolveUri(uri).toString();
+  }
+
   Future<PaygradePageModel> getPaygrades({
     required int page,
     int pageSize = 10,
     String? departmentId,
     String name = '',
     String? title,
+    bool forceRefresh = false,
   }) {
     return _apiCallExecutor.processApi<PaygradePageModel>(
       apiCallType: ApiCallType.get,
       endpoint: ApiEndPoints.payGrade,
+      invalidateCacheBeforeRequest: forceRefresh,
       parameters: {
         if (title != null) 'department': departmentId?.trim() ?? '',
         if (title != null) 'title': title.trim(),
@@ -72,6 +125,21 @@ class PaygradeRemoteDataSource {
     );
   }
 
+  Future<SharedPaygradesContentModel> getSharedPaygrades(String publicId) {
+    return _apiCallExecutor.processApi<SharedPaygradesContentModel>(
+      apiCallType: ApiCallType.get,
+      endpoint: ApiEndPoints.sharedContent(publicId),
+      authToken: '',
+      allowAutoRefresh: false,
+      decoder: (json) {
+        if (json is! Map<String, dynamic>) {
+          throw const ApiError.invalidResponse();
+        }
+        return SharedPaygradesContentModel.fromApiJson(json);
+      },
+    );
+  }
+
   Future<void> generatePaygrades({
     required String actualId,
     required int numPaygrades,
@@ -93,7 +161,9 @@ class PaygradeRemoteDataSource {
     required String promotionRequirement,
     required int position,
     required bool fromSandbox,
+    String? payRate,
   }) {
+    final rate = payRate?.trim();
     return _apiCallExecutor.processApi<PaygradeEntryModel>(
       apiCallType: ApiCallType.post,
       endpoint: ApiEndPoints.payGrade,
@@ -107,6 +177,7 @@ class PaygradeRemoteDataSource {
         'position': position,
         'from_sandbox': fromSandbox,
         'job': jobId,
+        if (rate != null && rate.isNotEmpty) 'pay_rate': rate,
       },
       decoder: (json) {
         return PaygradeEntryModel.fromApiJson(_decodePaygradeEntryJson(json));
@@ -119,6 +190,7 @@ class PaygradeRemoteDataSource {
     required String title,
     required String description,
     required String promotionRequirement,
+    String? payRate,
   }) {
     return _apiCallExecutor.processApi<void>(
       apiCallType: ApiCallType.patch,
@@ -128,7 +200,20 @@ class PaygradeRemoteDataSource {
         'title': title,
         'description': description,
         'promotion_requirement': promotionRequirement,
+        if (payRate != null) 'pay_rate': payRate,
       },
+      decoder: (_) {},
+    );
+  }
+
+  Future<void> updatePayRate({
+    required String paygradeId,
+    required String payRate,
+  }) {
+    return _apiCallExecutor.processApi<void>(
+      apiCallType: ApiCallType.patch,
+      endpoint: ApiEndPoints.payGradeItem(paygradeId),
+      parameters: <String, dynamic>{'uuid': paygradeId, 'pay_rate': payRate},
       decoder: (_) {},
     );
   }

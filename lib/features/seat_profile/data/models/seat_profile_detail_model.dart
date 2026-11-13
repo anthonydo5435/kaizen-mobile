@@ -30,6 +30,47 @@ class SeatProfileDetailModel extends SeatProfileDetail {
       categories: categories,
     );
   }
+
+  factory SeatProfileDetailModel.fromSharedContentJson(
+    Map<String, dynamic> json,
+  ) {
+    final content = json['content'];
+    if (json['view_type'] != 'seat_profile' || content is! Map) {
+      throw const FormatException('Invalid shared seat profile response');
+    }
+
+    final data = Map<String, dynamic>.from(content);
+    final categoryItems = data['categories'];
+    final categories = categoryItems is List
+        ? categoryItems
+              .asMap()
+              .entries
+              .where((entry) => entry.value is Map)
+              .map((entry) {
+                final category = Map<String, dynamic>.from(entry.value as Map);
+                final parsed = SeatProfileCategoryModel.fromApiJson(category);
+                return SeatProfileCategory(
+                  id: 'shared-category-${entry.key}',
+                  title: parsed.title,
+                  weightPercent: parsed.weightPercent,
+                  descriptions: parsed.descriptions,
+                );
+              })
+              .toList(growable: false)
+        : const <SeatProfileCategory>[];
+    final departmentName = data['department_name']?.toString().trim() ?? '';
+
+    return SeatProfileDetailModel(
+      id: '',
+      actualId: '',
+      title: data['title']?.toString().trim() ?? '',
+      department: departmentName.isEmpty
+          ? null
+          : Department(id: '', name: departmentName),
+      paygradeUnit: '',
+      categories: categories,
+    );
+  }
 }
 
 class SeatProfileCategoryModel extends SeatProfileCategory {

@@ -64,7 +64,7 @@ class OrganizationsScreen extends StatelessWidget {
         body: SafeArea(
           top: false,
           child: Padding(
-            padding: const EdgeInsets.fromLTRB(16, 0, 16, 24),
+            padding: const EdgeInsets.fromLTRB(8, 0, 8, 24),
             child: Column(
               crossAxisAlignment: CrossAxisAlignment.start,
               children: [
