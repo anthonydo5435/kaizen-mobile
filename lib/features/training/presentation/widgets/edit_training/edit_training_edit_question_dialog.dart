@@ -16,7 +16,8 @@ class _EditQuestionDialogState extends State<_EditQuestionDialog> {
   @override
   void initState() {
     super.initState();
-    _editor = TrainingQuizQuestionEditorController(question: widget.question)..startEditing();
+    _editor = TrainingQuizQuestionEditorController(question: widget.question)
+      ..startEditing();
   }
 
   @override
@@ -28,7 +29,9 @@ class _EditQuestionDialogState extends State<_EditQuestionDialog> {
   bool _canEdit(TrainingModuleController controller) =>
       controller.canManageTraining &&
       controller.selectedModuleId == widget.moduleId &&
-      controller.selectedModuleQuestions.any((question) => question.uuid == widget.question.uuid);
+      controller.selectedModuleQuestions.any(
+        (question) => question.uuid == widget.question.uuid,
+      );
 
   Future<void> _submit() async {
     final controller = context.read<TrainingModuleController>();
@@ -54,7 +57,8 @@ class _EditQuestionDialogState extends State<_EditQuestionDialog> {
       Navigator.of(context).pop(true);
     } else {
       final error = controller.questionsErrorMessage?.trim();
-      if (error != null && error.isNotEmpty) _editor.setValidationMessage(error);
+      if (error != null && error.isNotEmpty)
+        _editor.setValidationMessage(error);
     }
   }
 
@@ -87,10 +91,14 @@ class _EditQuestionDialogState extends State<_EditQuestionDialog> {
   Widget build(BuildContext context) {
     final controller = context.watch<TrainingModuleController>();
     final isSaving = controller.isSavingQuestion(widget.question.uuid);
-    final isBusy = isSaving || controller.isDeletingQuestion(widget.question.uuid);
+    final isBusy =
+        isSaving || controller.isDeletingQuestion(widget.question.uuid);
     final mediaQuery = MediaQuery.of(context);
     final availableHeight =
-        mediaQuery.size.height - mediaQuery.viewInsets.bottom - mediaQuery.padding.top - 16;
+        mediaQuery.size.height -
+        mediaQuery.viewInsets.bottom -
+        mediaQuery.padding.top -
+        16;
 
     return AnimatedBuilder(
       animation: _editor,
@@ -98,26 +106,29 @@ class _EditQuestionDialogState extends State<_EditQuestionDialog> {
         canPop: !isBusy,
         child: Padding(
           padding: EdgeInsets.only(bottom: mediaQuery.viewInsets.bottom),
-          child: Container(
+          child: AppKeyboardBottomSheetSurface(
             width: double.infinity,
-            constraints: BoxConstraints(
-              maxWidth: 620,
-              maxHeight: availableHeight.clamp(0.0, mediaQuery.size.height * 0.92),
-            ),
-            decoration: const BoxDecoration(
-              color: AppColors.trainingLessonActionSurface,
-              borderRadius: BorderRadius.vertical(top: Radius.circular(24)),
-            ),
-            child: SafeArea(
-              top: false,
-              child: _EditQuestionForm(
-                question: widget.question,
-                editor: _editor,
-                isEnabled: _canEdit(controller) && !isBusy,
-                isSaving: isSaving,
-                onSave: _submit,
-                onRemoveOption: _confirmRemoveOption,
-                onClose: isBusy ? null : () => Navigator.of(context).pop(),
+            color: AppColors.trainingLessonActionSurface,
+            borderRadius: const BorderRadius.vertical(top: Radius.circular(24)),
+            child: ConstrainedBox(
+              constraints: BoxConstraints(
+                maxWidth: 620,
+                maxHeight: availableHeight.clamp(
+                  0.0,
+                  mediaQuery.size.height * 0.92,
+                ),
+              ),
+              child: SafeArea(
+                top: false,
+                child: _EditQuestionForm(
+                  question: widget.question,
+                  editor: _editor,
+                  isEnabled: _canEdit(controller) && !isBusy,
+                  isSaving: isSaving,
+                  onSave: _submit,
+                  onRemoveOption: _confirmRemoveOption,
+                  onClose: isBusy ? null : () => Navigator.of(context).pop(),
+                ),
               ),
             ),
           ),
@@ -152,7 +163,10 @@ class _EditQuestionForm extends StatelessWidget {
       mainAxisSize: MainAxisSize.min,
       crossAxisAlignment: CrossAxisAlignment.stretch,
       children: [
-        _QuestionSheetHeader(title: AppStrings.trainingEditQuestionTitle, onClose: onClose),
+        _QuestionSheetHeader(
+          title: AppStrings.trainingEditQuestionTitle,
+          onClose: onClose,
+        ),
         Flexible(
           child: SingleChildScrollView(
             padding: const EdgeInsets.fromLTRB(18, 16, 18, 20),
@@ -189,14 +203,20 @@ class _EditQuestionForm extends StatelessWidget {
         Padding(
           padding: const EdgeInsets.fromLTRB(10, 0, 10, 16),
           child: TextButton(
-            onPressed: isEnabled && editor.canSave(question: question) ? onSave : null,
+            onPressed: isEnabled && editor.canSave(question: question)
+                ? onSave
+                : null,
             style: TextButton.styleFrom(
               backgroundColor: AppColors.secondaryColor,
-              disabledBackgroundColor: AppColors.secondaryColor.withValues(alpha: 0.55),
+              disabledBackgroundColor: AppColors.secondaryColor.withValues(
+                alpha: 0.55,
+              ),
               foregroundColor: AppColors.textPrimary,
               disabledForegroundColor: AppColors.textPrimary,
               minimumSize: const Size.fromHeight(44),
-              shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(14)),
+              shape: RoundedRectangleBorder(
+                borderRadius: BorderRadius.circular(14),
+              ),
             ),
             child: isSaving
                 ? const FastCircularProgressIndicator()
@@ -243,7 +263,9 @@ class _EditQuestionOptions extends StatelessWidget {
                 hintText: AppStrings.trainingQuestionOptionHint(entry.key + 1),
                 isSelected: editor.isOptionSelected(option.uuid),
                 isEditable: isEnabled,
-                onTap: isEnabled ? () => editor.selectCorrectOption(option.uuid) : null,
+                onTap: isEnabled
+                    ? () => editor.selectCorrectOption(option.uuid)
+                    : null,
               ),
             ),
           );
@@ -254,10 +276,14 @@ class _EditQuestionOptions extends StatelessWidget {
             padding: const EdgeInsets.only(bottom: 10),
             child: TrainingSwipeDeleteAction(
               deleteSemanticLabel: AppStrings.trainingDeleteOption,
-              onDelete: isEnabled ? () => onRemove(editor.draftOptionUuid) : null,
+              onDelete: isEnabled
+                  ? () => onRemove(editor.draftOptionUuid)
+                  : null,
               child: _DraftQuizOptionTile(
                 controller: editor.draftOptionController,
-                hintText: AppStrings.trainingQuestionOptionHint(options.length + 1),
+                hintText: AppStrings.trainingQuestionOptionHint(
+                  options.length + 1,
+                ),
                 isSelected: editor.isOptionSelected(editor.draftOptionUuid),
                 isEditable: isEnabled,
                 onSelect: isEnabled

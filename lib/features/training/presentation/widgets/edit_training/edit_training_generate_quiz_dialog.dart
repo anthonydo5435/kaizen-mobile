@@ -185,6 +185,8 @@ class _QuizGenerationSettings extends StatelessWidget {
         ),
         const SizedBox(height: 12),
         _QuizDifficultySetting(controller: controller, isEnabled: isEnabled),
+        const SizedBox(height: 12),
+        _QuizSourceSetting(controller: controller, isEnabled: isEnabled),
       ],
     );
   }
@@ -248,6 +250,55 @@ class _QuizDifficultySetting extends StatelessWidget {
                 ),
               ),
             ],
+          ),
+        ],
+      ),
+    );
+  }
+}
+
+class _QuizSourceSetting extends StatelessWidget {
+  const _QuizSourceSetting({required this.controller, required this.isEnabled});
+
+  final TrainingModuleController controller;
+  final bool isEnabled;
+
+  @override
+  Widget build(BuildContext context) {
+    return Container(
+      padding: const EdgeInsets.symmetric(horizontal: 14, vertical: 12),
+      decoration: BoxDecoration(
+        color: AppColors.trainingLessonActionSurface,
+        borderRadius: BorderRadius.circular(12),
+      ),
+      child: Column(
+        crossAxisAlignment: CrossAxisAlignment.stretch,
+        children: [
+          const AppTextView.body2(
+            AppStrings.trainingQuizGenerateFrom,
+            color: AppColors.textPrimary,
+            fontSize: 16,
+            fontWeight: FontWeight.w400,
+          ),
+          const SizedBox(height: 12),
+          Row(
+            spacing: 8,
+            children: QuizGenerationSource.values
+                .map((source) {
+                  final label = switch (source) {
+                    QuizGenerationSource.video => AppStrings.trainingVideoTab,
+                    QuizGenerationSource.sop => AppStrings.trainingSopTab,
+                    QuizGenerationSource.both => AppStrings.trainingQuizSourceBoth,
+                  };
+                  return Expanded(
+                    child: _QuizDifficultyChip(
+                      label: label,
+                      isSelected: controller.quizGenerationSource == source,
+                      onTap: isEnabled ? () => controller.setQuizGenerationSource(source) : null,
+                    ),
+                  );
+                })
+                .toList(growable: false),
           ),
         ],
       ),
