@@ -2,6 +2,7 @@ import 'dart:async';
 
 import 'package:flutter/material.dart';
 import 'package:flutter_test/flutter_test.dart';
+import 'package:sparrowkaizen/core/constants/app_strings.dart';
 import 'package:sparrowkaizen/features/check_in/domain/entities/audit_member.dart';
 import 'package:sparrowkaizen/features/check_in/domain/entities/performance_report.dart';
 import 'package:sparrowkaizen/features/check_in/presentation/providers/check_in_controller.dart';
@@ -29,6 +30,57 @@ void main() {
     controller.dispose();
     audit.dispose();
   });
+
+  test('date label shows quarter start through today with full dates', () {
+    final now = DateTime.now();
+    final month = ((now.month - 1) ~/ 3) * 3 + 1;
+    final start = DateTime(now.year, month, 1);
+    expect(controller.dateRange.start, start);
+    expect(controller.dateRange.end, DateTime(now.year, now.month, now.day));
+    expect(
+      controller.dateRangeLabel,
+      matches(RegExp(r'^01 [A-Z][a-z]{2} \d{4} - \d{2} [A-Z][a-z]{2} \d{4}$')),
+    );
+  });
+
+  test(
+    'a failed initial report can retry the same quarter for the selected employee',
+    () async {
+      repository.buildReport = (_) => throw StateError('Unavailable');
+      await audit.initializePerformanceReport(reportProfile);
+      expect(controller.report, isNull);
+      expect(controller.minDate, DateTime(2025, 1, 1));
+      final requestsBefore = repository.overviewProfiles.length;
+      repository.buildReport = (profile) => reportFixture(profile: profile);
+      await controller.selectDateRange(controller.currentQuarterRange);
+      expect(repository.overviewProfiles.length, requestsBefore + 1);
+      expect(repository.overviewProfiles.last, reportProfile);
+      expect(repository.lastStart, isNull);
+      expect(repository.lastQuarter, isNotNull);
+      expect(controller.report, isNotNull);
+    },
+  );
+
+  test(
+    'selected dates update the label and the quarter range restores live reports',
+    () async {
+      await controller.selectDateRange(
+        DateTimeRange(start: DateTime(2026, 1, 2), end: DateTime(2026, 2, 3)),
+      );
+      expect(controller.dateRangeLabel, '02 Jan 2026 - 03 Feb 2026');
+      await controller.selectDateRange(controller.currentQuarterRange);
+      expect(
+        audit.state.performanceReportTimeRange,
+        AppStrings.performanceReportThisQuarter,
+      );
+      expect(repository.lastStart, isNull);
+      await audit.selectCertifiedReport('certified');
+      expect(controller.isCommitmentReadOnly, isTrue);
+      await controller.selectDateRange(controller.currentQuarterRange);
+      expect(audit.state.selectedCertifiedReportUuid, isNull);
+      expect(controller.isCommitmentReadOnly, isFalse);
+    },
+  );
 
   test(
     'profile switching preserves seat context and resets presentation state',

@@ -9,17 +9,18 @@ import 'package:signature/signature.dart';
 
 import '../../../../core/constants/app_colors.dart';
 import '../../../../core/constants/app_strings.dart';
-import '../../../../core/widgets/app_overlay_close_button.dart';
 import '../../../../core/widgets/app_dialog_style.dart';
 import '../../../../core/widgets/app_text_view.dart';
 import '../../../../core/widgets/fast_circular_progress.dart';
-import '../../../compliance/presentation/pages/document/full_screen_doc.dart';
-import '../../domain/entities/performance_report.dart';
 
 Future<Object?> showPerformanceReportTimeRangeDialog(
   BuildContext context, {
   DateTime? startDate,
   DateTime? endDate,
+  BoxConstraints? constraints,
+  bool selectStartDateInitially = false,
+  bool calendarOnly = false,
+  bool allowClearDates = false,
   required DateTime minDate,
   required DateTime maxDate,
   required String Function(DateTime value) formatDate,
@@ -30,34 +31,13 @@ Future<Object?> showPerformanceReportTimeRangeDialog(
     builder: (dialogContext) => _TimeRangeDialogContent(
       startDate: startDate,
       endDate: endDate,
+      constraints: constraints,
+      selectStartDateInitially: selectStartDateInitially,
+      calendarOnly: calendarOnly,
+      allowClearDates: allowClearDates,
       minDate: minDate,
       maxDate: maxDate,
       formatDate: formatDate,
-    ),
-  );
-}
-
-Future<void> showPerformanceReportCertifiedReportsSheet(
-  BuildContext context, {
-  required String? value,
-  required List<CertifiedReportOption> options,
-  required bool Function(String uuid) isDownloading,
-  required ValueChanged<String?> onChanged,
-  required Future<String> Function(CertifiedReportOption option) onDownload,
-}) {
-  return showModalBottomSheet<void>(
-    context: context,
-    isScrollControlled: true,
-    backgroundColor: AppColors.surfaceDark,
-    shape: const RoundedRectangleBorder(
-      borderRadius: BorderRadius.vertical(top: Radius.circular(18)),
-    ),
-    builder: (sheetContext) => _CertifiedReportsSheetContent(
-      value: value,
-      options: options,
-      isDownloading: isDownloading,
-      onChanged: onChanged,
-      onDownload: onDownload,
     ),
   );
 }
@@ -73,45 +53,24 @@ Future<void> showPerformanceReportSignatureDialog(
     barrierDismissible: true,
     barrierLabel: 'Signature Dialog',
     transitionDuration: const Duration(milliseconds: 240),
-    pageBuilder: (dialogContext, animation, secondaryAnimation) =>
-        _SignatureDialogContent(
-          title: title,
-          existingSignatureUrl: existingSignatureUrl,
-          onSaved: onSaved,
-        ),
+    pageBuilder: (dialogContext, animation, secondaryAnimation) => _SignatureDialogContent(
+      title: title,
+      existingSignatureUrl: existingSignatureUrl,
+      onSaved: onSaved,
+    ),
     transitionBuilder: (context, animation, secondaryAnimation, child) {
       final curvedAnimation = CurvedAnimation(
         parent: animation,
         curve: Curves.easeOutCubic,
         reverseCurve: Curves.easeInCubic,
       );
-      final scaleAnimation = Tween<double>(
-        begin: 0.94,
-        end: 1,
-      ).animate(curvedAnimation);
+      final scaleAnimation = Tween<double>(begin: 0.94, end: 1).animate(curvedAnimation);
 
       return FadeTransition(
         opacity: curvedAnimation,
         child: ScaleTransition(scale: scaleAnimation, child: child),
       );
     },
-  );
-}
-
-Future<void> showPerformanceReportCoreValueDialog(
-  BuildContext context, {
-  required PerformanceReportCoreValue coreValue,
-  required IconData icon,
-  required Color accentColor,
-}) {
-  return showDialog<void>(
-    context: context,
-    barrierDismissible: true,
-    builder: (dialogContext) => _CoreValueDialogContent(
-      coreValue: coreValue,
-      icon: icon,
-      accentColor: accentColor,
-    ),
   );
 }
 
@@ -122,6 +81,10 @@ class _TimeRangeDialogContent extends StatefulWidget {
     required this.minDate,
     required this.maxDate,
     required this.formatDate,
+    this.constraints,
+    this.selectStartDateInitially = false,
+    this.calendarOnly = false,
+    this.allowClearDates = false,
   });
 
   final DateTime? startDate;
@@ -129,153 +92,13 @@ class _TimeRangeDialogContent extends StatefulWidget {
   final DateTime minDate;
   final DateTime maxDate;
   final String Function(DateTime value) formatDate;
+  final BoxConstraints? constraints;
+  final bool selectStartDateInitially;
+  final bool calendarOnly;
+  final bool allowClearDates;
 
   @override
-  State<_TimeRangeDialogContent> createState() =>
-      _TimeRangeDialogContentState();
-}
-
-class _CoreValueDialogContent extends StatelessWidget {
-  const _CoreValueDialogContent({
-    required this.coreValue,
-    required this.icon,
-    required this.accentColor,
-  });
-
-  final PerformanceReportCoreValue coreValue;
-  final IconData icon;
-  final Color accentColor;
-
-  @override
-  Widget build(BuildContext context) {
-    final mediaQuery = MediaQuery.of(context);
-    final description = coreValue.description?.trim();
-    final detailCards = <Widget>[
-      if (description?.isNotEmpty == true)
-        Padding(
-          padding: const EdgeInsets.only(bottom: 12),
-          child: _CoreValueDetailCard(
-            value: description!,
-            accentColor: accentColor,
-          ),
-        ),
-      ...coreValue.details.map(
-        (detail) => Padding(
-          padding: const EdgeInsets.only(bottom: 10),
-          child: _CoreValueDetailCard(
-            label: detail.label,
-            value: detail.value,
-            accentColor: accentColor,
-          ),
-        ),
-      ),
-    ];
-
-    return Dialog(
-      backgroundColor: AppColors.surfaceDark,
-      shape: AppDialogStyle.shape(radius: 16),
-      child: ConstrainedBox(
-        constraints: BoxConstraints(
-          maxWidth: 430,
-          maxHeight: mediaQuery.size.height * 0.75,
-        ),
-        child: Padding(
-          padding: const EdgeInsets.fromLTRB(18, 18, 18, 18),
-          child: Column(
-            mainAxisSize: MainAxisSize.min,
-            crossAxisAlignment: CrossAxisAlignment.start,
-            children: [
-              Row(
-                crossAxisAlignment: CrossAxisAlignment.center,
-                children: [
-                  Container(
-                    width: 52,
-                    height: 52,
-                    decoration: BoxDecoration(
-                      shape: BoxShape.circle,
-                      color: accentColor,
-                    ),
-                    child: Icon(icon, color: AppColors.textPrimary, size: 28),
-                  ),
-                  const SizedBox(width: 12),
-                  Expanded(
-                    child: AppTextView.body1(
-                      coreValue.title,
-                      color: AppColors.textPrimary,
-                      fontSize: 18,
-                      fontWeight: FontWeight.w700,
-                      maxLines: 1,
-                      overflow: TextOverflow.ellipsis,
-                    ),
-                  ),
-                  AppOverlayCloseButton(
-                    onTap: () => Navigator.of(context).pop(),
-                  ),
-                ],
-              ),
-              const SizedBox(height: 14),
-              Divider(
-                height: 1,
-                thickness: 1,
-                color: AppColors.fieldBorder.withValues(alpha: 0.16),
-              ),
-              const SizedBox(height: 16),
-              Flexible(
-                child: SingleChildScrollView(
-                  child: detailCards.isEmpty
-                      ? _CoreValueDetailCard(
-                          value: AppStrings
-                              .performanceReportCoreValueDetailsFallback,
-                          accentColor: accentColor,
-                        )
-                      : Column(children: detailCards),
-                ),
-              ),
-            ],
-          ),
-        ),
-      ),
-    );
-  }
-}
-
-class _CoreValueDetailCard extends StatelessWidget {
-  const _CoreValueDetailCard({
-    this.label,
-    required this.value,
-    required this.accentColor,
-  });
-
-  final String? label;
-  final String value;
-  final Color accentColor;
-
-  @override
-  Widget build(BuildContext context) {
-    return Padding(
-      padding: const EdgeInsets.symmetric(horizontal: 2),
-      child: Column(
-        crossAxisAlignment: CrossAxisAlignment.start,
-        children: [
-          if (label?.trim().isNotEmpty == true) ...[
-            AppTextView.body4(
-              label!.trim(),
-              color: accentColor,
-              fontSize: 11,
-              fontWeight: FontWeight.w700,
-            ),
-            const SizedBox(height: 4),
-          ],
-          AppTextView.body3(
-            value,
-            color: AppColors.textPrimary,
-            fontSize: 13,
-            height: 1.45,
-          ),
-        ],
-      ),
-    );
-  }
+  State<_TimeRangeDialogContent> createState() => _TimeRangeDialogContentState();
 }
 
 class _TimeRangeDialogContentState extends State<_TimeRangeDialogContent> {
@@ -292,16 +115,14 @@ class _TimeRangeDialogContentState extends State<_TimeRangeDialogContent> {
     final maxDate = _dateOnly(widget.maxDate);
     _selectedStart = _clampDate(widget.startDate, minDate, maxDate);
     _selectedEnd = _clampDate(widget.endDate, minDate, maxDate);
-    if (_selectedStart != null &&
-        _selectedEnd != null &&
-        _selectedEnd!.isBefore(_selectedStart!)) {
+    if (_selectedStart != null && _selectedEnd != null && _selectedEnd!.isBefore(_selectedStart!)) {
       _selectedEnd = _selectedStart;
     }
     _visibleMonth = DateTime(
       (_selectedStart ?? _selectedEnd ?? maxDate).year,
       (_selectedStart ?? _selectedEnd ?? maxDate).month,
     );
-    _selectionMode = _selectedStart == null
+    _selectionMode = widget.selectStartDateInitially || _selectedStart == null
         ? _RangeSelectionMode.start
         : _RangeSelectionMode.end;
   }
@@ -309,11 +130,12 @@ class _TimeRangeDialogContentState extends State<_TimeRangeDialogContent> {
   @override
   Widget build(BuildContext context) {
     return Dialog(
+      constraints: widget.constraints,
       backgroundColor: AppColors.surfaceDark,
       shape: AppDialogStyle.shape(radius: 16),
       child: Padding(
         padding: const EdgeInsets.fromLTRB(16, 16, 16, 16),
-        child: _dialogStep == _TimeRangeDialogStep.options
+        child: !widget.calendarOnly && _dialogStep == _TimeRangeDialogStep.options
             ? Column(
                 mainAxisSize: MainAxisSize.min,
                 crossAxisAlignment: CrossAxisAlignment.stretch,
@@ -328,9 +150,7 @@ class _TimeRangeDialogContentState extends State<_TimeRangeDialogContent> {
                   _DialogOptionTile(
                     title: 'This Quarter',
                     onTap: () {
-                      Navigator.of(
-                        context,
-                      ).pop(PerformanceReportTimeRangeDialogResult.thisQuarter);
+                      Navigator.of(context).pop(PerformanceReportTimeRangeDialogResult.thisQuarter);
                     },
                   ),
                   const SizedBox(height: 10),
@@ -352,12 +172,16 @@ class _TimeRangeDialogContentState extends State<_TimeRangeDialogContent> {
                     children: [
                       IconButton(
                         onPressed: () {
+                          if (widget.calendarOnly) {
+                            Navigator.of(context).pop();
+                            return;
+                          }
                           setState(() {
                             _dialogStep = _TimeRangeDialogStep.options;
                           });
                         },
-                        icon: const Icon(
-                          Icons.arrow_back_rounded,
+                        icon: Icon(
+                          widget.calendarOnly ? Icons.close_rounded : Icons.arrow_back_rounded,
                           color: AppColors.textPrimary,
                         ),
                         padding: EdgeInsets.zero,
@@ -383,8 +207,7 @@ class _TimeRangeDialogContentState extends State<_TimeRangeDialogContent> {
                           value: _selectedStart == null
                               ? 'Select'
                               : widget.formatDate(_selectedStart!),
-                          isSelected:
-                              _selectionMode == _RangeSelectionMode.start,
+                          isSelected: _selectionMode == _RangeSelectionMode.start,
                           onTap: () {
                             setState(() {
                               _selectionMode = _RangeSelectionMode.start;
@@ -396,9 +219,7 @@ class _TimeRangeDialogContentState extends State<_TimeRangeDialogContent> {
                       Expanded(
                         child: _DateSelectionChip(
                           label: 'End',
-                          value: _selectedEnd == null
-                              ? 'Select'
-                              : widget.formatDate(_selectedEnd!),
+                          value: _selectedEnd == null ? 'Select' : widget.formatDate(_selectedEnd!),
                           isSelected: _selectionMode == _RangeSelectionMode.end,
                           onTap: () {
                             setState(() {
@@ -425,14 +246,12 @@ class _TimeRangeDialogContentState extends State<_TimeRangeDialogContent> {
                       setState(() {
                         if (_selectionMode == _RangeSelectionMode.start) {
                           _selectedStart = value;
-                          if (_selectedEnd != null &&
-                              _selectedEnd!.isBefore(value)) {
+                          if (_selectedEnd != null && _selectedEnd!.isBefore(value)) {
                             _selectedEnd = value;
                           }
                           _selectionMode = _RangeSelectionMode.end;
                         } else {
-                          if (_selectedStart != null &&
-                              value.isBefore(_selectedStart!)) {
+                          if (_selectedStart != null && value.isBefore(_selectedStart!)) {
                             _selectedStart = value;
                             _selectedEnd = value;
                           } else {
@@ -446,31 +265,38 @@ class _TimeRangeDialogContentState extends State<_TimeRangeDialogContent> {
                   const SizedBox(height: 10),
                   Align(
                     alignment: Alignment.centerRight,
-                    child: FilledButton(
-                      onPressed: _selectedStart == null || _selectedEnd == null
-                          ? null
-                          : () {
-                              Navigator.of(context).pop(
-                                DateTimeRange(
-                                  start: _selectedStart!,
-                                  end: _selectedEnd!,
-                                ),
-                              );
-                            },
-                      style: FilledButton.styleFrom(
-                        backgroundColor: AppColors.secondaryColor,
-                        foregroundColor: AppColors.textPrimary,
-                        padding: const EdgeInsets.symmetric(
-                          horizontal: 18,
-                          vertical: 10,
+                    child: Wrap(
+                      crossAxisAlignment: WrapCrossAlignment.center,
+                      spacing: 12,
+                      children: [
+                        if (widget.allowClearDates &&
+                            (_selectedStart != null || _selectedEnd != null))
+                          TextButton(
+                            onPressed: () => Navigator.of(
+                              context,
+                            ).pop(PerformanceReportTimeRangeDialogResult.clearDates),
+                            style: TextButton.styleFrom(foregroundColor: AppColors.secondaryColor),
+                            child: const Text(AppStrings.performanceReportClearDates),
+                          ),
+                        FilledButton(
+                          onPressed: _selectedStart == null || _selectedEnd == null
+                              ? null
+                              : () {
+                                  Navigator.of(
+                                    context,
+                                  ).pop(DateTimeRange(start: _selectedStart!, end: _selectedEnd!));
+                                },
+                          style: FilledButton.styleFrom(
+                            backgroundColor: AppColors.secondaryColor,
+                            foregroundColor: AppColors.textPrimary,
+                            padding: const EdgeInsets.symmetric(horizontal: 18, vertical: 10),
+                            minimumSize: Size.zero,
+                            tapTargetSize: MaterialTapTargetSize.shrinkWrap,
+                            shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(12)),
+                          ),
+                          child: const Text(AppStrings.performanceReportApply),
                         ),
-                        minimumSize: Size.zero,
-                        tapTargetSize: MaterialTapTargetSize.shrinkWrap,
-                        shape: RoundedRectangleBorder(
-                          borderRadius: BorderRadius.circular(12),
-                        ),
-                      ),
-                      child: const Text('Apply'),
+                      ],
                     ),
                   ),
                 ],
@@ -495,175 +321,6 @@ DateTime? _clampDate(DateTime? value, DateTime minDate, DateTime maxDate) {
   return normalizedValue;
 }
 
-class _CertifiedReportsSheetContent extends StatefulWidget {
-  const _CertifiedReportsSheetContent({
-    required this.value,
-    required this.options,
-    required this.isDownloading,
-    required this.onChanged,
-    required this.onDownload,
-  });
-
-  final String? value;
-  final List<CertifiedReportOption> options;
-  final bool Function(String uuid) isDownloading;
-  final ValueChanged<String?> onChanged;
-  final Future<String> Function(CertifiedReportOption option) onDownload;
-
-  @override
-  State<_CertifiedReportsSheetContent> createState() =>
-      _CertifiedReportsSheetContentState();
-}
-
-class _CertifiedReportsSheetContentState
-    extends State<_CertifiedReportsSheetContent> {
-  String? _downloadingUuid;
-
-  @override
-  Widget build(BuildContext context) {
-    final mediaQuery = MediaQuery.of(context);
-    final estimatedContentHeight = 132.0 + ((widget.options.length + 1) * 58.0);
-    final sheetHeight = math.min(
-      mediaQuery.size.height * 0.76,
-      math.max(260.0, estimatedContentHeight),
-    );
-
-    return SafeArea(
-      top: false,
-      child: Padding(
-        padding: EdgeInsets.fromLTRB(
-          16,
-          12,
-          16,
-          20 + mediaQuery.viewInsets.bottom,
-        ),
-        child: SizedBox(
-          height: sheetHeight,
-          child: Column(
-            crossAxisAlignment: CrossAxisAlignment.start,
-            children: [
-              Center(
-                child: Container(
-                  width: 40,
-                  height: 4,
-                  decoration: BoxDecoration(
-                    color: AppColors.fieldBorder.withValues(alpha: 0.55),
-                    borderRadius: BorderRadius.circular(999),
-                  ),
-                ),
-              ),
-              const SizedBox(height: 12),
-              const Center(
-                child: AppTextView.body1(
-                  'Certified Reports',
-                  color: AppColors.secondaryColor,
-                  fontWeight: FontWeight.w700,
-                ),
-              ),
-              const SizedBox(height: 14),
-              Expanded(
-                child: Scrollbar(
-                  thumbVisibility: widget.options.length > 4,
-                  child: ListView(
-                    padding: EdgeInsets.zero,
-                    physics: const BouncingScrollPhysics(),
-                    children: [
-                      _CertifiedReportSheetTile(
-                        title: 'Select Certified Report',
-                        isSelected: widget.value == null,
-                        onTap: () {
-                          Navigator.of(context).pop();
-                          widget.onChanged(null);
-                        },
-                      ),
-                      for (final option in widget.options)
-                        _CertifiedReportSheetTile(
-                          title: option.displayName,
-                          isSelected: option.uuid == widget.value,
-                          trailing: InkWell(
-                            borderRadius: BorderRadius.circular(999),
-                            onTap:
-                                _downloadingUuid != null ||
-                                    widget.isDownloading(option.uuid)
-                                ? null
-                                : () async {
-                                    final messenger = ScaffoldMessenger.of(
-                                      context,
-                                    );
-                                    final navigator = Navigator.of(context);
-                                    setState(() {
-                                      _downloadingUuid = option.uuid;
-                                    });
-
-                                    final pdfUrl = await widget.onDownload(
-                                      option,
-                                    );
-                                    if (!mounted) {
-                                      return;
-                                    }
-
-                                    setState(() {
-                                      _downloadingUuid = null;
-                                    });
-
-                                    if (pdfUrl.isEmpty) {
-                                      messenger.showSnackBar(
-                                        const SnackBar(
-                                          content: Text(
-                                            'Unable to open certified report PDF.',
-                                          ),
-                                        ),
-                                      );
-                                      return;
-                                    }
-
-                                    navigator.pop();
-                                    await navigator.push(
-                                      MaterialPageRoute<void>(
-                                        builder: (_) => ViewFullScreenDoc(
-                                          title: option.displayName,
-                                          imageUrl: pdfUrl,
-                                        ),
-                                      ),
-                                    );
-                                  },
-                            child: SizedBox(
-                              width: 28,
-                              height: 28,
-                              child: Center(
-                                child:
-                                    _downloadingUuid == option.uuid ||
-                                        widget.isDownloading(option.uuid)
-                                    ? SizedBox(
-                                        width: 18,
-                                        height: 18,
-                                        child: FastCircularProgressIndicator(),
-                                      )
-                                    : const Icon(
-                                        Icons.visibility_outlined,
-                                        color: AppColors.secondaryColor,
-                                        size: 20,
-                                      ),
-                              ),
-                            ),
-                          ),
-                          onTap: () {
-                            Navigator.of(context).pop();
-                            widget.onChanged(option.uuid);
-                          },
-                        ),
-                    ],
-                  ),
-                ),
-              ),
-            ],
-          ),
-        ),
-      ),
-    );
-  }
-}
-
 class _SignatureDialogContent extends StatefulWidget {
   const _SignatureDialogContent({
     required this.title,
@@ -676,8 +333,7 @@ class _SignatureDialogContent extends StatefulWidget {
   final Future<String?> Function(Uint8List bytes) onSaved;
 
   @override
-  State<_SignatureDialogContent> createState() =>
-      _SignatureDialogContentState();
+  State<_SignatureDialogContent> createState() => _SignatureDialogContentState();
 }
 
 class _SignatureDialogContentState extends State<_SignatureDialogContent> {
@@ -749,8 +405,7 @@ class _SignatureDialogContentState extends State<_SignatureDialogContent> {
                     children: [
                       _SignatureOptionChip(
                         label: 'My Signature',
-                        isSelected:
-                            _selectedOption == _SignatureOption.mySignature,
+                        isSelected: _selectedOption == _SignatureOption.mySignature,
                         onTap: () {
                           setState(() {
                             _selectedOption = _SignatureOption.mySignature;
@@ -845,24 +500,16 @@ class _SignatureDialogContentState extends State<_SignatureDialogContent> {
                             ),
                             decoration: InputDecoration(
                               hintText: 'Type your signature',
-                              hintStyle: const TextStyle(
-                                color: AppColors.textSecondary,
-                              ),
+                              hintStyle: const TextStyle(color: AppColors.textSecondary),
                               enabledBorder: OutlineInputBorder(
                                 borderRadius: BorderRadius.circular(12),
                                 borderSide: BorderSide(
-                                  color: AppColors.fieldBorder.withValues(
-                                    alpha: 0.4,
-                                  ),
+                                  color: AppColors.fieldBorder.withValues(alpha: 0.4),
                                 ),
                               ),
                               focusedBorder: const OutlineInputBorder(
-                                borderRadius: BorderRadius.all(
-                                  Radius.circular(12),
-                                ),
-                                borderSide: BorderSide(
-                                  color: AppColors.secondaryColor,
-                                ),
+                                borderRadius: BorderRadius.all(Radius.circular(12)),
+                                borderSide: BorderSide(color: AppColors.secondaryColor),
                               ),
                             ),
                           ),
@@ -870,15 +517,12 @@ class _SignatureDialogContentState extends State<_SignatureDialogContent> {
                           Align(
                             alignment: Alignment.centerRight,
                             child: FilledButton(
-                              onPressed:
-                                  _typedController.text.trim().isEmpty ||
-                                      _isSubmitting
+                              onPressed: _typedController.text.trim().isEmpty || _isSubmitting
                                   ? null
                                   : () async {
-                                      final pngBytes =
-                                          await _buildTypedSignatureBytes(
-                                            _typedController.text.trim(),
-                                          );
+                                      final pngBytes = await _buildTypedSignatureBytes(
+                                        _typedController.text.trim(),
+                                      );
                                       if (!context.mounted) {
                                         return;
                                       }
@@ -915,9 +559,7 @@ class _SignatureDialogContentState extends State<_SignatureDialogContent> {
                         decoration: BoxDecoration(
                           borderRadius: BorderRadius.circular(12),
                           border: Border.all(
-                            color: AppColors.fieldBorder.withValues(
-                              alpha: 0.55,
-                            ),
+                            color: AppColors.fieldBorder.withValues(alpha: 0.55),
                             width: 1.5,
                             strokeAlign: BorderSide.strokeAlignInside,
                           ),
@@ -927,9 +569,7 @@ class _SignatureDialogContentState extends State<_SignatureDialogContent> {
                             Positioned.fill(
                               child: CustomPaint(
                                 painter: _DottedBorderPainter(
-                                  color: AppColors.fieldBorder.withValues(
-                                    alpha: 0.55,
-                                  ),
+                                  color: AppColors.fieldBorder.withValues(alpha: 0.55),
                                 ),
                               ),
                             ),
@@ -959,8 +599,7 @@ class _SignatureDialogContentState extends State<_SignatureDialogContent> {
                                   : Padding(
                                       padding: const EdgeInsets.all(12),
                                       child: Column(
-                                        mainAxisAlignment:
-                                            MainAxisAlignment.center,
+                                        mainAxisAlignment: MainAxisAlignment.center,
                                         children: [
                                           Expanded(
                                             child: Image.memory(
@@ -979,34 +618,26 @@ class _SignatureDialogContentState extends State<_SignatureDialogContent> {
                                             onPressed: _isSubmitting
                                                 ? null
                                                 : () async {
-                                                    if (_uploadedBytes ==
-                                                        null) {
+                                                    if (_uploadedBytes == null) {
                                                       return;
                                                     }
                                                     await _submitSignature(
                                                       navigator,
-                                                      ScaffoldMessenger.of(
-                                                        context,
-                                                      ),
+                                                      ScaffoldMessenger.of(context),
                                                       _uploadedBytes!,
                                                     );
                                                   },
                                             style: FilledButton.styleFrom(
-                                              backgroundColor:
-                                                  AppColors.secondaryColor,
-                                              foregroundColor:
-                                                  AppColors.textPrimary,
+                                              backgroundColor: AppColors.secondaryColor,
+                                              foregroundColor: AppColors.textPrimary,
                                               minimumSize: Size.zero,
-                                              tapTargetSize:
-                                                  MaterialTapTargetSize
-                                                      .shrinkWrap,
+                                              tapTargetSize: MaterialTapTargetSize.shrinkWrap,
                                             ),
                                             child: _isSubmitting
                                                 ? SizedBox(
                                                     width: 18,
                                                     height: 18,
-                                                    child:
-                                                        FastCircularProgressIndicator(),
+                                                    child: FastCircularProgressIndicator(),
                                                   )
                                                 : const Text('Use'),
                                           ),
@@ -1040,9 +671,7 @@ class _SignatureDialogContentState extends State<_SignatureDialogContent> {
                       onPressed: _isSubmitting ? null : () => navigator.pop(),
                       style: OutlinedButton.styleFrom(
                         foregroundColor: AppColors.textSecondary,
-                        side: BorderSide(
-                          color: AppColors.fieldBorder.withValues(alpha: 0.35),
-                        ),
+                        side: BorderSide(color: AppColors.fieldBorder.withValues(alpha: 0.35)),
                       ),
                       child: const Text('Cancel'),
                     ),
@@ -1053,14 +682,10 @@ class _SignatureDialogContentState extends State<_SignatureDialogContent> {
                             ? null
                             : _selectedOption == _SignatureOption.mySignature
                             ? (widget.existingSignatureUrl == null ||
-                                      widget.existingSignatureUrl!
-                                          .trim()
-                                          .isEmpty
+                                      widget.existingSignatureUrl!.trim().isEmpty
                                   ? null
                                   : () async {
-                                      final messenger = ScaffoldMessenger.of(
-                                        context,
-                                      );
+                                      final messenger = ScaffoldMessenger.of(context);
                                       setState(() {
                                         _isSubmitting = true;
                                       });
@@ -1070,16 +695,12 @@ class _SignatureDialogContentState extends State<_SignatureDialogContent> {
                                       if (!mounted) {
                                         return;
                                       }
-                                      if (response.statusCode >= 200 &&
-                                          response.statusCode < 300) {
-                                        final message = await widget.onSaved(
-                                          response.bodyBytes,
-                                        );
+                                      if (response.statusCode >= 200 && response.statusCode < 300) {
+                                        final message = await widget.onSaved(response.bodyBytes);
                                         if (!mounted) {
                                           return;
                                         }
-                                        if (message == null ||
-                                            message.trim().isEmpty) {
+                                        if (message == null || message.trim().isEmpty) {
                                           navigator.pop();
                                           return;
                                         }
@@ -1087,9 +708,7 @@ class _SignatureDialogContentState extends State<_SignatureDialogContent> {
                                         setState(() {
                                           _isSubmitting = false;
                                         });
-                                        messenger.showSnackBar(
-                                          SnackBar(content: Text(message)),
-                                        );
+                                        messenger.showSnackBar(SnackBar(content: Text(message)));
                                         return;
                                       }
 
@@ -1098,25 +717,18 @@ class _SignatureDialogContentState extends State<_SignatureDialogContent> {
                                       });
                                       messenger.showSnackBar(
                                         const SnackBar(
-                                          content: Text(
-                                            'Unable to load saved signature.',
-                                          ),
+                                          content: Text('Unable to load saved signature.'),
                                         ),
                                       );
                                     })
                             : _signatureController.isNotEmpty
                             ? () async {
                                 final messenger = ScaffoldMessenger.of(context);
-                                final pngBytes = await _signatureController
-                                    .toPngBytes();
+                                final pngBytes = await _signatureController.toPngBytes();
                                 if (!mounted || pngBytes == null) {
                                   return;
                                 }
-                                await _submitSignature(
-                                  navigator,
-                                  messenger,
-                                  pngBytes,
-                                );
+                                await _submitSignature(navigator, messenger, pngBytes);
                               }
                             : null,
                         style: FilledButton.styleFrom(
@@ -1130,9 +742,7 @@ class _SignatureDialogContentState extends State<_SignatureDialogContent> {
                                 child: FastCircularProgressIndicator(),
                               )
                             : Text(
-                                _selectedOption == _SignatureOption.mySignature
-                                    ? 'Use'
-                                    : 'Save',
+                                _selectedOption == _SignatureOption.mySignature ? 'Use' : 'Save',
                               ),
                       ),
                     ],
@@ -1177,10 +787,7 @@ class _SignatureDialogContentState extends State<_SignatureDialogContent> {
   }
 
   Future<void> _pickSignatureFromGallery() async {
-    final pickedFile = await _imagePicker.pickImage(
-      source: ImageSource.gallery,
-      imageQuality: 100,
-    );
+    final pickedFile = await _imagePicker.pickImage(source: ImageSource.gallery, imageQuality: 100);
     if (!mounted || pickedFile == null) {
       return;
     }
@@ -1217,16 +824,10 @@ class _SignatureDialogContentState extends State<_SignatureDialogContent> {
       maxLines: 2,
     )..layout(maxWidth: width - 40);
 
-    final offset = Offset(
-      (width - textPainter.width) / 2,
-      (height - textPainter.height) / 2,
-    );
+    final offset = Offset((width - textPainter.width) / 2, (height - textPainter.height) / 2);
     textPainter.paint(canvas, offset);
 
-    final image = await recorder.endRecording().toImage(
-      width.toInt(),
-      height.toInt(),
-    );
+    final image = await recorder.endRecording().toImage(width.toInt(), height.toInt());
     final bytes = await image.toByteData(format: ui.ImageByteFormat.png);
     return bytes!.buffer.asUint8List();
   }
@@ -1249,15 +850,9 @@ class _DialogOptionTile extends StatelessWidget {
         decoration: BoxDecoration(
           color: AppColors.surfaceDark3,
           borderRadius: BorderRadius.circular(12),
-          border: Border.all(
-            color: AppColors.fieldBorder.withValues(alpha: 0.4),
-          ),
+          border: Border.all(color: AppColors.fieldBorder.withValues(alpha: 0.4)),
         ),
-        child: AppTextView.body2(
-          title,
-          color: AppColors.textPrimary,
-          fontWeight: FontWeight.w600,
-        ),
+        child: AppTextView.body2(title, color: AppColors.textPrimary, fontWeight: FontWeight.w600),
       ),
     );
   }
@@ -1299,17 +894,9 @@ class _DateSelectionChip extends StatelessWidget {
           child: Column(
             crossAxisAlignment: CrossAxisAlignment.start,
             children: [
-              AppTextView.body4(
-                label,
-                color: AppColors.textSecondary,
-                fontWeight: FontWeight.w600,
-              ),
+              AppTextView.body4(label, color: AppColors.textSecondary, fontWeight: FontWeight.w600),
               const SizedBox(height: 4),
-              AppTextView.body3(
-                value,
-                color: AppColors.textPrimary,
-                fontWeight: FontWeight.w700,
-              ),
+              AppTextView.body3(value, color: AppColors.textPrimary, fontWeight: FontWeight.w700),
             ],
           ),
         ),
@@ -1346,15 +933,10 @@ class _CustomRangeCalendar extends StatelessWidget {
     final gridStart = firstDayOfMonth.subtract(Duration(days: startOffset));
     final days = List<DateTime>.generate(
       42,
-      (index) =>
-          DateTime(gridStart.year, gridStart.month, gridStart.day + index),
+      (index) => DateTime(gridStart.year, gridStart.month, gridStart.day + index),
       growable: false,
     );
-    final previousMonth = DateTime(
-      visibleMonth.year,
-      visibleMonth.month - 1,
-      1,
-    );
+    final previousMonth = DateTime(visibleMonth.year, visibleMonth.month - 1, 1);
     final nextMonth = DateTime(visibleMonth.year, visibleMonth.month + 1, 1);
     final canGoPrevious = !_isMonthBefore(previousMonth, resolvedMinDate);
     final canGoNext = !_isMonthAfter(nextMonth, resolvedMaxDate);
@@ -1364,13 +946,8 @@ class _CustomRangeCalendar extends StatelessWidget {
         Row(
           children: [
             IconButton(
-              onPressed: canGoPrevious
-                  ? () => onMonthChanged(previousMonth)
-                  : null,
-              icon: const Icon(
-                Icons.chevron_left_rounded,
-                color: AppColors.textPrimary,
-              ),
+              onPressed: canGoPrevious ? () => onMonthChanged(previousMonth) : null,
+              icon: const Icon(Icons.chevron_left_rounded, color: AppColors.textPrimary),
             ),
             Expanded(
               child: AppTextView.body2(
@@ -1382,10 +959,7 @@ class _CustomRangeCalendar extends StatelessWidget {
             ),
             IconButton(
               onPressed: canGoNext ? () => onMonthChanged(nextMonth) : null,
-              icon: const Icon(
-                Icons.chevron_right_rounded,
-                color: AppColors.textPrimary,
-              ),
+              icon: const Icon(Icons.chevron_right_rounded, color: AppColors.textPrimary),
             ),
           ],
         ),
@@ -1414,10 +988,9 @@ class _CustomRangeCalendar extends StatelessWidget {
           ),
           itemBuilder: (context, index) {
             final date = days[index];
-            final isEnabled =
-                !date.isBefore(resolvedMinDate) &&
-                !date.isAfter(resolvedMaxDate);
+            final isEnabled = !date.isBefore(resolvedMinDate) && !date.isAfter(resolvedMaxDate);
             return _CalendarDayCell(
+              key: ValueKey(date),
               date: date,
               isCurrentMonth: date.month == visibleMonth.month,
               isEnabled: isEnabled,
@@ -1454,6 +1027,7 @@ class _WeekdayLabel extends StatelessWidget {
 
 class _CalendarDayCell extends StatelessWidget {
   const _CalendarDayCell({
+    super.key,
     required this.date,
     required this.isCurrentMonth,
     required this.isEnabled,
@@ -1476,10 +1050,8 @@ class _CalendarDayCell extends StatelessWidget {
     final isSelected = isStart || isEnd;
     final backgroundColor = !isEnabled
         ? AppColors.surfaceDark2.withValues(alpha: 0.45)
-        : isSelected
+        : isSelected || isInRange
         ? AppColors.secondaryColor
-        : isInRange
-        ? AppColors.secondaryColor.withValues(alpha: 0.18)
         : AppColors.surfaceDark2;
 
     return Material(
@@ -1494,7 +1066,7 @@ class _CalendarDayCell extends StatelessWidget {
             border: Border.all(
               color: !isEnabled
                   ? AppColors.fieldBorder.withValues(alpha: 0.08)
-                  : isSelected
+                  : isSelected || isInRange
                   ? AppColors.secondaryColor
                   : AppColors.fieldBorder.withValues(alpha: 0.2),
             ),
@@ -1516,13 +1088,11 @@ class _CalendarDayCell extends StatelessWidget {
 }
 
 bool _isMonthBefore(DateTime month, DateTime minDate) {
-  return month.year < minDate.year ||
-      (month.year == minDate.year && month.month < minDate.month);
+  return month.year < minDate.year || (month.year == minDate.year && month.month < minDate.month);
 }
 
 bool _isMonthAfter(DateTime month, DateTime maxDate) {
-  return month.year > maxDate.year ||
-      (month.year == maxDate.year && month.month > maxDate.month);
+  return month.year > maxDate.year || (month.year == maxDate.year && month.month > maxDate.month);
 }
 
 DateTime _dateOnly(DateTime value) {
@@ -1548,61 +1118,10 @@ bool _isInRange(DateTime date, DateTime? start, DateTime? end) {
   return !current.isBefore(resolvedStart) && !current.isAfter(resolvedEnd);
 }
 
-class _CertifiedReportSheetTile extends StatelessWidget {
-  const _CertifiedReportSheetTile({
-    required this.title,
-    required this.isSelected,
-    required this.onTap,
-    this.trailing,
-  });
-
-  final String title;
-  final bool isSelected;
-  final VoidCallback onTap;
-  final Widget? trailing;
-
-  @override
-  Widget build(BuildContext context) {
-    return Material(
-      color: Colors.transparent,
-      child: InkWell(
-        borderRadius: BorderRadius.circular(12),
-        onTap: onTap,
-        child: Padding(
-          padding: const EdgeInsets.symmetric(horizontal: 4, vertical: 10),
-          child: Row(
-            children: [
-              Expanded(
-                child: Text(
-                  title,
-                  maxLines: 2,
-                  overflow: TextOverflow.ellipsis,
-                  style: TextStyle(
-                    color: isSelected
-                        ? AppColors.secondaryColor
-                        : AppColors.textPrimary,
-                    fontSize: 13,
-                    fontWeight: isSelected ? FontWeight.w700 : FontWeight.w500,
-                  ),
-                ),
-              ),
-              if (trailing != null) ...[const SizedBox(width: 12), trailing!],
-            ],
-          ),
-        ),
-      ),
-    );
-  }
-}
-
 enum _SignatureOption { mySignature, draw, type, upload }
 
 class _SignatureOptionChip extends StatelessWidget {
-  const _SignatureOptionChip({
-    required this.label,
-    required this.isSelected,
-    required this.onTap,
-  });
+  const _SignatureOptionChip({required this.label, required this.isSelected, required this.onTap});
 
   final String label;
   final bool isSelected;
@@ -1625,9 +1144,7 @@ class _SignatureOptionChip extends StatelessWidget {
           ),
           child: AppTextView.body4(
             label,
-            color: isSelected
-                ? AppColors.textPrimary
-                : AppColors.secondaryColor,
+            color: isSelected ? AppColors.textPrimary : AppColors.secondaryColor,
             fontWeight: FontWeight.w700,
           ),
         ),
@@ -1637,10 +1154,7 @@ class _SignatureOptionChip extends StatelessWidget {
 }
 
 class _SignaturePreviewPanel extends StatelessWidget {
-  const _SignaturePreviewPanel({
-    required this.child,
-    this.backgroundColor = Colors.white,
-  });
+  const _SignaturePreviewPanel({required this.child, this.backgroundColor = Colors.white});
 
   final Widget child;
   final Color backgroundColor;
@@ -1652,10 +1166,7 @@ class _SignaturePreviewPanel extends StatelessWidget {
       decoration: BoxDecoration(
         color: backgroundColor,
         borderRadius: BorderRadius.circular(12),
-        border: Border.all(
-          color: AppColors.fieldBorder.withValues(alpha: 0.45),
-          width: 1.6,
-        ),
+        border: Border.all(color: AppColors.fieldBorder.withValues(alpha: 0.45), width: 1.6),
       ),
       child: ClipRRect(borderRadius: BorderRadius.circular(12), child: child),
     );
@@ -1689,10 +1200,7 @@ class _DottedBorderPainter extends CustomPainter {
           break;
         }
         final p1 = Offset(start.dx + dx * t1, start.dy + dy * t1);
-        final p2 = Offset(
-          start.dx + dx * t2.clamp(0, 1),
-          start.dy + dy * t2.clamp(0, 1),
-        );
+        final p2 = Offset(start.dx + dx * t2.clamp(0, 1), start.dy + dy * t2.clamp(0, 1));
         canvas.drawLine(p1, p2, paint);
       }
     }
@@ -1714,4 +1222,4 @@ enum _RangeSelectionMode { start, end }
 
 enum _TimeRangeDialogStep { options, customRange }
 
-enum PerformanceReportTimeRangeDialogResult { thisQuarter }
+enum PerformanceReportTimeRangeDialogResult { thisQuarter, clearDates }

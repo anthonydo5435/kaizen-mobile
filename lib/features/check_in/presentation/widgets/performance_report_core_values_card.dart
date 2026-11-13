@@ -5,7 +5,7 @@ import '../../../../core/constants/app_colors.dart';
 import '../../../../core/constants/app_strings.dart';
 import '../../../../core/widgets/app_text_view.dart';
 import '../../domain/entities/performance_report.dart';
-import '../pages/performance_report_dialogs.dart';
+import '../pages/performance_report_core_value_dialog.dart';
 import '../providers/check_in_controller.dart';
 
 class PerformanceReportCoreValuesCard extends StatelessWidget {

@@ -141,10 +141,15 @@ class PerformanceReportCoreValueDetail {
 }
 
 class CertifiedReportOption {
-  const CertifiedReportOption({required this.uuid, required this.displayName});
+  const CertifiedReportOption({
+    required this.uuid,
+    required this.displayName,
+    this.createdAt,
+  });
 
   final String uuid;
   final String displayName;
+  final String? createdAt;
 }
 
 class CertifiedReportDetail {
