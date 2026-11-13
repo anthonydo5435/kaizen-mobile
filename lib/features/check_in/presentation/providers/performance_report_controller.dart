@@ -3,6 +3,7 @@ import 'package:flutter/material.dart';
 import '../../../../core/constants/app_strings.dart';
 import '../../../../core/preference/app_preference.dart';
 import '../../../../core/utils/app_permission_utils.dart';
+import '../../../../core/utils/custom_functions.dart';
 import '../../../login/domain/entities/user.dart';
 import '../../domain/entities/audit_member.dart';
 import '../../domain/entities/audit_profile.dart';
@@ -20,11 +21,6 @@ class PerformanceReportController extends ChangeNotifier {
     _syncCommitment();
     checkInController.addListener(_onReportChanged);
   }
-
-  static const timeRanges = <String>[
-    AppStrings.performanceReportThisQuarter,
-    AppStrings.performanceReportCustomDateRange,
-  ];
 
   final CheckInController checkInController;
   final Future<User?> Function() _loadUser;
@@ -58,7 +54,60 @@ class PerformanceReportController extends ChangeNotifier {
         : currentReport.categoryTabs[selectedCategoryIndex].rows;
   }
 
-  DateTime get minDate => const ResolvePerformanceReportMinDate()(report);
+  DateTime get minDate => const ResolvePerformanceReportMinDate()(
+    report,
+    fallbackDate: checkInController.performanceReportProfile?.lastAuditLabel,
+  );
+
+  DateTimeRange get currentQuarterRange {
+    final today = DateUtils.dateOnly(DateTime.now());
+    return DateTimeRange(
+      start: CustomFunctions.currentQuarterDateRange(date: today).start,
+      end: today,
+    );
+  }
+
+  DateTimeRange get dateRange {
+    final start = state.performanceReportStartDate;
+    final end = state.performanceReportEndDate;
+    if (state.performanceReportTimeRange ==
+            AppStrings.performanceReportCustomDateRange &&
+        start != null &&
+        end != null) {
+      return DateTimeRange(start: start, end: end);
+    }
+    return currentQuarterRange;
+  }
+
+  String get dateRangeLabel {
+    final range = dateRange;
+    return AppStrings.performanceReportDateRangeLabel(
+      _formatRangeDate(range.start),
+      _formatRangeDate(range.end),
+    );
+  }
+
+  String _formatRangeDate(DateTime date) =>
+      CustomFunctions.formatDate(date.toIso8601String()).replaceAll(',', '');
+
+  Future<void> selectDateRange(DateTimeRange range) async {
+    if (range == currentQuarterRange) {
+      if (state.performanceReportTimeRange ==
+              AppStrings.performanceReportThisQuarter &&
+          report != null) {
+        await checkInController.selectCertifiedReport(null);
+      } else {
+        await checkInController.selectPerformanceReportTimeRange(
+          AppStrings.performanceReportThisQuarter,
+        );
+      }
+      return;
+    }
+    await checkInController.applyPerformanceReportCustomDateRange(
+      startDate: range.start,
+      endDate: range.end,
+    );
+  }
 
   Future<void> loadAccess() async {
     final user = await _loadUser();

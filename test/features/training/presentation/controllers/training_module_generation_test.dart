@@ -200,6 +200,7 @@ class _GenerationRepository extends Fake implements TrainingLibraryRepository {
     required int numQuestions,
     required int optionsPerQuestion,
     required String difficultyLevel,
+    required String source,
     required bool replaceExistingQuestions,
   }) async {
     generationRequests.add('quiz:$moduleId');

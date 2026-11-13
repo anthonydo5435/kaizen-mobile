@@ -53,4 +53,15 @@ void main() {
     );
     expect(resolve(null, now: today), DateTime(2026, 10, 16));
   });
+
+  test('missing report metadata can use the requested profile date', () {
+    expect(
+      resolve(null, now: today, fallbackDate: '3rd September, 2025'),
+      DateTime(2025, 9, 3),
+    );
+    expect(
+      resolve(null, now: today, fallbackDate: 'invalid'),
+      DateTime(2026, 10, 16),
+    );
+  });
 }

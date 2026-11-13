@@ -1,5 +1,9 @@
+import '../entities/picked_compliance_document_file.dart';
+
 enum ComplianceDocumentFileSource { camera, gallery, pdf }
 
 abstract class ComplianceDocumentMediaRepository {
-  Future<String?> pickFile(ComplianceDocumentFileSource source);
+  Future<PickedComplianceDocumentFile?> pickFile(
+    ComplianceDocumentFileSource source,
+  );
 }

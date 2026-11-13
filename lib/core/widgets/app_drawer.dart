@@ -116,7 +116,7 @@ class AppDrawer extends StatelessWidget {
       _buildDrawerItem(
         context,
         icon: Icons.folder_open_outlined,
-        title: AppStrings.homeCompliance,
+        title: AppStrings.homeDocumentCenter,
         isSelected: selectedMenu == AppMenuType.compliance,
         onTap: onComplianceTap,
       ),

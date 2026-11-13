@@ -73,6 +73,7 @@ abstract class TrainingLibraryRepository {
     required int numQuestions,
     required int optionsPerQuestion,
     required String difficultyLevel,
+    required String source,
     required bool replaceExistingQuestions,
   });
 

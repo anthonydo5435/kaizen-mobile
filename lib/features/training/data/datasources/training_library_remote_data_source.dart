@@ -361,6 +361,7 @@ class TrainingLibraryRemoteDataSource {
     required int numQuestions,
     required int optionsPerQuestion,
     required String difficultyLevel,
+    required String source,
     required bool replaceExistingQuestions,
   }) {
     return _apiCallExecutor.processApi<void>(
@@ -370,6 +371,7 @@ class TrainingLibraryRemoteDataSource {
       parameters: {
         'num_questions': numQuestions,
         'difficulty_level': difficultyLevel,
+        'source': source,
         'replace_existing_questions': replaceExistingQuestions,
         'options_per_question': optionsPerQuestion,
       },

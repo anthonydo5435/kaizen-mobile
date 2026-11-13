@@ -5,148 +5,88 @@ import '../../../../core/constants/app_strings.dart';
 import '../../../../core/widgets/app_text_view.dart';
 import '../../domain/entities/audit_member.dart';
 import '../../domain/entities/performance_report.dart';
-import '../pages/performance_report_dialogs.dart';
 
 class PerformanceReportTimeRangeSelector extends StatelessWidget {
   const PerformanceReportTimeRangeSelector({
     super.key,
-    required this.value,
-    required this.options,
-    required this.onChanged,
-    this.customRangeLabel,
+    required this.label,
+    required this.onTap,
+    this.backgroundColor = AppColors.surfaceDark,
+    this.borderSide,
   });
 
-  final String value;
-  final List<String> options;
-  final ValueChanged<String> onChanged;
-  final String? customRangeLabel;
+  final String label;
+  final VoidCallback? onTap;
+  final Color backgroundColor;
+  final BorderSide? borderSide;
 
   @override
   Widget build(BuildContext context) {
-    return Container(
-      width: double.infinity,
-      height: 45,
-      padding: const EdgeInsets.symmetric(horizontal: 16),
-      decoration: BoxDecoration(
-        color: AppColors.surfaceDark,
+    return Material(
+      color: backgroundColor,
+      shape: RoundedRectangleBorder(
         borderRadius: BorderRadius.circular(12),
-        border: Border.all(color: AppColors.fieldBorder.withValues(alpha: 0.7)),
+        side:
+            borderSide ??
+            BorderSide(
+              color: AppColors.grey1.withValues(alpha: 0.3),
+              width: 0.3,
+            ),
       ),
-      child: DropdownButtonHideUnderline(
-        child: DropdownButton<String>(
-          value: value,
-          isExpanded: true,
-          dropdownColor: AppColors.surfaceDark3,
-          borderRadius: BorderRadius.circular(12),
-          icon: const Icon(
-            Icons.keyboard_arrow_down_rounded,
-            color: AppColors.textPrimary,
-          ),
-          style: const TextStyle(
-            color: AppColors.textPrimary,
-            fontSize: 12,
-            fontWeight: FontWeight.w500,
-          ),
-          items: options
-              .map(
-                (option) => DropdownMenuItem<String>(
-                  value: option,
-                  child: Text(
-                    option == AppStrings.performanceReportCustomDateRange &&
-                            value ==
-                                AppStrings.performanceReportCustomDateRange &&
-                            customRangeLabel != null
-                        ? customRangeLabel!
-                        : option,
+      child: InkWell(
+        onTap: onTap,
+        borderRadius: BorderRadius.circular(12),
+        child: ConstrainedBox(
+          constraints: const BoxConstraints(minHeight: 45),
+          child: Padding(
+            padding: const EdgeInsets.symmetric(horizontal: 12, vertical: 10),
+            child: Row(
+              children: [
+                Expanded(
+                  child: AppTextView.body3(
+                    label,
+                    color: AppColors.textPrimary,
+                    fontSize: 12,
+                    fontWeight: FontWeight.w500,
                   ),
                 ),
-              )
-              .toList(growable: false),
-          onChanged: (value) {
-            if (value != null) {
-              onChanged(value);
-            }
-          },
+                const SizedBox(width: 8),
+                const Icon(
+                  Icons.keyboard_arrow_down_rounded,
+                  color: AppColors.textPrimary,
+                ),
+              ],
+            ),
+          ),
         ),
       ),
     );
   }
 }
 
-class PerformanceReportCertifiedReportsSelector extends StatelessWidget {
-  const PerformanceReportCertifiedReportsSelector({
-    super.key,
-    required this.value,
-    required this.options,
-    required this.isDownloading,
-    required this.onChanged,
-    required this.onDownload,
-  });
+class PerformanceReportHistoryButton extends StatelessWidget {
+  const PerformanceReportHistoryButton({super.key, required this.onPressed});
 
-  final String? value;
-  final List<CertifiedReportOption> options;
-  final bool Function(String uuid) isDownloading;
-  final ValueChanged<String?> onChanged;
-  final Future<String> Function(CertifiedReportOption option) onDownload;
+  final VoidCallback? onPressed;
 
   @override
   Widget build(BuildContext context) {
-    final selectedValue = options.any((item) => item.uuid == value)
-        ? value
-        : null;
-    String? selectedLabel;
-    for (final option in options) {
-      if (option.uuid == selectedValue) {
-        selectedLabel = option.displayName;
-        break;
-      }
-    }
-
-    return Container(
-      width: double.infinity,
-      padding: const EdgeInsets.symmetric(horizontal: 16, vertical: 10),
-      decoration: BoxDecoration(
-        color: AppColors.surfaceDark,
-        borderRadius: BorderRadius.circular(12),
-        border: Border.all(color: AppColors.fieldBorder.withValues(alpha: 0.7)),
-      ),
-      child: InkWell(
-        borderRadius: BorderRadius.circular(12),
-        onTap: () => _showCertifiedReportsSheet(context),
-        child: Row(
-          children: [
-            Expanded(
-              child: Text(
-                selectedLabel ??
-                    AppStrings.performanceReportSelectCertifiedReport,
-                style: TextStyle(
-                  color: selectedLabel == null
-                      ? AppColors.textSecondary
-                      : AppColors.textPrimary,
-                  fontSize: 12,
-                  fontWeight: FontWeight.w500,
-                ),
-              ),
-            ),
-            const SizedBox(width: 8),
-            const Icon(
-              Icons.keyboard_arrow_down_rounded,
-              color: AppColors.textPrimary,
-            ),
-          ],
+    return IconButton(
+      tooltip: AppStrings.performanceReportAllReports,
+      style: IconButton.styleFrom(
+        backgroundColor: AppColors.surfaceDark,
+        foregroundColor: AppColors.textPrimary,
+        minimumSize: const Size(45, 45),
+        shape: RoundedRectangleBorder(
+          borderRadius: BorderRadius.circular(12),
+          side: BorderSide(
+            color: AppColors.grey1.withValues(alpha: 0.3),
+            width: 0.3,
+          ),
         ),
       ),
-    );
-  }
-
-  Future<void> _showCertifiedReportsSheet(BuildContext context) async {
-    await showPerformanceReportCertifiedReportsSheet(
-      context,
-      value: value,
-      options: options,
-      isDownloading: isDownloading,
-      onChanged: onChanged,
-      onDownload: onDownload,
+      icon: const Icon(Icons.history_rounded, size: 22),
+      onPressed: onPressed,
     );
   }
 }

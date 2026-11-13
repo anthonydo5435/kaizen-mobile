@@ -157,6 +157,7 @@ class AuditRepositoryImpl implements AuditRepository {
     int? quarter,
     DateTime? startDate,
     DateTime? endDate,
+    bool forceRefresh = false,
   }) {
     return _remoteDataSource.getCertifiedReports(
       profile: profile,
@@ -164,6 +165,7 @@ class AuditRepositoryImpl implements AuditRepository {
       quarter: quarter,
       startDate: startDate,
       endDate: endDate,
+      forceRefresh: forceRefresh,
     );
   }
 
@@ -204,12 +206,16 @@ class AuditRepositoryImpl implements AuditRepository {
     required int year,
     required int quarter,
     String? profileUuid,
+    DateTime? startDate,
+    DateTime? endDate,
   }) {
     return _remoteDataSource.getAuditDetails(
       profileJobId: profileJobId,
       year: year,
       quarter: quarter,
       profileUuid: profileUuid,
+      startDate: startDate,
+      endDate: endDate,
     );
   }
 
@@ -217,10 +223,14 @@ class AuditRepositoryImpl implements AuditRepository {
   Future<List<AuditEvaluationChart>> getAuditEvaluationChart({
     required String profileJobId,
     String? profileUuid,
+    DateTime? startDate,
+    DateTime? endDate,
   }) {
     return _remoteDataSource.getAuditEvaluationChart(
       profileJobId: profileJobId,
       profileUuid: profileUuid,
+      startDate: startDate,
+      endDate: endDate,
     );
   }
 

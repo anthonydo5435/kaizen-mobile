@@ -2,6 +2,7 @@ import 'package:flutter/material.dart';
 
 import '../../../../../core/constants/app_colors.dart';
 import '../../../../../core/widgets/app_text_view.dart';
+import '../../../../../core/widgets/app_keyboard_bottom_sheet_surface.dart';
 import '../../widgets/kaizengram_notifier_state.dart';
 import '../providers/kaizengram_chat_controller.dart';
 import 'chat_module_ui.dart';
@@ -130,159 +131,164 @@ class _AddPeopleBottomSheetState extends State<AddPeopleBottomSheet>
         child: SafeArea(
           top: false,
           bottom: false,
-          child: Container(
+          child: SizedBox(
             height: sheetHeight,
-            padding: const EdgeInsets.fromLTRB(20, 16, 20, 20),
-            decoration: const BoxDecoration(
+            child: AppKeyboardBottomSheetSurface(
               color: kaizengramChatScreenSurfaceColor,
-              borderRadius: BorderRadius.vertical(top: Radius.circular(24)),
-            ),
-            child: Column(
-              crossAxisAlignment: CrossAxisAlignment.start,
-              children: <Widget>[
-                const KaizengramChatSheetHandle(),
-                const SizedBox(height: 18),
-                AppTextView.body1(
-                  AppStrings.addPersonTitle(channelName),
-                  color: AppColors.textPrimary,
-                  fontWeight: FontWeight.w800,
-                  fontSize: 18,
-                ),
-                const SizedBox(height: 6),
-                AppTextView.body4(
-                  AppStrings.addPeopleSheetSubtitle(channelName),
-                  color: AppColors.textSecondary,
-                  fontWeight: FontWeight.w500,
-                ),
-                const SizedBox(height: 18),
-                AppTextView.body3(
-                  AppStrings.addPeopleSearchLabel,
-                  color: AppColors.textPrimary,
-                  fontWeight: FontWeight.w700,
-                ),
-                const SizedBox(height: 8),
-                KaizengramChatInputShell(
-                  borderColor: _errorText == null
-                      ? null
-                      : AppColors.red.withValues(alpha: 0.70),
-                  child: TextField(
-                    controller: _queryController,
-                    keyboardType: TextInputType.emailAddress,
-                    textInputAction: TextInputAction.done,
-                    style: const TextStyle(color: AppColors.textPrimary),
-                    cursorColor: AppColors.textPrimary,
-                    decoration: const InputDecoration(
-                      hintText: AppStrings.addPeopleSearchHint,
-                      hintStyle: TextStyle(color: AppColors.textSecondary),
-                      border: InputBorder.none,
-                      contentPadding: EdgeInsets.all(14),
-                      prefixIcon: Icon(
-                        Icons.person_add_alt_1_rounded,
-                        color: AppColors.textSecondary,
+              borderRadius: const BorderRadius.vertical(
+                top: Radius.circular(24),
+              ),
+              child: Padding(
+                padding: const EdgeInsets.fromLTRB(20, 16, 20, 20),
+                child: Column(
+                  crossAxisAlignment: CrossAxisAlignment.start,
+                  children: <Widget>[
+                    const KaizengramChatSheetHandle(),
+                    const SizedBox(height: 18),
+                    AppTextView.body1(
+                      AppStrings.addPersonTitle(channelName),
+                      color: AppColors.textPrimary,
+                      fontWeight: FontWeight.w800,
+                      fontSize: 18,
+                    ),
+                    const SizedBox(height: 6),
+                    AppTextView.body4(
+                      AppStrings.addPeopleSheetSubtitle(channelName),
+                      color: AppColors.textSecondary,
+                      fontWeight: FontWeight.w500,
+                    ),
+                    const SizedBox(height: 18),
+                    AppTextView.body3(
+                      AppStrings.addPeopleSearchLabel,
+                      color: AppColors.textPrimary,
+                      fontWeight: FontWeight.w700,
+                    ),
+                    const SizedBox(height: 8),
+                    KaizengramChatInputShell(
+                      borderColor: _errorText == null
+                          ? null
+                          : AppColors.red.withValues(alpha: 0.70),
+                      child: TextField(
+                        controller: _queryController,
+                        keyboardType: TextInputType.emailAddress,
+                        textInputAction: TextInputAction.done,
+                        style: const TextStyle(color: AppColors.textPrimary),
+                        cursorColor: AppColors.textPrimary,
+                        decoration: const InputDecoration(
+                          hintText: AppStrings.addPeopleSearchHint,
+                          hintStyle: TextStyle(color: AppColors.textSecondary),
+                          border: InputBorder.none,
+                          contentPadding: EdgeInsets.all(14),
+                          prefixIcon: Icon(
+                            Icons.person_add_alt_1_rounded,
+                            color: AppColors.textSecondary,
+                          ),
+                        ),
+                        onSubmitted: (_) => _addPendingCandidate(),
                       ),
                     ),
-                    onSubmitted: (_) => _addPendingCandidate(),
-                  ),
-                ),
-                if (_errorText != null) ...<Widget>[
-                  const SizedBox(height: 8),
-                  AppTextView.body4(
-                    _errorText!,
-                    color: AppColors.red,
-                    fontWeight: FontWeight.w600,
-                  ),
-                ],
-                if (_selectedUsers.isNotEmpty) ...<Widget>[
-                  const SizedBox(height: 16),
-                  AppTextView.body4(
-                    AppStrings.addPeopleSelectedCountLabel(
-                      _selectedUsers.length,
-                    ),
-                    color: AppColors.textPrimary,
-                    fontWeight: FontWeight.w700,
-                  ),
-                  const SizedBox(height: 10),
-                  Wrap(
-                    spacing: 8,
-                    runSpacing: 8,
-                    children: _selectedUsers
-                        .map(
-                          (user) => _SelectedChatUserChip(
-                            user: user,
-                            onRemove: () => _removeSelectedUser(user),
-                          ),
-                        )
-                        .toList(growable: false),
-                  ),
-                ],
-                const SizedBox(height: 18),
-                Expanded(
-                  child: ListView(
-                    padding: EdgeInsets.zero,
-                    children: <Widget>[
-                      const AppTextView.body3(
-                        AppStrings.addPeopleSuggestedHeader,
+                    if (_errorText != null) ...<Widget>[
+                      const SizedBox(height: 8),
+                      AppTextView.body4(
+                        _errorText!,
+                        color: AppColors.red,
+                        fontWeight: FontWeight.w600,
+                      ),
+                    ],
+                    if (_selectedUsers.isNotEmpty) ...<Widget>[
+                      const SizedBox(height: 16),
+                      AppTextView.body4(
+                        AppStrings.addPeopleSelectedCountLabel(
+                          _selectedUsers.length,
+                        ),
                         color: AppColors.textPrimary,
                         fontWeight: FontWeight.w700,
                       ),
-                      const SizedBox(height: 12),
-                      if (pendingCandidate != null) ...<Widget>[
-                        _ChatInviteSuggestionTile(
-                          user: pendingCandidate,
-                          index: 0,
-                          subtitle: pendingCandidate.isExternal
-                              ? AppStrings.addPeopleEmailInviteSubtitle(
-                                  pendingCandidate.email,
-                                )
-                              : pendingCandidate.email,
-                          actionLabel: AppStrings.addPeopleLabel,
-                          onTap: () => _addSelectedUser(pendingCandidate),
-                        ),
-                        const SizedBox(height: 10),
-                      ],
-                      if (suggestedUsers.isEmpty && pendingCandidate == null)
-                        const _AddPeopleEmptyState()
-                      else
-                        ...List<Widget>.generate(suggestedUsers.length, (
-                          index,
-                        ) {
-                          final user = suggestedUsers[index];
-                          final selectable = _isSelectable(user);
-                          return Padding(
-                            padding: const EdgeInsets.only(bottom: 10),
-                            child: _ChatInviteSuggestionTile(
-                              user: user,
-                              index: index + 1,
-                              subtitle: user.email,
-                              actionLabel: _actionLabelForUser(user),
-                              onTap: selectable
-                                  ? () => _addSelectedUser(user)
-                                  : null,
-                            ),
-                          );
-                        }),
+                      const SizedBox(height: 10),
+                      Wrap(
+                        spacing: 8,
+                        runSpacing: 8,
+                        children: _selectedUsers
+                            .map(
+                              (user) => _SelectedChatUserChip(
+                                user: user,
+                                onRemove: () => _removeSelectedUser(user),
+                              ),
+                            )
+                            .toList(growable: false),
+                      ),
                     ],
-                  ),
-                ),
-                const SizedBox(height: 14),
-                Row(
-                  children: <Widget>[
+                    const SizedBox(height: 18),
                     Expanded(
-                      child: KaizengramChatSecondaryButton(
-                        label: AppStrings.actionCancel,
-                        onTap: () => Navigator.of(context).pop(),
+                      child: ListView(
+                        padding: EdgeInsets.zero,
+                        children: <Widget>[
+                          const AppTextView.body3(
+                            AppStrings.addPeopleSuggestedHeader,
+                            color: AppColors.textPrimary,
+                            fontWeight: FontWeight.w700,
+                          ),
+                          const SizedBox(height: 12),
+                          if (pendingCandidate != null) ...<Widget>[
+                            _ChatInviteSuggestionTile(
+                              user: pendingCandidate,
+                              index: 0,
+                              subtitle: pendingCandidate.isExternal
+                                  ? AppStrings.addPeopleEmailInviteSubtitle(
+                                      pendingCandidate.email,
+                                    )
+                                  : pendingCandidate.email,
+                              actionLabel: AppStrings.addPeopleLabel,
+                              onTap: () => _addSelectedUser(pendingCandidate),
+                            ),
+                            const SizedBox(height: 10),
+                          ],
+                          if (suggestedUsers.isEmpty &&
+                              pendingCandidate == null)
+                            const _AddPeopleEmptyState()
+                          else
+                            ...List<Widget>.generate(suggestedUsers.length, (
+                              index,
+                            ) {
+                              final user = suggestedUsers[index];
+                              final selectable = _isSelectable(user);
+                              return Padding(
+                                padding: const EdgeInsets.only(bottom: 10),
+                                child: _ChatInviteSuggestionTile(
+                                  user: user,
+                                  index: index + 1,
+                                  subtitle: user.email,
+                                  actionLabel: _actionLabelForUser(user),
+                                  onTap: selectable
+                                      ? () => _addSelectedUser(user)
+                                      : null,
+                                ),
+                              );
+                            }),
+                        ],
                       ),
                     ),
-                    const SizedBox(width: 10),
-                    Expanded(
-                      child: KaizengramChatPrimaryButton(
-                        label: AppStrings.addPeopleConfirm,
-                        onTap: _submit,
-                      ),
+                    const SizedBox(height: 14),
+                    Row(
+                      children: <Widget>[
+                        Expanded(
+                          child: KaizengramChatSecondaryButton(
+                            label: AppStrings.actionCancel,
+                            onTap: () => Navigator.of(context).pop(),
+                          ),
+                        ),
+                        const SizedBox(width: 10),
+                        Expanded(
+                          child: KaizengramChatPrimaryButton(
+                            label: AppStrings.addPeopleConfirm,
+                            onTap: _submit,
+                          ),
+                        ),
+                      ],
                     ),
                   ],
                 ),
-              ],
+              ),
             ),
           ),
         ),

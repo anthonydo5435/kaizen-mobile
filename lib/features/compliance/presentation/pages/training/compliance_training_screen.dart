@@ -160,6 +160,8 @@ class _ComplianceTrainingScreenViewState
   ComplianceCertificate? _pendingCertificate;
   late String _currentItemUuid;
   LearningTrackModuleDetail? get _currentTrack => _controller.currentTrack;
+  bool get _isReadOnlyCompliant =>
+      CustomFunctions.isPassedStatus(_currentTrack?.displayStatus);
 
   @override
   void initState() {
@@ -228,7 +230,7 @@ class _ComplianceTrainingScreenViewState
     final previousTabIndex = _selectedTabIndex;
     final nextTabIndex = _tabController.index;
 
-    if (previousTabIndex != 2 && nextTabIndex == 2) {
+    if (previousTabIndex != 2 && nextTabIndex == 2 && !_isReadOnlyCompliant) {
       _handleQuizTabTransition(previousTabIndex);
       return;
     }
@@ -241,6 +243,10 @@ class _ComplianceTrainingScreenViewState
   }
 
   Future<void> _handleTakeQuizPressed(LearningTrackModuleDetail track) async {
+    if (_isReadOnlyCompliant) {
+      return;
+    }
+
     if (context.read<AppManager>().showBillingBanner) {
       await showDialog<void>(
         context: context,
@@ -548,6 +554,12 @@ class _ComplianceTrainingScreenViewState
       return;
     }
 
+    if (_isReadOnlyCompliant) {
+      _quizController.cancelQuizTimer();
+      _controller.selectTab(2);
+      return;
+    }
+
     if (context.read<AppManager>().showBillingBanner) {
       await showDialog<void>(
         context: context,
@@ -588,7 +600,7 @@ class _ComplianceTrainingScreenViewState
     _tabController.animateTo(index);
     _controller.selectTab(index);
     _controller.setVideoRotationActive(index == 0);
-    if (index == 2) {
+    if (index == 2 && !_isReadOnlyCompliant) {
       _quizController.startQuizTimer();
     } else {
       _quizController.cancelQuizTimer();
@@ -597,6 +609,7 @@ class _ComplianceTrainingScreenViewState
   }
 
   bool get _shouldPromptPauseQuiz =>
+      !_isReadOnlyCompliant &&
       _selectedTabIndex == 2 &&
       _quizController.hasStartedQuiz &&
       !_quizController.hasPassedQuizResult;
@@ -751,7 +764,7 @@ class _ComplianceTrainingScreenViewState
       barrierColor: Colors.black.withValues(alpha: 0.65),
       transitionDuration: const Duration(milliseconds: 220),
       pageBuilder: (_, __, ___) => CertificateScreen(
-        title: 'Congratulations!',
+        title: AppStrings.complianceCertificateTitle,
         description:
             resolvedCertificate?.trackName ??
             detail?.title ??
@@ -761,7 +774,8 @@ class _ComplianceTrainingScreenViewState
             resolvedCertificate?.displayPercentage ??
             result?.displayScore ??
             '${detail?.quizCompletionPercentage ?? 100}%',
-        status: result?.displayStatus ?? 'Pass',
+        status:
+            result?.displayStatus ?? AppStrings.complianceCertificatePassStatus,
         certificateUrl: resolvedCertificate?.certificate,
       ),
       transitionBuilder: (context, animation, secondaryAnimation, child) {
@@ -802,8 +816,8 @@ class _ComplianceTrainingScreenViewState
 
       CustomFunctions.showCustomAlert(
         context,
-        'Failed',
-        'Unable to load certificate, please try again!',
+        AppStrings.complianceCertificateLoadFailedTitle,
+        AppStrings.complianceCertificateLoadFailedDescription,
       );
       return null;
     }
@@ -884,6 +898,7 @@ class _ComplianceTrainingScreenViewState
         _isCompletingQuizSubmit;
     final canSubmitQuiz =
         _selectedTabIndex != 2 || quizController.hasAnsweredAllQuestions;
+    final isReadOnlyCompliant = _isReadOnlyCompliant;
 
     return PopScope(
       canPop: !isLandscapeVideo && !_shouldPromptPauseQuiz,
@@ -980,7 +995,10 @@ class _ComplianceTrainingScreenViewState
                               child: ComplianceQuizScreen(
                                 trackAssignmentUuid: widget.trackAssignmentUuid,
                                 trainingModuleUuid: detail.trainingModuleUuid,
-                                isActive: _selectedTabIndex == 2,
+                                isActive:
+                                    _selectedTabIndex == 2 &&
+                                    !isReadOnlyCompliant,
+                                isReadOnly: isReadOnlyCompliant,
                               ),
                             ),
                           ],
@@ -991,7 +1009,10 @@ class _ComplianceTrainingScreenViewState
                 ),
               ),
         bottomNavigationBar:
-            isLandscapeVideo || learningTrack == null || isLoading
+            isLandscapeVideo ||
+                learningTrack == null ||
+                isLoading ||
+                isReadOnlyCompliant
             ? null
             : _BottomActions(
                 onTrackModulesPressed: _handleTrackModulesPressed,

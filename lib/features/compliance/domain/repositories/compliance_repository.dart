@@ -59,6 +59,8 @@ abstract class ComplianceRepository {
     required String complianceDocumentId,
     required String fileName,
     required String documentUrl,
+    String? name,
+    String description = '',
     String? expiryDate,
   });
 }

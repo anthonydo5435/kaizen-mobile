@@ -144,12 +144,16 @@ class ComplianceRepositoryImpl implements ComplianceRepository {
     required String complianceDocumentId,
     required String fileName,
     required String documentUrl,
+    String? name,
+    String description = '',
     String? expiryDate,
   }) {
     return _remoteDataSource.uploadComplianceDocumentRecord(
       complianceDocumentId: complianceDocumentId,
       fileName: fileName,
       documentUrl: documentUrl,
+      name: name,
+      description: description,
       expiryDate: expiryDate,
     );
   }

@@ -69,10 +69,13 @@ class ComplianceLearningTrackTabScreen extends StatelessWidget {
                 return LearningTrackCard(
                   track: track,
                   onTap: () async {
+                    final isCompliant = CustomFunctions.isPassedStatus(
+                      track.displayStatus,
+                    );
                     final isOverdue = CustomFunctions.isDeadlineOverdue(
                       track.deadline,
                     );
-                    if (isOverdue) {
+                    if (isOverdue && !isCompliant) {
                       _showRestrictedSnackBar(context);
                       return;
                     }
@@ -101,6 +104,7 @@ class ComplianceLearningTrackTabScreen extends StatelessWidget {
                       arguments: ComplianceTracksRouteArgs(
                         trackAssignmentUuid: trackAssignmentUuid,
                         title: track.displayName,
+                        showCertificate: isCompliant,
                       ),
                     );
 

@@ -5,6 +5,7 @@ import '../../../../core/constants/app_colors.dart';
 import '../../../../core/constants/app_strings.dart';
 import '../../../../core/widgets/app_button.dart';
 import '../../../../core/widgets/app_dot_divider.dart';
+import '../../../../core/widgets/app_keyboard_bottom_sheet_surface.dart';
 import '../../../../core/widgets/app_text_view.dart';
 
 class CheckInTeamMemberFilterOption {
@@ -76,64 +77,64 @@ class _CheckInTeamMemberFilterSheetState
     return SafeArea(
       top: false,
       bottom: false,
-      child: Container(
+      child: AppKeyboardBottomSheetSurface(
         height: MediaQuery.of(context).size.height * 0.7,
-        decoration: const BoxDecoration(
-          color: AppColors.mainBg,
-          borderRadius: BorderRadius.vertical(top: Radius.circular(28)),
-        ),
-        padding: const EdgeInsets.fromLTRB(20, 12, 20, 24),
-        child: Column(
-          crossAxisAlignment: CrossAxisAlignment.stretch,
-          children: [
-            const SizedBox(height: 12),
-            _SelectionHeader(
-              title: AppStrings.selectTeamMember,
-              onBack: () => Navigator.of(context).pop(),
-            ),
-            const SizedBox(height: 22),
-            const AppDotDivider(),
-            const SizedBox(height: 24),
-            _TeamMemberSearchBar(
-              controller: _searchController,
-              onChanged: (value) {
-                setState(() {
-                  _searchQuery = value;
-                });
-              },
-            ),
-            const SizedBox(height: 22),
-            Expanded(
-              child: SingleChildScrollView(
-                child: Column(
-                  children: filteredOptions
-                      .map(
-                        (option) => Padding(
-                          padding: const EdgeInsets.only(bottom: 18),
-                          child: _SelectionOptionTile(
-                            title: option.name,
-                            isSelected:
-                                _selectedSelectionId == option.selectionId,
-                            onTap: () {
-                              setState(() {
-                                _selectedSelectionId = option.selectionId;
-                              });
-                            },
+        color: AppColors.mainBg,
+        borderRadius: const BorderRadius.vertical(top: Radius.circular(28)),
+        child: Padding(
+          padding: const EdgeInsets.fromLTRB(20, 12, 20, 24),
+          child: Column(
+            crossAxisAlignment: CrossAxisAlignment.stretch,
+            children: [
+              const SizedBox(height: 12),
+              _SelectionHeader(
+                title: AppStrings.selectTeamMember,
+                onBack: () => Navigator.of(context).pop(),
+              ),
+              const SizedBox(height: 22),
+              const AppDotDivider(),
+              const SizedBox(height: 24),
+              _TeamMemberSearchBar(
+                controller: _searchController,
+                onChanged: (value) {
+                  setState(() {
+                    _searchQuery = value;
+                  });
+                },
+              ),
+              const SizedBox(height: 22),
+              Expanded(
+                child: SingleChildScrollView(
+                  child: Column(
+                    children: filteredOptions
+                        .map(
+                          (option) => Padding(
+                            padding: const EdgeInsets.only(bottom: 18),
+                            child: _SelectionOptionTile(
+                              title: option.name,
+                              isSelected:
+                                  _selectedSelectionId == option.selectionId,
+                              onTap: () {
+                                setState(() {
+                                  _selectedSelectionId = option.selectionId;
+                                });
+                              },
+                            ),
                           ),
-                        ),
-                      )
-                      .toList(growable: false),
+                        )
+                        .toList(growable: false),
+                  ),
                 ),
               ),
-            ),
-            const SizedBox(height: 4),
-            const AppDotDivider(),
-            const SizedBox(height: 22),
-            AppButton(
-              text: AppStrings.done,
-              onPressed: _selectedSelectionId == null ? null : _handleDoneTap,
-            ),
-          ],
+              const SizedBox(height: 4),
+              const AppDotDivider(),
+              const SizedBox(height: 22),
+              AppButton(
+                text: AppStrings.done,
+                onPressed: _selectedSelectionId == null ? null : _handleDoneTap,
+              ),
+            ],
+          ),
         ),
       ),
     );

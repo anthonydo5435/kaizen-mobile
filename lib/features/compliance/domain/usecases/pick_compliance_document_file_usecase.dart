@@ -1,3 +1,4 @@
+import '../entities/picked_compliance_document_file.dart';
 import '../repositories/compliance_document_media_repository.dart';
 
 class PickComplianceDocumentFileUseCase {
@@ -5,8 +6,10 @@ class PickComplianceDocumentFileUseCase {
 
   final ComplianceDocumentMediaRepository _repository;
 
-  Future<String?> call(ComplianceDocumentFileSource source) async {
-    final path = await _repository.pickFile(source);
-    return path == null || path.trim().isEmpty ? null : path;
+  Future<PickedComplianceDocumentFile?> call(
+    ComplianceDocumentFileSource source,
+  ) async {
+    final file = await _repository.pickFile(source);
+    return file == null || file.path.trim().isEmpty ? null : file;
   }
 }

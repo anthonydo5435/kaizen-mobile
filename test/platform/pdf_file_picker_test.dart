@@ -23,11 +23,12 @@ void main() {
     () async {
       picker.files = [_PdfFile('/tmp/compliance document.pdf')];
 
-      final path = await ComplianceDocumentMediaRepositoryImpl().pickFile(
+      final file = await ComplianceDocumentMediaRepositoryImpl().pickFile(
         ComplianceDocumentFileSource.pdf,
       );
 
-      expect(path, '/tmp/compliance document.pdf');
+      expect(file?.path, '/tmp/compliance document.pdf');
+      expect(file?.name, 'compliance document.pdf');
       expect(picker.singlePicks, 1);
       expect(picker.multiplePicks, 0);
       expect(picker.type, FileType.custom);

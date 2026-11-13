@@ -1,3 +1,4 @@
+import 'dart:async';
 import 'dart:io';
 
 import 'package:flutter/material.dart';
@@ -9,14 +10,17 @@ import 'package:sparrowkaizen/core/constants/app_colors.dart';
 import 'package:sparrowkaizen/core/constants/app_strings.dart';
 import 'package:sparrowkaizen/core/managers/app_manager.dart';
 import 'package:sparrowkaizen/core/widgets/app_overlay_close_button.dart';
+import 'package:sparrowkaizen/core/widgets/fast_circular_progress.dart';
 import 'package:sparrowkaizen/features/compliance/data/models/compliance_document_model.dart';
 import 'package:sparrowkaizen/features/compliance/domain/entities/compliance_document.dart';
 import 'package:sparrowkaizen/features/compliance/domain/entities/compliance_presigned_upload.dart';
+import 'package:sparrowkaizen/features/compliance/domain/entities/picked_compliance_document_file.dart';
 import 'package:sparrowkaizen/features/compliance/domain/repositories/compliance_document_media_repository.dart';
 import 'package:sparrowkaizen/features/compliance/domain/repositories/compliance_repository.dart';
 import 'package:sparrowkaizen/features/compliance/domain/usecases/upload_compliance_document_usecase.dart';
 import 'package:sparrowkaizen/features/compliance/domain/usecases/pick_compliance_document_file_usecase.dart';
 import 'package:sparrowkaizen/features/compliance/presentation/pages/document/compliance_document_upload_sheet.dart';
+import 'package:sparrowkaizen/features/compliance/presentation/pages/document/compliance_document_full_screen_image.dart';
 import 'package:sparrowkaizen/features/compliance/presentation/widgets/document_card.dart';
 
 void main() {
@@ -109,12 +113,21 @@ void main() {
     );
     expect(tester.widget<Image>(preview).fit, BoxFit.contain);
     expect(find.text(AppStrings.clickToUploadDocument), findsNothing);
+    expect(
+      tester
+          .widget<TextField>(
+            find.byKey(const ValueKey('compliance-document-name')),
+          )
+          .controller!
+          .text,
+      'google_g.png',
+    );
     await tester.tap(find.text(AppStrings.submit));
     await tester.pumpAndSettle();
     expect(find.text(AppStrings.expiryDateRequired), findsOneWidget);
     expect(upload.operations, isEmpty);
 
-    await tester.enterText(find.byType(TextField), '2027-04-05');
+    await tester.enterText(find.byType(TextField).last, '2027-04-05');
     FocusManager.instance.primaryFocus?.unfocus();
     await tester.pumpAndSettle();
     final bytes = await tester.runAsync(() => photo.readAsBytes());
@@ -133,9 +146,519 @@ void main() {
     expect(upload.contentType, 'image/png');
     expect(upload.documentId, 'document');
     expect(upload.expiryDate, '2027-04-05');
+    expect(upload.name, 'google_g.png');
+    expect(upload.description, '');
     expect(find.byType(ComplianceDocumentUploadSheet), findsNothing);
     expect(tester.takeException(), isNull);
   });
+
+  testWidgets(
+    'attaching a file smoothly expands the compact sheet and reveals both inputs',
+    (tester) async {
+      const viewport = Size(390, 844);
+      final pickedFile = Completer<String?>();
+      final media = _MediaRepository()..load = (_) => pickedFile.future;
+      await _openUploadSheet(
+        tester,
+        documentMappers['assigned document']!(false),
+        viewport: viewport,
+        mediaRepository: media,
+      );
+      final sheet = find.byKey(
+        const ValueKey('compliance-document-upload-sheet'),
+      );
+      final initialHeight = tester.getSize(sheet).height;
+      expect(initialHeight, lessThan(viewport.height * 0.9));
+      expect(find.byType(TextField), findsNothing);
+      await tester.tap(find.text(AppStrings.clickToUploadDocument));
+      await tester.pumpAndSettle();
+      await tester.tap(find.text(AppStrings.complianceSelectImage));
+      await tester.pump();
+      await tester.pump(const Duration(milliseconds: 400));
+      pickedFile.complete(File('lib/assets/images/google_g.png').absolute.path);
+      await tester.pump();
+      await tester.pump(const Duration(milliseconds: 140));
+      expect(tester.getSize(sheet).height, greaterThan(initialHeight));
+      expect(tester.getSize(sheet).height, lessThan(viewport.height * 0.9));
+      await tester.pumpAndSettle();
+      expect(
+        tester.getSize(sheet).height,
+        closeTo(viewport.height * 0.9, 0.01),
+      );
+      expect(
+        find.byKey(const ValueKey('compliance-document-name')).hitTestable(),
+        findsOneWidget,
+      );
+      final description = find.byKey(
+        const ValueKey('compliance-document-description'),
+      );
+      expect(description.hitTestable(), findsOneWidget);
+      expect(tester.getSize(description).height, greaterThanOrEqualTo(120));
+      expect(
+        tester.getBottomRight(description).dy,
+        lessThan(tester.getTopLeft(find.text(AppStrings.submit)).dy),
+      );
+      final submit = find.ancestor(
+        of: find.text(AppStrings.submit),
+        matching: find.byType(FilledButton),
+      );
+      expect(
+        tester.getBottomRight(sheet).dy - tester.getBottomRight(submit).dy,
+        closeTo(24, 0.01),
+      );
+      expect(tester.takeException(), isNull);
+    },
+  );
+
+  testWidgets(
+    'upload shows a button loader immediately and percentage progress through record submission',
+    (tester) async {
+      final photo = File('lib/assets/images/google_g.png').absolute;
+      final media = _MediaRepository()..load = (_) async => photo.path;
+      late _ControlledUploadRepository upload;
+      await tester.runAsync(() async {
+        upload = _ControlledUploadRepository();
+      });
+      await _openUploadSheet(
+        tester,
+        documentMappers['assigned document']!(false),
+        mediaRepository: media,
+        uploadRepository: upload,
+      );
+      await tester.tap(find.text(AppStrings.clickToUploadDocument));
+      await tester.pumpAndSettle();
+      await tester.tap(find.text(AppStrings.complianceSelectImage));
+      await tester.pumpAndSettle();
+      final button = find.ancestor(
+        of: find.text(AppStrings.submit),
+        matching: find.byType(FilledButton),
+      );
+      final buttonRect = tester.getRect(button);
+      final onSubmit =
+          tester.widget<FilledButton>(button).onPressed!
+              as Future<void> Function();
+      late Future<void> submission;
+      await tester.runAsync(() async {
+        submission = onSubmit();
+        await upload.presignStarted.future;
+      });
+      await tester.pump();
+      final loader = find.byType(FastCircularProgressIndicator);
+      expect(loader, findsOneWidget);
+      final busyButton = find.ancestor(
+        of: loader,
+        matching: find.byType(FilledButton),
+      );
+      expect(busyButton, findsOneWidget);
+      expect(tester.getRect(busyButton), buttonRect);
+      expect(tester.widget<FilledButton>(busyButton).onPressed, isNull);
+      expect(find.text('0%'), findsOneWidget);
+      expect(
+        tester
+            .widget<LinearProgressIndicator>(
+              find.byType(LinearProgressIndicator),
+            )
+            .value,
+        0,
+      );
+
+      await tester.runAsync(() async {
+        upload.finishPresign.complete();
+        await upload.fileStarted.future;
+      });
+      upload.onFileProgress!(0.35);
+      await tester.pump();
+      expect(find.text('35%'), findsOneWidget);
+      expect(
+        tester
+            .widget<LinearProgressIndicator>(
+              find.byType(LinearProgressIndicator),
+            )
+            .value,
+        0.35,
+      );
+      expect(loader, findsOneWidget);
+      expect(tester.getRect(busyButton), buttonRect);
+
+      await tester.runAsync(() async {
+        upload.finishFile.complete();
+        await upload.recordStarted.future;
+      });
+      await tester.pump();
+      expect(find.text('100%'), findsOneWidget);
+      expect(
+        tester
+            .widget<LinearProgressIndicator>(
+              find.byType(LinearProgressIndicator),
+            )
+            .value,
+        1,
+      );
+      expect(loader, findsOneWidget);
+      expect(tester.getRect(busyButton), buttonRect);
+      expect(find.byType(ComplianceDocumentUploadSheet), findsOneWidget);
+
+      await tester.runAsync(() async {
+        upload.finishRecord.complete();
+        await submission;
+      });
+      await tester.pumpAndSettle();
+      expect(find.byType(ComplianceDocumentUploadSheet), findsNothing);
+      expect(upload.operations, ['presign', 'file', 'record']);
+      expect(tester.takeException(), isNull);
+    },
+  );
+
+  testWidgets(
+    'the upload form prefills the original filename and sends edited metadata',
+    (tester) async {
+      final photo = File('lib/assets/images/google_g.png').absolute;
+      final media = _MediaRepository()..name = 'Original image.png';
+      media.load = (_) async => photo.path;
+      final upload = _UploadRepository();
+      await _openUploadSheet(
+        tester,
+        documentMappers['assigned document']!(false),
+        mediaRepository: media,
+        uploadRepository: upload,
+        viewport: const Size(360, 740),
+      );
+      await tester.tap(find.text(AppStrings.clickToUploadDocument));
+      await tester.pumpAndSettle();
+      await tester.tap(find.text(AppStrings.complianceSelectImage));
+      await tester.pumpAndSettle();
+      final name = find.byKey(const ValueKey('compliance-document-name'));
+      final description = find.byKey(
+        const ValueKey('compliance-document-description'),
+      );
+      expect(
+        tester.widget<TextField>(name).controller!.text,
+        'Original image.png',
+      );
+      expect(tester.widget<TextField>(description).controller!.text, isEmpty);
+      expect(find.text(AppStrings.complianceDocumentName), findsOneWidget);
+      expect(
+        find.text(AppStrings.complianceDocumentDescription),
+        findsOneWidget,
+      );
+      expect(
+        tester.widget<TextField>(description).decoration!.hintText,
+        AppStrings.complianceDocumentDescriptionHint,
+      );
+      expect(tester.widget<TextField>(name).decoration!.labelText, isNull);
+      expect(
+        tester.widget<TextField>(description).decoration!.labelText,
+        isNull,
+      );
+      await tester.ensureVisible(name);
+      await tester.enterText(name, '  Identity document.png  ');
+      await tester.ensureVisible(description);
+      await tester.enterText(description, '  Photo of the signed document  ');
+      FocusManager.instance.primaryFocus?.unfocus();
+      await tester.pumpAndSettle();
+      final submit = tester.widget<FilledButton>(
+        find
+            .ancestor(
+              of: find.text(AppStrings.submit),
+              matching: find.byType(FilledButton),
+            )
+            .first,
+      );
+      await tester.runAsync(submit.onPressed! as Future<void> Function());
+      await tester.pumpAndSettle();
+      expect(upload.operations, ['presign', 'file', 'record']);
+      expect(upload.storageFileName, 'Original image.png');
+      expect(upload.name, 'Identity document.png');
+      expect(upload.description, 'Photo of the signed document');
+      expect(upload.expiryDate, isNull);
+      expect(find.byType(ComplianceDocumentUploadSheet), findsNothing);
+      expect(tester.takeException(), isNull);
+    },
+  );
+
+  testWidgets(
+    'a picker UUID suffix is absent from the name field and submitted name',
+    (tester) async {
+      final photo = File('lib/assets/images/google_g.png').absolute;
+      final media = _MediaRepository()
+        ..name = 'appstore-754A0875-371D-47BD-9B6D-F244515C26F0.png';
+      media.load = (_) async => photo.path;
+      final upload = _UploadRepository();
+      await _openUploadSheet(
+        tester,
+        documentMappers['assigned document']!(false),
+        mediaRepository: media,
+        uploadRepository: upload,
+      );
+      await tester.tap(find.text(AppStrings.clickToUploadDocument));
+      await tester.pumpAndSettle();
+      await tester.tap(find.text(AppStrings.complianceSelectImage));
+      await tester.pumpAndSettle();
+      final name = find.byKey(const ValueKey('compliance-document-name'));
+      expect(tester.widget<TextField>(name).controller!.text, 'appstore.png');
+      final submit = tester.widget<FilledButton>(
+        find
+            .ancestor(
+              of: find.text(AppStrings.submit),
+              matching: find.byType(FilledButton),
+            )
+            .first,
+      );
+      await tester.runAsync(submit.onPressed! as Future<void> Function());
+      await tester.pumpAndSettle();
+      expect(upload.name, 'appstore.png');
+      expect(upload.storageFileName, 'appstore.png');
+      expect(find.byType(ComplianceDocumentUploadSheet), findsNothing);
+      expect(tester.takeException(), isNull);
+    },
+  );
+
+  testWidgets(
+    'metadata counters update and enforce limits while description supports newlines',
+    (tester) async {
+      final photo = File('lib/assets/images/google_g.png').absolute;
+      final media = _MediaRepository()..load = (_) async => photo.path;
+      final upload = _UploadRepository();
+      await _openUploadSheet(
+        tester,
+        documentMappers['assigned document']!(false),
+        mediaRepository: media,
+        uploadRepository: upload,
+      );
+      await tester.tap(find.text(AppStrings.clickToUploadDocument));
+      await tester.pumpAndSettle();
+      await tester.tap(find.text(AppStrings.complianceSelectImage));
+      await tester.pumpAndSettle();
+      final name = find.byKey(const ValueKey('compliance-document-name'));
+      final description = find.byKey(
+        const ValueKey('compliance-document-description'),
+      );
+      expect(find.text('12/50'), findsOneWidget);
+      expect(find.text('0/300'), findsOneWidget);
+
+      await tester.ensureVisible(name);
+      await tester.enterText(name, List.filled(51, 'n').join());
+      await tester.pump();
+      expect(
+        tester.widget<TextField>(name).controller!.text,
+        List.filled(50, 'n').join(),
+      );
+      expect(find.text('50/50'), findsOneWidget);
+      await tester.enterText(name, 'Readable scan.png');
+
+      await tester.ensureVisible(description);
+      await tester.tap(description);
+      await tester.pump();
+      expect(
+        tester.testTextInput.setClientArgs!['inputAction'],
+        'TextInputAction.newline',
+      );
+      await tester.testTextInput.receiveAction(TextInputAction.newline);
+      await tester.pump();
+      final editable = find.descendant(
+        of: description,
+        matching: find.byType(EditableText),
+      );
+      expect(tester.widget<EditableText>(editable).focusNode.hasFocus, isTrue);
+      await tester.enterText(description, 'First line\nSecond line');
+      await tester.pump();
+      expect(find.text('22/300'), findsOneWidget);
+
+      const emoji = '👨‍👩‍👧‍👦';
+      await tester.enterText(description, List.filled(301, emoji).join());
+      await tester.pump();
+      expect(
+        tester.widget<TextField>(description).controller!.text,
+        List.filled(300, emoji).join(),
+      );
+      expect(find.text('300/300'), findsOneWidget);
+
+      final maxDescription = 'First line\n${List.filled(289, 'd').join()}';
+      await tester.enterText(description, maxDescription);
+      await tester.enterText(description, '$maxDescription\n');
+      await tester.pump();
+      expect(
+        tester.widget<TextField>(description).controller!.text,
+        maxDescription,
+      );
+      expect(find.text('300/300'), findsOneWidget);
+      FocusManager.instance.primaryFocus?.unfocus();
+      await tester.pumpAndSettle();
+      final submit = tester.widget<FilledButton>(
+        find
+            .ancestor(
+              of: find.text(AppStrings.submit),
+              matching: find.byType(FilledButton),
+            )
+            .first,
+      );
+      await tester.runAsync(submit.onPressed! as Future<void> Function());
+      await tester.pumpAndSettle();
+      expect(upload.name, 'Readable scan.png');
+      expect(upload.description, maxDescription);
+      expect(find.byType(ComplianceDocumentUploadSheet), findsNothing);
+      expect(tester.takeException(), isNull);
+    },
+  );
+
+  testWidgets(
+    'a blank document name blocks upload and its field remains editable',
+    (tester) async {
+      final photo = File('lib/assets/images/google_g.png').absolute;
+      final media = _MediaRepository()..load = (_) async => photo.path;
+      final upload = _UploadRepository();
+      await _openUploadSheet(
+        tester,
+        documentMappers['assigned document']!(false),
+        mediaRepository: media,
+        uploadRepository: upload,
+      );
+      await tester.tap(find.text(AppStrings.clickToUploadDocument));
+      await tester.pumpAndSettle();
+      await tester.tap(find.text(AppStrings.complianceSelectImage));
+      await tester.pumpAndSettle();
+      final name = find.byKey(const ValueKey('compliance-document-name'));
+      await tester.ensureVisible(name);
+      await tester.enterText(name, '  ');
+      await tester.tap(find.text(AppStrings.submit));
+      await tester.pumpAndSettle();
+      expect(
+        find.text(AppStrings.complianceDocumentNameRequired),
+        findsOneWidget,
+      );
+      expect(upload.operations, isEmpty);
+      await tester.ensureVisible(name);
+      await tester.enterText(name, 'Replacement.png');
+      await tester.pump();
+      expect(
+        find.text(AppStrings.complianceDocumentNameRequired),
+        findsNothing,
+      );
+      expect(tester.takeException(), isNull);
+    },
+  );
+
+  testWidgets(
+    'document metadata remains scrollable above the keyboard with larger text',
+    (tester) async {
+      final photo = File('lib/assets/images/google_g.png').absolute;
+      final media = _MediaRepository()..load = (_) async => photo.path;
+      await _openUploadSheet(
+        tester,
+        documentMappers['assigned document']!(true),
+        mediaRepository: media,
+        viewport: const Size(360, 740),
+        textScale: 2,
+      );
+      await tester.ensureVisible(find.text(AppStrings.clickToUploadDocument));
+      await tester.pumpAndSettle();
+      await tester.tap(find.text(AppStrings.clickToUploadDocument));
+      await tester.pumpAndSettle();
+      await tester.tap(find.text(AppStrings.complianceSelectImage));
+      await tester.pumpAndSettle();
+      final field = find.byKey(
+        const ValueKey('compliance-document-description'),
+      );
+      await tester.ensureVisible(field);
+      await tester.tap(field);
+      tester.view.viewInsets = const FakeViewPadding(bottom: 300);
+      addTearDown(tester.view.resetViewInsets);
+      await tester.pumpAndSettle();
+      await tester.ensureVisible(field);
+      await tester.enterText(field, 'Optional instructions');
+      await tester.pumpAndSettle();
+      expect(tester.getBottomRight(field).dy, lessThanOrEqualTo(440));
+      expect(
+        tester.getBottomRight(find.text(AppStrings.submit)).dy,
+        lessThanOrEqualTo(440),
+      );
+      expect(tester.takeException(), isNull);
+    },
+  );
+
+  testWidgets(
+    'Change File opens the options and supports cancelling or replacing the attachment',
+    (tester) async {
+      final original = File('lib/assets/images/google_g.png').absolute;
+      final replacement = File(AppStrings.dummyProfileImagePath).absolute;
+      final media = _MediaRepository()..load = (_) async => original.path;
+      await _openUploadSheet(
+        tester,
+        documentMappers['assigned document']!(false),
+        mediaRepository: media,
+      );
+      await tester.tap(find.text(AppStrings.clickToUploadDocument));
+      await tester.pumpAndSettle();
+      await tester.tap(find.text(AppStrings.complianceSelectImage));
+      await tester.pumpAndSettle();
+      final action = find.widgetWithText(
+        TextButton,
+        AppStrings.complianceChangeFile,
+      );
+      final preview = find.byKey(
+        const ValueKey('compliance-selected-document-preview'),
+      );
+      expect(action, findsOneWidget);
+      final actionBounds = tester.getRect(action);
+      final previewBounds = tester.getRect(preview);
+      expect(actionBounds.center.dx, greaterThan(previewBounds.center.dx));
+      expect(actionBounds.top, greaterThanOrEqualTo(previewBounds.bottom));
+      expect(actionBounds.right, closeTo(previewBounds.right, 0.1));
+      final button = tester.widget<TextButton>(action);
+      expect(
+        button.style!.foregroundColor!.resolve({}),
+        AppColors.secondaryColor,
+      );
+
+      final name = find.byKey(const ValueKey('compliance-document-name'));
+      final description = find.byKey(
+        const ValueKey('compliance-document-description'),
+      );
+      await tester.ensureVisible(name);
+      await tester.enterText(name, 'My identity.png');
+      await tester.ensureVisible(description);
+      await tester.enterText(description, 'Keep these instructions');
+      FocusManager.instance.primaryFocus?.unfocus();
+      await tester.pumpAndSettle();
+      await tester.ensureVisible(action);
+      await tester.tap(action);
+      await tester.pumpAndSettle();
+      expect(find.text(AppStrings.complianceCamera), findsOneWidget);
+      expect(find.text(AppStrings.complianceSelectImage), findsOneWidget);
+      expect(find.text(AppStrings.complianceSelectPdf), findsOneWidget);
+      expect(find.byType(ComplianceDocumentFullScreenImage), findsNothing);
+      media.load = (_) async => null;
+      await tester.tap(find.text(AppStrings.complianceSelectImage));
+      await tester.pumpAndSettle();
+      expect(
+        tester.widget<TextField>(name).controller!.text,
+        'My identity.png',
+      );
+      expect(
+        tester.widget<TextField>(description).controller!.text,
+        'Keep these instructions',
+      );
+      media.load = (_) async => replacement.path;
+      await tester.ensureVisible(action);
+      await tester.tap(action);
+      await tester.pumpAndSettle();
+      await tester.tap(find.text(AppStrings.complianceSelectImage));
+      await tester.pumpAndSettle();
+      final image = tester.widget<Image>(
+        find.byWidgetPredicate(
+          (widget) => widget is Image && widget.image is FileImage,
+        ),
+      );
+      expect((image.image as FileImage).file.path, replacement.path);
+      expect(tester.widget<TextField>(name).controller!.text, 'dumy_pic.png');
+      expect(
+        tester.widget<TextField>(description).controller!.text,
+        'Keep these instructions',
+      );
+      expect(find.byType(ComplianceDocumentUploadSheet), findsOneWidget);
+      expect(tester.takeException(), isNull);
+    },
+  );
 
   final sourceTitles = {
     ComplianceDocumentFileSource.camera: AppStrings.complianceCamera,
@@ -331,43 +854,53 @@ void main() {
   }
 
   for (final viewport in [const Size(390, 844), const Size(360, 740)]) {
-    testWidgets('No Expiry sheet has compact gaps on $viewport', (
-      tester,
-    ) async {
-      const reason = 'Page missing.';
-      await _openUploadSheet(
-        tester,
-        _rejectedDocument(reason, requiresExpiry: false),
-        viewport: viewport,
-      );
-      final reasonCard = find
-          .ancestor(of: find.text(reason), matching: find.byType(Container))
-          .first;
-      final uploadArea = find
-          .ancestor(
-            of: find.text(AppStrings.clickToUploadDocument),
-            matching: find.byType(GestureDetector),
-          )
-          .first;
-      final button = find
-          .ancestor(
-            of: find.text(AppStrings.cancelUpload),
-            matching: find.byType(FilledButton),
-          )
-          .first;
-      await tester.ensureVisible(uploadArea);
-      await tester.pumpAndSettle();
-      expect(
-        tester.getTopLeft(uploadArea).dy - tester.getBottomLeft(reasonCard).dy,
-        closeTo(16, 0.01),
-      );
-      expect(
-        tester.getTopLeft(button).dy - tester.getBottomLeft(uploadArea).dy,
-        closeTo(20, 0.01),
-      );
-      expect(find.byType(TextField), findsNothing);
-      expect(tester.takeException(), isNull);
-    });
+    testWidgets(
+      'No Expiry sheet fits its content without extra space below the attachment on $viewport',
+      (tester) async {
+        const reason = 'Page missing.';
+        await _openUploadSheet(
+          tester,
+          _rejectedDocument(reason, requiresExpiry: false),
+          viewport: viewport,
+        );
+        final reasonCard = find
+            .ancestor(of: find.text(reason), matching: find.byType(Container))
+            .first;
+        final uploadArea = find
+            .ancestor(
+              of: find.text(AppStrings.clickToUploadDocument),
+              matching: find.byType(GestureDetector),
+            )
+            .first;
+        final button = find
+            .ancestor(
+              of: find.text(AppStrings.cancelUpload),
+              matching: find.byType(FilledButton),
+            )
+            .first;
+        await tester.ensureVisible(uploadArea);
+        await tester.pumpAndSettle();
+        expect(
+          tester
+              .getSize(
+                find.byKey(const ValueKey('compliance-document-upload-sheet')),
+              )
+              .height,
+          lessThan(viewport.height * 0.9),
+        );
+        expect(
+          tester.getTopLeft(uploadArea).dy -
+              tester.getBottomLeft(reasonCard).dy,
+          closeTo(16, 0.01),
+        );
+        expect(
+          tester.getTopLeft(button).dy - tester.getBottomLeft(uploadArea).dy,
+          closeTo(20, 0.01),
+        );
+        expect(find.byType(TextField), findsNothing);
+        expect(tester.takeException(), isNull);
+      },
+    );
   }
 
   for (final requiresExpiry in [true, false]) {
@@ -567,29 +1100,39 @@ void main() {
     },
   );
 
-  testWidgets('expiration input remains above the keyboard on mobile', (
-    tester,
-  ) async {
-    await _openUploadSheet(
-      tester,
-      documentMappers['assigned document']!(true),
-      viewport: const Size(360, 740),
-    );
-    final field = find.byType(TextField);
-    await tester.ensureVisible(field);
-    await tester.pumpAndSettle();
-    await tester.tap(field);
-    tester.view.viewInsets = const FakeViewPadding(bottom: 300);
-    addTearDown(tester.view.resetViewInsets);
-    await tester.pumpAndSettle();
-    await tester.ensureVisible(field);
-    await tester.pumpAndSettle();
+  testWidgets(
+    'expiration input stays focused until the sheet background is tapped',
+    (tester) async {
+      await _openUploadSheet(
+        tester,
+        documentMappers['assigned document']!(true),
+        viewport: const Size(360, 740),
+      );
+      final field = find.byType(TextField);
+      await tester.ensureVisible(field);
+      await tester.pumpAndSettle();
+      await tester.tap(field);
+      tester.view.viewInsets = const FakeViewPadding(bottom: 300);
+      addTearDown(tester.view.resetViewInsets);
+      await tester.pumpAndSettle();
+      await tester.ensureVisible(field);
+      await tester.pumpAndSettle();
 
-    expect(tester.getBottomRight(field).dy, lessThanOrEqualTo(440));
-    await tester.enterText(field, '04/05/2027');
-    expect(tester.widget<TextField>(field).controller!.text, 'Apr 05, 2027');
-    expect(tester.takeException(), isNull);
-  });
+      expect(tester.getBottomRight(field).dy, lessThanOrEqualTo(440));
+      expect(tester.widget<TextField>(field).focusNode!.hasFocus, isTrue);
+      await tester.enterText(field, '04/05/2027');
+      expect(tester.widget<TextField>(field).controller!.text, 'Apr 05, 2027');
+      final sheet = find.byKey(
+        const ValueKey('compliance-document-upload-sheet'),
+      );
+      await tester.tapAt(tester.getTopLeft(sheet) + const Offset(8, 64));
+      await tester.pumpAndSettle();
+      expect(tester.widget<TextField>(field).focusNode!.hasFocus, isFalse);
+      expect(tester.testTextInput.isVisible, isFalse);
+      expect(find.byType(ComplianceDocumentUploadSheet), findsOneWidget);
+      expect(tester.takeException(), isNull);
+    },
+  );
 
   testWidgets('focus selects MMMM and tapping DD starts day entry', (
     tester,
@@ -726,13 +1269,22 @@ class _Repository implements ComplianceRepository {
 
 class _MediaRepository implements ComplianceDocumentMediaRepository {
   final sources = <ComplianceDocumentFileSource>[];
+  String? name;
   Future<String?> Function(ComplianceDocumentFileSource) load = (_) async =>
       null;
 
   @override
-  Future<String?> pickFile(ComplianceDocumentFileSource source) {
+  Future<PickedComplianceDocumentFile?> pickFile(
+    ComplianceDocumentFileSource source,
+  ) async {
     sources.add(source);
-    return load(source);
+    final path = await load(source);
+    return path == null
+        ? null
+        : PickedComplianceDocumentFile(
+            path: path,
+            name: name ?? path.replaceAll('\\', '/').split('/').last,
+          );
   }
 }
 
@@ -742,12 +1294,16 @@ class _UploadRepository extends _Repository {
   String? contentType;
   String? documentId;
   String? expiryDate;
+  String? name;
+  String? description;
+  String? storageFileName;
 
   @override
   Future<CompliancePresignedUpload> generateComplianceDocumentUploadUrl({
     required String fileName,
   }) async {
     operations.add('presign');
+    storageFileName = fileName;
     return const CompliancePresignedUpload(
       uploadUrl: 'https://example.com/photo.png?signature=test',
     );
@@ -772,10 +1328,74 @@ class _UploadRepository extends _Repository {
     required String complianceDocumentId,
     required String fileName,
     required String documentUrl,
+    String? name,
+    String description = '',
     String? expiryDate,
   }) async {
     operations.add('record');
     documentId = complianceDocumentId;
     this.expiryDate = expiryDate;
+    this.name = name;
+    this.description = description;
+  }
+}
+
+class _ControlledUploadRepository extends _UploadRepository {
+  final presignStarted = Completer<void>();
+  final finishPresign = Completer<void>();
+  final fileStarted = Completer<void>();
+  final finishFile = Completer<void>();
+  final recordStarted = Completer<void>();
+  final finishRecord = Completer<void>();
+  ValueChanged<double>? onFileProgress;
+
+  @override
+  Future<CompliancePresignedUpload> generateComplianceDocumentUploadUrl({
+    required String fileName,
+  }) async {
+    presignStarted.complete();
+    await finishPresign.future;
+    return super.generateComplianceDocumentUploadUrl(fileName: fileName);
+  }
+
+  @override
+  Future<void> uploadComplianceDocumentFile({
+    required String uploadUrl,
+    required String fileName,
+    required List<int> fileBytes,
+    required String contentType,
+    ValueChanged<double>? onProgress,
+  }) async {
+    onFileProgress = onProgress;
+    fileStarted.complete();
+    await finishFile.future;
+    await super.uploadComplianceDocumentFile(
+      uploadUrl: uploadUrl,
+      fileName: fileName,
+      fileBytes: fileBytes,
+      contentType: contentType,
+      onProgress: onProgress,
+    );
+  }
+
+  @override
+  Future<void> uploadComplianceDocumentRecord({
+    required String complianceDocumentId,
+    required String fileName,
+    required String documentUrl,
+    String? name,
+    String description = '',
+    String? expiryDate,
+  }) async {
+    recordStarted.complete();
+    await finishRecord.future;
+    await super.uploadComplianceDocumentRecord(
+      complianceDocumentId: complianceDocumentId,
+      fileName: fileName,
+      documentUrl: documentUrl,
+      name: name,
+      description: description,
+      expiryDate: expiryDate,
+    );
   }
 }

@@ -33,6 +33,7 @@ class QuarterlyAudit {
     required String descriptionId,
     required String auditId,
     required Map<String, int> counts,
+    bool hasAudit = true,
   }) {
     if (!descriptions.any((description) => description.uuid == descriptionId)) {
       return this;
@@ -53,7 +54,11 @@ class QuarterlyAudit {
       descriptions: descriptions
           .map(
             (description) => description.uuid == descriptionId
-                ? description.withRatingCounts(auditId: auditId, counts: counts)
+                ? description.withRatingCounts(
+                    auditId: auditId,
+                    counts: counts,
+                    hasAudit: hasAudit,
+                  )
                 : description,
           )
           .toList(growable: false),
@@ -115,6 +120,7 @@ class QuarterlyAuditDescription {
   QuarterlyAuditDescription withRatingCounts({
     required String auditId,
     required Map<String, int> counts,
+    bool hasAudit = true,
   }) {
     return QuarterlyAuditDescription(
       uuid: uuid,
@@ -128,7 +134,7 @@ class QuarterlyAuditDescription {
       almostThere: counts['almost_there'] ?? almostThere,
       pass: pass,
       noPass: noPass,
-      hasAudit: true,
+      hasAudit: hasAudit,
       auditUuid: auditId,
       milestoneDay: milestoneDay,
       lastAuditDate: lastAuditDate,

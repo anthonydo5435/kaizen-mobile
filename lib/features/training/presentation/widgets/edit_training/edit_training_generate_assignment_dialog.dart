@@ -4,7 +4,8 @@ class _GenerateAssignmentDialog extends StatefulWidget {
   const _GenerateAssignmentDialog();
 
   @override
-  State<_GenerateAssignmentDialog> createState() => _GenerateAssignmentDialogState();
+  State<_GenerateAssignmentDialog> createState() =>
+      _GenerateAssignmentDialogState();
 }
 
 class _GenerateAssignmentDialogState extends State<_GenerateAssignmentDialog> {
@@ -43,101 +44,118 @@ class _GenerateAssignmentDialogState extends State<_GenerateAssignmentDialog> {
             controller.canGenerateAssignmentForSelectedModule &&
             (!hasExistingAssignment || _canRegenerate);
         final availableHeight =
-            mediaQuery.size.height - mediaQuery.viewInsets.bottom - mediaQuery.padding.top - 16;
+            mediaQuery.size.height -
+            mediaQuery.viewInsets.bottom -
+            mediaQuery.padding.top -
+            16;
 
         return Padding(
           padding: EdgeInsets.only(bottom: mediaQuery.viewInsets.bottom),
-          child: Container(
+          child: AppKeyboardBottomSheetSurface(
             width: double.infinity,
-            constraints: BoxConstraints(
-              maxWidth: 620,
-              maxHeight: availableHeight.clamp(0.0, mediaQuery.size.height * 0.92),
-            ),
-            decoration: const BoxDecoration(
-              color: AppColors.mainBg,
-              borderRadius: BorderRadius.vertical(top: Radius.circular(28)),
-            ),
-            child: SafeArea(
-              top: false,
-              child: Column(
-                mainAxisSize: MainAxisSize.min,
-                crossAxisAlignment: CrossAxisAlignment.stretch,
-                children: [
-                  _GenerateAssignmentHeader(onClose: () => Navigator.of(context).pop()),
-                  Flexible(
-                    child: SingleChildScrollView(
-                      padding: const EdgeInsets.fromLTRB(18, 24, 18, 20),
-                      child: Column(
-                        crossAxisAlignment: CrossAxisAlignment.stretch,
-                        children: [
-                          Center(
-                            child: Container(
-                              width: 76,
-                              height: 76,
-                              decoration: BoxDecoration(
-                                shape: BoxShape.circle,
-                                color: AppColors.secondaryColor.withValues(alpha: 0.08),
-                              ),
-                              child: const Icon(
-                                Icons.auto_awesome_rounded,
-                                size: 28,
-                                color: AppColors.secondaryColor,
+            color: AppColors.mainBg,
+            borderRadius: const BorderRadius.vertical(top: Radius.circular(28)),
+            child: ConstrainedBox(
+              constraints: BoxConstraints(
+                maxWidth: 620,
+                maxHeight: availableHeight.clamp(
+                  0.0,
+                  mediaQuery.size.height * 0.92,
+                ),
+              ),
+              child: SafeArea(
+                top: false,
+                child: Column(
+                  mainAxisSize: MainAxisSize.min,
+                  crossAxisAlignment: CrossAxisAlignment.stretch,
+                  children: [
+                    _GenerateAssignmentHeader(
+                      onClose: () => Navigator.of(context).pop(),
+                    ),
+                    Flexible(
+                      child: SingleChildScrollView(
+                        padding: const EdgeInsets.fromLTRB(18, 24, 18, 20),
+                        child: Column(
+                          crossAxisAlignment: CrossAxisAlignment.stretch,
+                          children: [
+                            Center(
+                              child: Container(
+                                width: 76,
+                                height: 76,
+                                decoration: BoxDecoration(
+                                  shape: BoxShape.circle,
+                                  color: AppColors.secondaryColor.withValues(
+                                    alpha: 0.08,
+                                  ),
+                                ),
+                                child: const Icon(
+                                  Icons.auto_awesome_rounded,
+                                  size: 28,
+                                  color: AppColors.secondaryColor,
+                                ),
                               ),
                             ),
-                          ),
-                          const SizedBox(height: 20),
-                          AppTextView.body1(
-                            hasExistingAssignment
-                                ? AppStrings.trainingRegenerate
-                                : AppStrings.trainingGenerateAssignment,
-                            color: AppColors.hexd9deff,
-                            fontSize: 19,
-                            fontWeight: FontWeight.w700,
-                            textAlign: TextAlign.center,
-                          ),
-                          const SizedBox(height: 10),
-                          const AppTextView.body(
-                            AppStrings.trainingGenerateAssignmentDialogDescription,
-                            color: AppColors.lightPurple1,
-                            fontSize: 13,
-                            height: 1.45,
-                            textAlign: TextAlign.center,
-                          ),
-                          if (hasExistingAssignment) ...[
-                            const SizedBox(height: 18),
+                            const SizedBox(height: 20),
+                            AppTextView.body1(
+                              hasExistingAssignment
+                                  ? AppStrings.trainingRegenerate
+                                  : AppStrings.trainingGenerateAssignment,
+                              color: AppColors.hexd9deff,
+                              fontSize: 19,
+                              fontWeight: FontWeight.w700,
+                              textAlign: TextAlign.center,
+                            ),
+                            const SizedBox(height: 10),
                             const AppTextView.body(
-                              AppStrings.trainingGenerateAssignmentAlertDescription,
-                              color: AppColors.textPrimary,
+                              AppStrings
+                                  .trainingGenerateAssignmentDialogDescription,
+                              color: AppColors.lightPurple1,
                               fontSize: 13,
                               height: 1.45,
                               textAlign: TextAlign.center,
                             ),
-                            const SizedBox(height: 12),
-                            _SopAlertCard(confirmationController: _confirmationController),
+                            if (hasExistingAssignment) ...[
+                              const SizedBox(height: 18),
+                              const AppTextView.body(
+                                AppStrings
+                                    .trainingGenerateAssignmentAlertDescription,
+                                color: AppColors.textPrimary,
+                                fontSize: 13,
+                                height: 1.45,
+                                textAlign: TextAlign.center,
+                              ),
+                              const SizedBox(height: 12),
+                              _SopAlertCard(
+                                confirmationController: _confirmationController,
+                              ),
+                            ],
+                            if (errorMessage != null &&
+                                errorMessage.isNotEmpty) ...[
+                              const SizedBox(height: 16),
+                              _DialogErrorMessageCard(message: errorMessage),
+                            ],
                           ],
-                          if (errorMessage != null && errorMessage.isNotEmpty) ...[
-                            const SizedBox(height: 16),
-                            _DialogErrorMessageCard(message: errorMessage),
-                          ],
-                        ],
+                        ),
                       ),
                     ),
-                  ),
-                  Padding(
-                    padding: const EdgeInsets.fromLTRB(18, 8, 18, 18),
-                    child: AppAiGenerateButton(
-                      label: hasExistingAssignment
-                          ? AppStrings.trainingRegenerate
-                          : AppStrings.trainingGenerateAssignment,
-                      isEnabled: canGenerate,
-                      isLoading: controller.isGeneratingAssignment,
-                      onTap: canGenerate ? () => unawaited(_generate(context)) : null,
-                      expand: true,
-                      minHeight: 40,
-                      showOutline: true,
+                    Padding(
+                      padding: const EdgeInsets.fromLTRB(18, 8, 18, 18),
+                      child: AppAiGenerateButton(
+                        label: hasExistingAssignment
+                            ? AppStrings.trainingRegenerate
+                            : AppStrings.trainingGenerateAssignment,
+                        isEnabled: canGenerate,
+                        isLoading: controller.isGeneratingAssignment,
+                        onTap: canGenerate
+                            ? () => unawaited(_generate(context))
+                            : null,
+                        expand: true,
+                        minHeight: 40,
+                        showOutline: true,
+                      ),
                     ),
-                  ),
-                ],
+                  ],
+                ),
               ),
             ),
           ),

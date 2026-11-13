@@ -12,11 +12,15 @@ class ComplianceDocumentMediaController extends ChangeNotifier {
 
   final PickComplianceDocumentFileUseCase _pickFileUseCase;
   File? _selectedFile;
+  String? _selectedFileName;
+  bool _isSelectedFileImage = false;
   bool _isPicking = false;
   bool _isDisposed = false;
   String? _errorMessage;
 
   File? get selectedFile => _selectedFile;
+  String? get selectedFileName => _selectedFileName;
+  bool get isSelectedFileImage => _isSelectedFileImage;
   bool get isPicking => _isPicking;
   String? get errorMessage => _errorMessage;
 
@@ -28,9 +32,11 @@ class ComplianceDocumentMediaController extends ChangeNotifier {
     _errorMessage = null;
     notifyListeners();
     try {
-      final path = await _pickFileUseCase(source);
-      if (!_isDisposed && path != null) {
-        _selectedFile = File(path);
+      final pickedFile = await _pickFileUseCase(source);
+      if (!_isDisposed && pickedFile != null) {
+        _selectedFile = File(pickedFile.path);
+        _isSelectedFileImage = source != ComplianceDocumentFileSource.pdf;
+        _selectedFileName = pickedFile.displayName;
       }
     } on PlatformException catch (error) {
       if (!_isDisposed) {

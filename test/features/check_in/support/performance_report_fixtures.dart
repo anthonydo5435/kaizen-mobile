@@ -144,6 +144,20 @@ class ReportRepository extends Fake implements AuditRepository {
   PerformanceReport Function(AuditProfile) buildReport = (profile) =>
       reportFixture(profile: profile);
   Future<PerformanceReport>? pendingOverview;
+  Future<List<CertifiedReportOption>>? pendingCertifiedReports;
+  List<CertifiedReportOption> Function(DateTime? start, DateTime? end)
+  buildCertifiedReports = (_, __) => const [
+    CertifiedReportOption(uuid: 'certified', displayName: 'Certified Quarter'),
+  ];
+  final certifiedReportRequests =
+      <
+        ({
+          AuditProfile profile,
+          DateTime? start,
+          DateTime? end,
+          bool forceRefresh,
+        })
+      >[];
   Completer<String?>? certification;
   Completer<Map<String, String>>? remarks;
   String pdfUrl = 'https://example.com/report.pdf';
@@ -181,9 +195,16 @@ class ReportRepository extends Fake implements AuditRepository {
     int? quarter,
     DateTime? startDate,
     DateTime? endDate,
-  }) async => const [
-    CertifiedReportOption(uuid: 'certified', displayName: 'Certified Quarter'),
-  ];
+    bool forceRefresh = false,
+  }) async {
+    certifiedReportRequests.add((
+      profile: profile,
+      start: startDate,
+      end: endDate,
+      forceRefresh: forceRefresh,
+    ));
+    return pendingCertifiedReports ?? buildCertifiedReports(startDate, endDate);
+  }
 
   @override
   Future<CertifiedReportDetail> getCertifiedReportDetail({

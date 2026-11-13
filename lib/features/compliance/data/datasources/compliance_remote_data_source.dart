@@ -134,16 +134,20 @@ class ComplianceRemoteDataSource {
     required String complianceDocumentId,
     required String fileName,
     required String documentUrl,
+    String? name,
+    String description = '',
     String? expiryDate,
   }) {
     final trimmedExpiryDate = expiryDate?.trim();
+    final documentName = name?.trim();
 
     return _apiCallExecutor.processApi<void>(
       apiCallType: ApiCallType.put,
       endpoint: ApiEndPoints.uploadComplianceDocument(complianceDocumentId),
       authToken: AppPreference.getAuthToken(),
       parameters: {
-        'name': fileName,
+        'name': documentName == null || documentName.isEmpty ? fileName : documentName,
+        'description': description.trim(),
         'doc_url': documentUrl,
         if (trimmedExpiryDate != null && trimmedExpiryDate.isNotEmpty)
           'expiry_date': trimmedExpiryDate,

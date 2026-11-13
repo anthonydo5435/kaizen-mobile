@@ -11,12 +11,16 @@ class GetAuditDetailsUseCase {
     required int year,
     required int quarter,
     String? profileUuid,
+    DateTime? startDate,
+    DateTime? endDate,
   }) {
     return _repository.getAuditDetails(
       profileJobId: profileJobId,
       year: year,
       quarter: quarter,
       profileUuid: profileUuid,
+      startDate: startDate,
+      endDate: endDate,
     );
   }
 }

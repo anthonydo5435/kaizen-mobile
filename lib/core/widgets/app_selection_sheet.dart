@@ -2,6 +2,7 @@ import 'package:flutter/material.dart';
 
 import '../constants/app_colors.dart';
 import 'app_dot_divider.dart';
+import 'app_keyboard_bottom_sheet_surface.dart';
 import 'app_overlay_close_button.dart';
 import 'app_text_view.dart';
 import 'fast_circular_progress.dart';
@@ -25,17 +26,25 @@ class AppSelectionSheet extends StatelessWidget {
     return PopScope(
       canPop: !isBusy,
       child: Padding(
-        padding: EdgeInsets.only(bottom: MediaQuery.viewInsetsOf(context).bottom),
+        padding: EdgeInsets.only(
+          bottom: MediaQuery.viewInsetsOf(context).bottom,
+        ),
         child: FractionallySizedBox(
           heightFactor: heightFactor,
-          child: Material(
+          child: AppKeyboardBottomSheetSurface(
             color: AppColors.mainBg,
             borderRadius: const BorderRadius.vertical(top: Radius.circular(28)),
-            clipBehavior: Clip.antiAlias,
-            child: ListTileTheme.merge(
-              tileColor: AppColors.cardBg,
-              selectedTileColor: AppColors.cardBg,
-              child: SafeArea(top: false, bottom: safeAreaBottom, child: child),
+            child: Material(
+              color: Colors.transparent,
+              child: ListTileTheme.merge(
+                tileColor: AppColors.cardBg,
+                selectedTileColor: AppColors.cardBg,
+                child: SafeArea(
+                  top: false,
+                  bottom: safeAreaBottom,
+                  child: child,
+                ),
+              ),
             ),
           ),
         ),
@@ -122,7 +131,11 @@ class AppFilterSheetHeader extends StatelessWidget {
   Widget build(BuildContext context) {
     return Padding(
       padding: const EdgeInsets.fromLTRB(16, 10, 16, 12),
-      child: AppSelectionHeading(title: title, onClose: onClose, centerTitle: centerTitle),
+      child: AppSelectionHeading(
+        title: title,
+        onClose: onClose,
+        centerTitle: centerTitle,
+      ),
     );
   }
 }
@@ -196,7 +209,9 @@ class AppSelectionTile extends StatelessWidget {
         selected: isSelected,
         shape: RoundedRectangleBorder(
           borderRadius: BorderRadius.circular(12),
-          side: BorderSide(color: isSelected ? AppColors.secondaryColor : Colors.transparent),
+          side: BorderSide(
+            color: isSelected ? AppColors.secondaryColor : Colors.transparent,
+          ),
         ),
         minTileHeight: 44,
         minVerticalPadding: 6,
@@ -210,8 +225,12 @@ class AppSelectionTile extends StatelessWidget {
                 child: FastCircularProgressIndicator(width: 20, height: 20),
               )
             : Icon(
-                isSelected ? Icons.radio_button_checked : Icons.radio_button_unchecked,
-                color: isSelected ? AppColors.secondaryColor : AppColors.textPrimary,
+                isSelected
+                    ? Icons.radio_button_checked
+                    : Icons.radio_button_unchecked,
+                color: isSelected
+                    ? AppColors.secondaryColor
+                    : AppColors.textPrimary,
                 size: 20,
               ),
         title: AppTextView.body2(

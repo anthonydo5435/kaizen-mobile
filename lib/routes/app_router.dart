@@ -432,6 +432,8 @@ class AppRouter {
                 ? args.trackAssignmentUuid
                 : '',
             title: args is ComplianceTracksRouteArgs ? args.title : '',
+            showCertificate:
+                args is ComplianceTracksRouteArgs && args.showCertificate,
           ),
         );
       case complianceTraining:
@@ -502,10 +504,12 @@ class ComplianceTracksRouteArgs {
   const ComplianceTracksRouteArgs({
     required this.trackAssignmentUuid,
     required this.title,
+    this.showCertificate = false,
   });
 
   final String trackAssignmentUuid;
   final String title;
+  final bool showCertificate;
 }
 
 class SharedLmsRouteArgs {
