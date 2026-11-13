@@ -177,15 +177,9 @@ class CheckInSingleDescriptionController extends ChangeNotifier {
     _auditDescription = response;
     _hasLoadError = false;
     // List drafts and later taps take precedence over stale server ratings.
-    if (!_hasLocalRatingChanges &&
-        !_hasInitialRatingCounts &&
-        response.audit.isNotEmpty) {
-      _counts = {
-        for (final rating in AuditRating.values)
-          rating.apiValue: response.audit
-              .where((value) => value == rating)
-              .length,
-      };
+    final counts = response.ratingCounts;
+    if (!_hasLocalRatingChanges && !_hasInitialRatingCounts && counts != null) {
+      _counts = {..._counts, ...counts};
     }
   }
 

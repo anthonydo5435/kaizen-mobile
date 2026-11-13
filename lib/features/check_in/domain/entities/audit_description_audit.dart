@@ -24,7 +24,8 @@ class AuditDescriptionAudit {
     required this.isMirror,
     required this.auditMedia,
     required this.weightedScore,
-  });
+    Map<String, int>? ratingCounts,
+  }) : _ratingCounts = ratingCounts;
 
   final String uuid;
   final List<AuditRating> audit;
@@ -32,6 +33,17 @@ class AuditDescriptionAudit {
   final bool isMirror;
   final List<AuditDescriptionMedia> auditMedia;
   final double weightedScore;
+  final Map<String, int>? _ratingCounts;
+
+  /// Null means the response supplied no usable ratings; retain summary counts.
+  Map<String, int>? get ratingCounts {
+    if (_ratingCounts != null) return _ratingCounts;
+    if (audit.isEmpty) return null;
+    return {
+      for (final rating in AuditRating.values)
+        rating.apiValue: audit.where((value) => value == rating).length,
+    };
+  }
 }
 
 class AuditDescriptionMedia {

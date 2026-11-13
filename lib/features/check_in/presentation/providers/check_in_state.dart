@@ -18,6 +18,7 @@ class CheckInState {
     this.isAuditActionLoading = false,
     this.details,
     this.quarterlyAudit,
+    this.quarterlyAuditDate,
     this.evaluationCharts = const <AuditEvaluationChart>[],
     this.isEvaluationChartLoading = false,
     this.selectedStatus = AuditMemberStatus.active,
@@ -55,6 +56,7 @@ class CheckInState {
   final bool isAuditActionLoading;
   final AuditDetails? details;
   final QuarterlyAudit? quarterlyAudit;
+  final String? quarterlyAuditDate;
   final List<AuditEvaluationChart> evaluationCharts;
   final bool isEvaluationChartLoading;
   final AuditMemberStatus selectedStatus;
@@ -92,6 +94,7 @@ class CheckInState {
     bool? isAuditActionLoading,
     AuditDetails? details,
     QuarterlyAudit? quarterlyAudit,
+    String? quarterlyAuditDate,
     List<AuditEvaluationChart>? evaluationCharts,
     bool? isEvaluationChartLoading,
     AuditMemberStatus? selectedStatus,
@@ -148,6 +151,9 @@ class CheckInState {
       quarterlyAudit: clearQuarterlyAudit
           ? null
           : quarterlyAudit ?? this.quarterlyAudit,
+      quarterlyAuditDate: clearQuarterlyAudit
+          ? null
+          : quarterlyAuditDate ?? this.quarterlyAuditDate,
       evaluationCharts: clearEvaluationCharts
           ? const <AuditEvaluationChart>[]
           : evaluationCharts ?? this.evaluationCharts,

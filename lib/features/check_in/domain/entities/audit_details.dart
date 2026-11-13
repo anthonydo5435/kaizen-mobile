@@ -52,12 +52,14 @@ class AuditDetailsProfile {
 
 class AuditDetailItem {
   const AuditDetailItem({
+    this.quarterlyAuditUuid = '',
     required this.date,
     required this.great,
     required this.needsImprovement,
     required this.almostThere,
   });
 
+  final String quarterlyAuditUuid;
   final String date;
   final int great;
   final int needsImprovement;

@@ -80,6 +80,7 @@ abstract class AuditRepository {
     int? quarter,
     DateTime? startDate,
     DateTime? endDate,
+    bool forceRefresh = false,
   });
 
   Future<CertifiedReportDetail> getCertifiedReportDetail({
@@ -101,11 +102,15 @@ abstract class AuditRepository {
     required int year,
     required int quarter,
     String? profileUuid,
+    DateTime? startDate,
+    DateTime? endDate,
   });
 
   Future<List<AuditEvaluationChart>> getAuditEvaluationChart({
     required String profileJobId,
     String? profileUuid,
+    DateTime? startDate,
+    DateTime? endDate,
   });
 
   Future<List<AuditList>> getAuditReport({

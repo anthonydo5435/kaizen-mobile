@@ -6,6 +6,7 @@ import '../../../../core/constants/app_colors.dart';
 import '../../../../core/constants/app_strings.dart';
 import '../../../../core/utils/custom_functions.dart';
 import '../../../../core/widgets/app_button.dart';
+import '../../../../core/widgets/app_keyboard_bottom_sheet_surface.dart';
 import '../../../../core/widgets/app_overlay_close_button.dart';
 import '../../../../core/widgets/app_text_view.dart';
 import '../../domain/entities/audit_description_audit.dart';
@@ -106,11 +107,9 @@ class _CheckInMediaCommentsBottomSheetState
       shouldCloseOnMinExtent: false,
       builder: (context, scrollController) {
         _sheetScrollController = scrollController;
-        return Container(
-          decoration: const BoxDecoration(
-            color: AppColors.surfaceDark,
-            borderRadius: BorderRadius.vertical(top: Radius.circular(18)),
-          ),
+        return AppKeyboardBottomSheetSurface(
+          color: AppColors.surfaceDark,
+          borderRadius: const BorderRadius.vertical(top: Radius.circular(18)),
           child: ListenableBuilder(
             listenable: _controller,
             builder: (context, _) =>

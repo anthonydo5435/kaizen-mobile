@@ -3,6 +3,7 @@ import 'dart:async';
 import 'package:flutter/foundation.dart';
 import 'package:flutter_test/flutter_test.dart';
 import 'package:sparrowkaizen/core/constants/app_strings.dart';
+import 'package:sparrowkaizen/features/check_in/data/models/audit_description_audit_model.dart';
 import 'package:sparrowkaizen/features/check_in/domain/entities/audit_description_audit.dart';
 import 'package:sparrowkaizen/features/check_in/presentation/providers/check_in_controller.dart';
 import 'package:sparrowkaizen/features/check_in/presentation/providers/check_in_media_upload_controller.dart';
@@ -62,6 +63,31 @@ void main() {
       await tester.pump(const Duration(milliseconds: 180));
       expect(repository.saves.single.id, 'resolved-audit');
       expect(repository.saves.single.counts['great'], 8);
+    },
+  );
+
+  test(
+    'count objects load into details and accept explicit zero refreshes',
+    () async {
+      repository.response = AuditDescriptionAuditModel.fromApiJson({
+        'uuid': 'resolved-audit',
+        'audit': {'great': 7, 'almost_there': 3, 'needs_improvement': 2},
+      });
+      final controller = create();
+      addTearDown(controller.dispose);
+      await controller.ready;
+      expect(controller.countFor(AuditRating.great), 7);
+      expect(controller.countFor(AuditRating.almostThere), 3);
+      expect(controller.countFor(AuditRating.needsImprovement), 2);
+
+      repository.response = AuditDescriptionAuditModel.fromApiJson({
+        'uuid': 'resolved-audit',
+        'audit': {'great': 0, 'almost_there': 0, 'needs_improvement': 0},
+      });
+      await controller.refreshComments();
+      expect(controller.countFor(AuditRating.great), 0);
+      expect(controller.countFor(AuditRating.almostThere), 0);
+      expect(controller.countFor(AuditRating.needsImprovement), 0);
     },
   );
 

@@ -8,6 +8,7 @@ class AuditDescriptionAuditModel extends AuditDescriptionAudit {
     required super.isMirror,
     required super.auditMedia,
     required super.weightedScore,
+    super.ratingCounts,
   });
 
   factory AuditDescriptionAuditModel.fromApiJson(Map<String, dynamic> json) {
@@ -15,7 +16,8 @@ class AuditDescriptionAuditModel extends AuditDescriptionAudit {
 
     return AuditDescriptionAuditModel(
       uuid: _readString(json['uuid']) ?? '',
-      audit: _readBoolList(json['audit']),
+      audit: _readAuditRatings(json['audit']),
+      ratingCounts: _readRatingCounts(json['audit']),
       isGeneral: _readBool(json['is_general']) ?? false,
       isMirror: _readBool(json['is_mirror']) ?? false,
       auditMedia: auditMediaJson is List
@@ -58,7 +60,21 @@ class AuditDescriptionAuditModel extends AuditDescriptionAudit {
     return null;
   }
 
-  static List<AuditRating> _readBoolList(dynamic value) {
+  static Map<String, int>? _readRatingCounts(dynamic value) {
+    if (value is! Map) return null;
+
+    final counts = <String, int>{};
+    for (final rating in AuditRating.values) {
+      final rawCount = value[rating.apiValue];
+      final count = rawCount is num
+          ? rawCount.toInt()
+          : int.tryParse(rawCount?.toString().trim() ?? '');
+      if (count != null && count >= 0) counts[rating.apiValue] = count;
+    }
+    return counts.isEmpty ? null : Map<String, int>.unmodifiable(counts);
+  }
+
+  static List<AuditRating> _readAuditRatings(dynamic value) {
     if (value is! List) {
       return const <AuditRating>[];
     }

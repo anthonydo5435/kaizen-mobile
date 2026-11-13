@@ -15,7 +15,6 @@ import 'package:sparrowkaizen/features/check_in/domain/entities/quarterly_audit.
 import 'package:sparrowkaizen/features/check_in/domain/usecases/get_audit_overview_usecase.dart';
 import 'package:sparrowkaizen/features/check_in/domain/usecases/get_quarterly_audit_usecase.dart';
 import 'package:sparrowkaizen/features/check_in/presentation/providers/check_in_controller.dart';
-import 'package:sparrowkaizen/routes/app_router.dart';
 
 import '../widgets/check_in_description_card.dart';
 
@@ -77,6 +76,7 @@ class CheckInDescriptionsListScreen extends StatelessWidget {
                 date: date,
                 year: year,
                 quarter: quarter,
+                isSelfAudit: isSelfAudit,
               ),
         ),
       ],
@@ -147,6 +147,7 @@ class _CheckInDescriptionsListViewState
         date: widget.date,
         year: widget.year,
         quarter: widget.quarter,
+        isSelfAudit: widget.isSelfAudit,
       );
     });
   }
@@ -187,7 +188,10 @@ class _CheckInDescriptionsListViewState
                   padding: const EdgeInsets.fromLTRB(8, 0, 8, 24),
                   child: Column(
                     children: [
-                      _buildAuditProfileCard(audit),
+                      _buildAuditProfileCard(
+                        audit,
+                        state.quarterlyAuditDate ?? widget.date,
+                      ),
                       if (state.isOwner && members.isNotEmpty) ...[
                         const SizedBox(height: 18),
                         _buildTeamMembersSection(context, audit, members),
@@ -279,7 +283,8 @@ class _CheckInDescriptionsListViewState
         : member.name;
 
     return GestureDetector(
-      onTap: isSelected ? null : () => _openSelectedTeamMember(context, member),
+      key: ValueKey('check-in-team-member-${member.uuid}'),
+      onTap: isSelected ? null : () => _openSelectedTeamMember(member),
       child: AnimatedContainer(
         duration: const Duration(milliseconds: 180),
         width: 120,
@@ -343,23 +348,18 @@ class _CheckInDescriptionsListViewState
       return;
     }
 
-    await _openSelectedTeamMember(context, selectedMember);
+    await _openSelectedTeamMember(selectedMember);
   }
 
-  Future<void> _openSelectedTeamMember(
-    BuildContext context,
-    AuditProfile member,
-  ) {
-    return AppRouter.pushNamed<void>(
-      context,
-      AppRouter.checkInDetails,
-      arguments: CheckInDetailsRouteArgs(
-        profileJobId: member.profileJob,
-        year: widget.year,
-        quarter: widget.quarter,
-        selectedProfileUuid: member.profileUuid,
-      ),
-    );
+  Future<void> _openSelectedTeamMember(AuditProfile member) async {
+    final errorMessage = await context
+        .read<CheckInController>()
+        .selectSingleAuditMember(member);
+    if (mounted && errorMessage != null) {
+      ScaffoldMessenger.of(
+        context,
+      ).showSnackBar(SnackBar(content: AppTextView.body(errorMessage)));
+    }
   }
 
   Future<void> _openDescriptionDetails(
@@ -370,6 +370,7 @@ class _CheckInDescriptionsListViewState
     Map<String, int> initialRatingCounts,
   ) async {
     final auditController = context.read<CheckInController>();
+    final date = auditController.state.quarterlyAuditDate ?? widget.date;
     final descriptionPages = List<QuarterlyAuditDescription>.unmodifiable(
       descriptions,
     );
@@ -385,10 +386,10 @@ class _CheckInDescriptionsListViewState
             audit: audit,
             descriptions: descriptionPages,
             initialDescriptionIndex: initialDescriptionIndex,
-            date: widget.date,
+            date: date,
             isOwner: auditController.state.isOwner,
             isViewOnly: audit.isMismatch,
-            isSelfAudit: widget.isSelfAudit,
+            isSelfAudit: auditController.state.isSelfAudit,
             initialRatingCounts: initialRatingCounts,
           ),
         ),
@@ -432,9 +433,7 @@ class _CheckInDescriptionsListViewState
     );
   }
 
-  Widget _buildAuditProfileCard(QuarterlyAudit audit) {
-    final lastAuditDate = widget.date;
-
+  Widget _buildAuditProfileCard(QuarterlyAudit audit, String date) {
     return Container(
       width: double.infinity,
       padding: const EdgeInsets.all(20),
@@ -478,7 +477,7 @@ class _CheckInDescriptionsListViewState
                         ),
                       ),
                       TextSpan(
-                        text: CustomFunctions.formatDate(lastAuditDate),
+                        text: CustomFunctions.formatDate(date),
                         style: TextStyle(
                           color: AppColors.secondaryColor,
                           fontSize: 14,
@@ -504,9 +503,10 @@ class _CheckInDescriptionsListViewState
     CheckInController controller,
   ) {
     final filtersState = controller.descriptionFilters;
+    final date = controller.state.quarterlyAuditDate ?? widget.date;
     final filteredDescriptions = controller.filteredDescriptions(
       audit,
-      date: widget.date,
+      date: date,
     );
 
     return Column(
@@ -622,12 +622,12 @@ class _CheckInDescriptionsListViewState
                         key: ValueKey('${audit.uuid}:${description.uuid}'),
                         audit: audit,
                         description: description,
-                        date: widget.date,
+                        date: date,
                         isOwner: context
                             .read<CheckInController>()
                             .state
                             .isOwner,
-                        isSelfAudit: widget.isSelfAudit,
+                        isSelfAudit: controller.state.isSelfAudit,
                         onOpenDetails: (initialRatingCounts) =>
                             _openDescriptionDetails(
                               context,
@@ -650,21 +650,19 @@ class _CheckInDescriptionsListViewState
     CheckInController controller,
   ) {
     final filtersState = controller.descriptionFilters;
-    final categories = controller.descriptionCategoryOptions(
-      audit,
-      date: widget.date,
-    );
+    final date = controller.state.quarterlyAuditDate ?? widget.date;
+    final categories = controller.descriptionCategoryOptions(audit, date: date);
     final milestoneOptions = controller.descriptionMilestoneOptions(
       audit,
-      date: widget.date,
+      date: date,
     );
     final auditTimingOptions = controller.descriptionAuditTimingOptions(
       audit,
-      date: widget.date,
+      date: date,
     );
     final auditTypeOptions = controller.descriptionAuditTypeOptions(
       audit,
-      date: widget.date,
+      date: date,
     );
 
     return Container(

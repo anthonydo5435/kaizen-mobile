@@ -18,6 +18,7 @@ import '../models/audit_details_model.dart';
 import '../models/audit_evaluation_chart_model.dart';
 import '../models/audit_list_model.dart';
 import '../models/audit_main_list_model.dart';
+import '../models/certified_reports_page_model.dart';
 import '../models/description_comments_response_model.dart';
 import '../models/performance_report_model.dart';
 import '../models/quarterly_audit_model.dart';
@@ -310,43 +311,41 @@ class AuditRemoteDataSource {
     int? quarter,
     DateTime? startDate,
     DateTime? endDate,
-  }) {
+    bool forceRefresh = false,
+  }) async {
     final parameters = <String, dynamic>{};
     _appendValidProfileUuid(parameters, profile.profileUuid);
     if (startDate != null && endDate != null) {
-      parameters['start'] = CustomFunctions.apiDateString(date: startDate);
-      parameters['end'] = CustomFunctions.apiDateString(date: endDate);
+      parameters['from_date'] = CustomFunctions.apiDateString(date: startDate);
+      parameters['to_date'] = CustomFunctions.apiDateString(date: endDate);
     } else {
-      parameters['year'] = year;
-      parameters['quarter'] = quarter;
+      if (year != null) parameters['year'] = year;
+      if (quarter != null) parameters['quarter'] = quarter;
     }
 
-    return _apiCallExecutor.processApi<List<CertifiedReportOption>>(
-      apiCallType: ApiCallType.get,
-      endpoint: ApiEndPoints.auditReportCertifiedReports(profile.profileJob),
-      authToken: AppPreference.getAuthToken(),
-      headers: _karachiTimezoneHeader,
-      parameters: parameters,
-      decoder: (json) {
-        if (json is! List) {
-          throw const ApiError.invalidResponse();
-        }
+    final options = <CertifiedReportOption>[];
+    var requestedPage = 1;
+    while (true) {
+      final page = await _apiCallExecutor.processApi<CertifiedReportsPageModel>(
+        apiCallType: ApiCallType.get,
+        endpoint: ApiEndPoints.auditReportCertifiedReports(profile.profileJob),
+        authToken: AppPreference.getAuthToken(),
+        invalidateCacheBeforeRequest: forceRefresh,
+        headers: _karachiTimezoneHeader,
+        parameters: {...parameters, 'page': requestedPage},
+        decoder: CertifiedReportsPageModel.fromApiJson,
+      );
+      options.addAll(page.results);
+      final next = page.next;
+      if (next == null) return options;
 
-        final options = <CertifiedReportOption>[];
-        for (final item in json.whereType<Map>()) {
-          final map = Map<String, dynamic>.from(item);
-          final option = CertifiedReportOption(
-            uuid: map['uuid']?.toString().trim() ?? '',
-            displayName: map['display_name']?.toString().trim() ?? '',
-          );
-          if (option.uuid.isNotEmpty && option.displayName.isNotEmpty) {
-            options.add(option);
-          }
-        }
-
-        return options;
-      },
-    );
+      // Keep the endpoint and profile/date filters; use only the next page number.
+      final nextPage =
+          int.tryParse(Uri.tryParse(next)?.queryParameters['page'] ?? next) ??
+          page.current + 1;
+      if (nextPage <= requestedPage) throw const ApiError.invalidResponse();
+      requestedPage = nextPage;
+    }
   }
 
   Future<CertifiedReportDetail> getCertifiedReportDetail({
@@ -486,8 +485,21 @@ class AuditRemoteDataSource {
     required int year,
     required int quarter,
     String? profileUuid,
+    DateTime? startDate,
+    DateTime? endDate,
   }) {
-    final parameters = <String, dynamic>{'year': year, 'quarter': quarter};
+    final dateRange = CustomFunctions.currentQuarterDateRange(
+      date: DateTime(year, (quarter - 1) * 3 + 1),
+    );
+    final hasCustomRange = startDate != null && endDate != null;
+    final parameters = <String, dynamic>{
+      if (!hasCustomRange) 'year': year,
+      if (!hasCustomRange) 'quarter': quarter,
+      'start': CustomFunctions.apiDateString(
+        date: startDate ?? dateRange.start,
+      ),
+      'end': CustomFunctions.apiDateString(date: endDate ?? dateRange.end),
+    };
     _appendQuarterlyAuditProfile(parameters, profileUuid);
 
     return _apiCallExecutor.processApi<AuditDetailsModel>(
@@ -508,8 +520,17 @@ class AuditRemoteDataSource {
   Future<List<AuditEvaluationChartModel>> getAuditEvaluationChart({
     required String profileJobId,
     String? profileUuid,
+    DateTime? startDate,
+    DateTime? endDate,
   }) {
-    final parameters = <String, dynamic>{'time_range': 'current_quarter'};
+    final parameters = <String, dynamic>{
+      if (startDate == null || endDate == null)
+        'time_range': 'current_quarter'
+      else ...{
+        'start': CustomFunctions.apiDateString(date: startDate),
+        'end': CustomFunctions.apiDateString(date: endDate),
+      },
+    };
     _appendQuarterlyAuditProfile(parameters, profileUuid);
 
     return _apiCallExecutor.processApi<List<AuditEvaluationChartModel>>(
