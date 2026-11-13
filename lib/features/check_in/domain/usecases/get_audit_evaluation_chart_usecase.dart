@@ -9,10 +9,14 @@ class GetAuditEvaluationChartUseCase {
   Future<List<AuditEvaluationChart>> call({
     required String profileJobId,
     String? profileUuid,
+    DateTime? startDate,
+    DateTime? endDate,
   }) {
     return _repository.getAuditEvaluationChart(
       profileJobId: profileJobId,
       profileUuid: profileUuid,
+      startDate: startDate,
+      endDate: endDate,
     );
   }
 }
