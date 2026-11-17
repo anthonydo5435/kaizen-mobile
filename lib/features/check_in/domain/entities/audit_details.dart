@@ -15,6 +15,7 @@ class AuditDetails {
     required this.jobUuid,
     required this.jobTitle,
     required this.audits,
+    this.hasInconsistency = false,
   });
 
   final String uuid;
@@ -32,6 +33,7 @@ class AuditDetails {
   final String jobUuid;
   final String jobTitle;
   final List<AuditDetailItem> audits;
+  final bool hasInconsistency;
 }
 
 class AuditDetailsProfile {
@@ -41,6 +43,7 @@ class AuditDetailsProfile {
     required this.email,
     required this.image,
     required this.onboarded,
+    this.userUuid = '',
   });
 
   final String uuid;
@@ -48,6 +51,7 @@ class AuditDetailsProfile {
   final String email;
   final String? image;
   final bool onboarded;
+  final String userUuid;
 }
 
 class AuditDetailItem {

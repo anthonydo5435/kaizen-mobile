@@ -22,9 +22,11 @@ import '../../domain/entities/audit_member_status.dart';
 import '../../domain/entities/audit_profile.dart';
 import '../../domain/entities/performance_report.dart';
 import '../../domain/entities/quarterly_audit.dart';
+import '../../domain/entities/seat_audit.dart';
 import '../../domain/entities/seat_description_audit_report_comments.dart';
 import '../../domain/entities/seat_description_final_audit_report.dart';
 import '../../domain/entities/single_audit_report_category_details.dart';
+import '../../domain/entities/subordinate_profile_job.dart';
 import '../../domain/repositories/audit_repository.dart';
 import '../../domain/usecases/get_audit_details_usecase.dart';
 import '../../domain/usecases/get_audit_evaluation_chart_usecase.dart';
@@ -80,6 +82,13 @@ class CheckInController extends ChangeNotifier {
   int _detailsRequestGeneration = 0;
   int _evaluationChartRequestGeneration = 0;
   String? _detailsProfileJobId;
+  String? _detailsSeatId;
+  List<SubordinateProfileJob> _subordinateProfileJobs = const [];
+  String? _subordinateProfileJobsSeatId;
+  bool _isSubordinateProfileJobsLoading = false;
+  bool _hasLoadedSubordinateProfileJobs = false;
+  String? _subordinateProfileJobsError;
+  int _subordinateProfileJobsRequestGeneration = 0;
   CheckInDetailsPeriodMode _detailsPeriodMode =
       CheckInDetailsPeriodMode.quarter;
   DateTime? _detailsStartDate;
@@ -87,6 +96,7 @@ class CheckInController extends ChangeNotifier {
   bool _hasDetailsLoadError = false;
   bool _isDisposed = false;
   bool _isDescriptionsList = false;
+  bool _isGeneralSeatDescriptions = false;
   AuditProfile? _performanceReportProfile;
   CheckInState _state = const CheckInState();
   AuditMainList? _activeMainListCache;
@@ -106,11 +116,17 @@ class CheckInController extends ChangeNotifier {
   Map<String, String> _seatProfileJobUuids = const <String, String>{};
   String? _selectedSeatProfileJobUuid;
   bool _hasPendingMainListSearchRefresh = false;
+  bool _isMainListRefreshing = false;
+  int _mainListRefreshGeneration = 0;
   bool _hasPendingTeamMembersSearchRefresh = false;
   final Map<String, _CachedCertifiedReportPdfUrl> _certifiedReportPdfUrlCache =
       <String, _CachedCertifiedReportPdfUrl>{};
 
   CheckInState get state => _state;
+  List<SubordinateProfileJob> get subordinateProfileJobs =>
+      _subordinateProfileJobs;
+  bool get isSubordinateProfileJobsLoading => _isSubordinateProfileJobsLoading;
+  String? get subordinateProfileJobsError => _subordinateProfileJobsError;
   AuditProfile? get performanceReportProfile => _performanceReportProfile;
   String get descriptionSearchQuery => _descriptionSearchQuery;
   CheckInDescriptionsListFiltersState get descriptionFilters =>
@@ -710,6 +726,8 @@ class CheckInController extends ChangeNotifier {
 
   CheckInDetailsPeriodMode get detailsPeriodMode => _detailsPeriodMode;
   bool get hasDetailsLoadError => _hasDetailsLoadError;
+  bool get isGeneralSeatAudit =>
+      _detailsSeatId != null || _isGeneralSeatDescriptions;
 
   String get detailsDateRangeLabel {
     final range = detailsDateRange;
@@ -929,23 +947,32 @@ class CheckInController extends ChangeNotifier {
     }
   }
 
-  Future<void> refresh() async {
-    if (_isDisposed || _state.isLoading || _state.isLoadingMore) {
+  Future<void> refresh({bool showLoader = true}) async {
+    if (_isDisposed ||
+        _state.isLoading ||
+        _isMainListRefreshing ||
+        _state.isLoadingMore) {
       return;
     }
     _cancelPendingMainListSearchRefresh();
-    _clearMainListCaches(clearDefaultCaches: true);
-    await _refreshMainListSearchResults(showLoader: true, forceRefresh: true);
+    await _refreshMainListSearchResults(
+      showLoader: showLoader,
+      forceRefresh: true,
+    );
   }
 
   Future<void> loadNextPage() async {
     final currentList = _state.mainList;
     if (_state.isLoading ||
+        _isMainListRefreshing ||
         _state.isLoadingMore ||
         currentList == null ||
         currentList.next == null) {
       return;
     }
+
+    final generation = _mainListRefreshGeneration;
+    final requestKey = _mainListRequestKey;
 
     _state = _state.copyWith(isLoadingMore: true);
     notifyListeners();
@@ -956,6 +983,11 @@ class CheckInController extends ChangeNotifier {
         page: nextPage,
         pageSize: 12,
       );
+      if (_isDisposed ||
+          generation != _mainListRefreshGeneration ||
+          requestKey != _mainListRequestKey) {
+        return;
+      }
       final mergedList = AuditMainList(
         count: nextList.count,
         next: nextList.next,
@@ -973,6 +1005,11 @@ class CheckInController extends ChangeNotifier {
       _state = _state.copyWith(isLoadingMore: false, mainList: mergedList);
       notifyListeners();
     } catch (error) {
+      if (_isDisposed ||
+          generation != _mainListRefreshGeneration ||
+          requestKey != _mainListRequestKey) {
+        return;
+      }
       _state = _state.copyWith(isLoadingMore: false);
       notifyListeners();
       _logRecoverableError('loadNextPage', error);
@@ -1025,9 +1062,14 @@ class CheckInController extends ChangeNotifier {
     bool clearEvaluationCharts = true,
     String? profileUuid,
     bool preserveDetails = false,
+    String? seatId,
   }) async {
     final generation = ++_detailsRequestGeneration;
     _detailsProfileJobId = profileJobId;
+    if (!preserveDetails) _detailsSeatId = seatId;
+    if (!preserveDetails || _detailsSeatId != _subordinateProfileJobsSeatId) {
+      _resetSubordinateProfileJobs();
+    }
     _evaluationChartRequestGeneration++;
     try {
       final user = await AppPreference.getUser();
@@ -1064,24 +1106,37 @@ class CheckInController extends ChangeNotifier {
       notifyListeners();
 
       final getAuditDetailsUseCase = _getAuditDetailsUseCase;
-      if (profileJobId.trim().isEmpty || getAuditDetailsUseCase == null) {
+      if (isGeneralSeatAudit
+          ? _auditRepository == null || _detailsSeatId!.trim().isEmpty
+          : profileJobId.trim().isEmpty || getAuditDetailsUseCase == null) {
         _state = _state.copyWith(isLoading: false);
         notifyListeners();
         return;
       }
 
-      final details = await getAuditDetailsUseCase(
-        profileJobId: profileJobId,
-        year: resolvedYear,
-        quarter: resolvedQuarter,
-        profileUuid: profileUuid,
-        startDate: _detailsPeriodMode == CheckInDetailsPeriodMode.dateRange
-            ? detailsDateRange.start
-            : null,
-        endDate: _detailsPeriodMode == CheckInDetailsPeriodMode.dateRange
-            ? detailsDateRange.end
-            : null,
-      );
+      if (_detailsSeatId != null) {
+        unawaited(loadSubordinateProfileJobs());
+      }
+
+      final details = isGeneralSeatAudit
+          ? await _auditRepository!.getSeatAuditDetails(
+              seatId: _detailsSeatId!,
+              startDate: detailsDateRange.start,
+              endDate: detailsDateRange.end,
+            )
+          : await getAuditDetailsUseCase!(
+              profileJobId: profileJobId,
+              year: resolvedYear,
+              quarter: resolvedQuarter,
+              profileUuid: profileUuid,
+              startDate:
+                  _detailsPeriodMode == CheckInDetailsPeriodMode.dateRange
+                  ? detailsDateRange.start
+                  : null,
+              endDate: _detailsPeriodMode == CheckInDetailsPeriodMode.dateRange
+                  ? detailsDateRange.end
+                  : null,
+            );
       if (_isDisposed || generation != _detailsRequestGeneration) return;
       _state = _state.copyWith(
         isLoading: false,
@@ -1089,7 +1144,7 @@ class CheckInController extends ChangeNotifier {
         isSelfAudit: _isSelfAudit(details, user),
       );
       notifyListeners();
-      if (showGraph) {
+      if (showGraph && !isGeneralSeatAudit) {
         await refreshEvaluationChart(profileJobId, profileUuid: profileUuid);
       }
     } catch (error) {
@@ -1099,6 +1154,61 @@ class CheckInController extends ChangeNotifier {
       notifyListeners();
       _logRecoverableError('initializeDetails', error);
     }
+  }
+
+  void _resetSubordinateProfileJobs() {
+    _subordinateProfileJobsRequestGeneration++;
+    _subordinateProfileJobs = const [];
+    _subordinateProfileJobsSeatId = null;
+    _isSubordinateProfileJobsLoading = false;
+    _hasLoadedSubordinateProfileJobs = false;
+    _subordinateProfileJobsError = null;
+  }
+
+  Future<void> loadSubordinateProfileJobs({bool forceRefresh = false}) async {
+    final seatId = _detailsSeatId?.trim();
+    final repository = _auditRepository;
+    if (_isDisposed || seatId == null || seatId.isEmpty || repository == null) {
+      return;
+    }
+    if (!forceRefresh &&
+        _subordinateProfileJobsSeatId == seatId &&
+        (_isSubordinateProfileJobsLoading ||
+            _hasLoadedSubordinateProfileJobs)) {
+      return;
+    }
+    final generation = ++_subordinateProfileJobsRequestGeneration;
+    if (_subordinateProfileJobsSeatId != seatId) {
+      _subordinateProfileJobs = const [];
+    }
+    _subordinateProfileJobsSeatId = seatId;
+    _isSubordinateProfileJobsLoading = true;
+    _subordinateProfileJobsError = null;
+    notifyListeners();
+    try {
+      final profiles = await repository.getSubordinateProfileJobs(
+        seatId: seatId,
+        forceRefresh: forceRefresh,
+      );
+      if (_isDisposed ||
+          generation != _subordinateProfileJobsRequestGeneration) {
+        return;
+      }
+      _subordinateProfileJobs = List<SubordinateProfileJob>.unmodifiable(
+        profiles,
+      );
+      _hasLoadedSubordinateProfileJobs = true;
+    } catch (error) {
+      if (_isDisposed ||
+          generation != _subordinateProfileJobsRequestGeneration) {
+        return;
+      }
+      _subordinateProfileJobsError =
+          AppStrings.auditSubordinateProfilesLoadError;
+      _logRecoverableError('loadSubordinateProfileJobs', error);
+    }
+    _isSubordinateProfileJobsLoading = false;
+    notifyListeners();
   }
 
   Future<void> showEvaluationChart(
@@ -1194,8 +1304,10 @@ class CheckInController extends ChangeNotifier {
     int? year,
     int? quarter,
     bool? isSelfAudit,
+    bool isGeneralSeatAudit = false,
   }) async {
     _isDescriptionsList = true;
+    _isGeneralSeatDescriptions = isGeneralSeatAudit;
     final generation = ++_singleAuditDetailsGeneration;
     descriptionSearchController.clear();
     _descriptionSearchQuery = '';
@@ -1241,7 +1353,7 @@ class CheckInController extends ChangeNotifier {
         return;
       }
 
-      final teamMembersFuture = isOwner
+      final teamMembersFuture = isOwner && !isGeneralSeatAudit
           ? _loadTeamMembers(page: 1, pageSize: _teamMembersScreenPageSize)
           : null;
       final quarterlyAudit = await getQuarterlyAuditUseCase(
@@ -1294,12 +1406,36 @@ class CheckInController extends ChangeNotifier {
 
   Future<String?> selectSingleAuditMember(AuditProfile member) async {
     final currentAudit = _state.quarterlyAudit;
-    final quarterlyAuditId = member.uuid.trim();
+    if (!_state.isOwner || currentAudit == null) return null;
+    return _selectSingleAudit(
+      quarterlyAuditId: member.uuid.trim(),
+      isCurrentSelection: isCurrentAuditMember(currentAudit, member),
+    );
+  }
+
+  bool isCurrentAuditSeat(SeatAudit seat) {
+    final audit = _state.quarterlyAudit;
+    if (audit == null) return false;
+    return (seat.job.uuid.isNotEmpty && seat.job.uuid == audit.jobUuid) ||
+        (seat.uuid.isNotEmpty && seat.uuid == audit.uuid);
+  }
+
+  Future<String?> selectSingleAuditSeat(SeatAudit seat) async {
+    if (!_isGeneralSeatDescriptions) return null;
+    return _selectSingleAudit(
+      quarterlyAuditId: seat.uuid.trim(),
+      isCurrentSelection: isCurrentAuditSeat(seat),
+    );
+  }
+
+  Future<String?> _selectSingleAudit({
+    required String quarterlyAuditId,
+    required bool isCurrentSelection,
+  }) async {
     final getQuarterlyAudit = _getQuarterlyAuditUseCase;
     if (_isDisposed ||
-        !_state.isOwner ||
-        currentAudit == null ||
-        isCurrentAuditMember(currentAudit, member) ||
+        _state.quarterlyAudit == null ||
+        isCurrentSelection ||
         quarterlyAuditId.isEmpty ||
         getQuarterlyAudit == null) {
       return null;
@@ -1402,6 +1538,7 @@ class CheckInController extends ChangeNotifier {
               description.hasAudit ||
               (counts?.values.any((count) => count > 0) ?? false),
           counts: counts ?? const {},
+          isMirror: description.isMirror || descriptionAudit.isMirror,
         ),
       );
       notifyListeners();
@@ -1473,6 +1610,44 @@ class CheckInController extends ChangeNotifier {
     );
   }
 
+  Future<List<SubordinateProfileJob>> loadDescriptionAssignmentMembers({
+    required String seatId,
+  }) {
+    final repository = _auditRepository;
+    if (repository == null) {
+      throw StateError('AuditRepository is not configured.');
+    }
+    return repository.getSubordinateProfileJobs(seatId: seatId);
+  }
+
+  void markDescriptionAsMirror({
+    required String quarterlyAuditId,
+    required String descriptionId,
+    required String date,
+  }) {
+    final audit = _state.quarterlyAudit;
+    if (_isDisposed ||
+        audit == null ||
+        audit.uuid != quarterlyAuditId ||
+        _state.quarterlyAuditDate != date) {
+      return;
+    }
+    final description = audit.descriptions
+        .where((description) => description.uuid == descriptionId)
+        .firstOrNull;
+    if (description == null || description.isMirror) return;
+    _state = _state.copyWith(
+      quarterlyAudit: audit.withDescriptionRatingCounts(
+        descriptionId: descriptionId,
+        auditId: description.auditUuid,
+        counts: const {},
+        hasAudit: description.hasAudit,
+        isMirror: true,
+      ),
+    );
+    notifyListeners();
+  }
+
   Future<AuditDescriptionAudit> submitAuditDescriptionSelection({
     required String quarterlyAuditId,
     required String seatDescriptionId,
@@ -1507,6 +1682,20 @@ class CheckInController extends ChangeNotifier {
       notifyListeners();
     }
     return response;
+  }
+
+  Future<void> assignAuditDescription({
+    required String descriptionId,
+    required List<String> profileJobIds,
+  }) {
+    final submit = _submitDescriptionAuditUseCase;
+    if (submit == null) {
+      throw StateError('AuditRepository is not configured.');
+    }
+    return submit.assign(
+      descriptionId: descriptionId,
+      profileJobIds: profileJobIds,
+    );
   }
 
   Future<List<AuditList>> loadAuditReport({
@@ -1769,12 +1958,35 @@ class CheckInController extends ChangeNotifier {
     notifyListeners();
   }
 
-  Future<void> selectStatus(AuditMemberStatus status) async {
+  Future<void> selectStatus(
+    AuditMemberStatus status, {
+    bool refresh = false,
+  }) async {
     if (_state.selectedStatus == status) {
+      if (refresh) await this.refresh(showLoader: false);
       return;
     }
 
     _cancelPendingMainListSearchRefresh();
+
+    if (refresh) {
+      final cachedList = _state.isActualOwner
+          ? _state.mainList
+          : _cachedListFor(status) ??
+                (!_hasMainListSearchQuery()
+                    ? _defaultCachedListFor(status)
+                    : null);
+      _state = _state.copyWith(
+        selectedStatus: status,
+        mainList: cachedList,
+        clearMainList: cachedList == null,
+      );
+      await _refreshMainListSearchResults(
+        showLoader: cachedList == null,
+        forceRefresh: true,
+      );
+      return;
+    }
 
     _state = _state.copyWith(
       selectedStatus: status,
@@ -2845,7 +3057,7 @@ class CheckInController extends ChangeNotifier {
   }
 
   Future<void> _runDebouncedMainListSearchRefresh() async {
-    if (_state.isLoading || _state.isLoadingMore) {
+    if (_state.isLoading || _isMainListRefreshing || _state.isLoadingMore) {
       _hasPendingMainListSearchRefresh = true;
       return;
     }
@@ -2858,8 +3070,19 @@ class CheckInController extends ChangeNotifier {
     required bool showLoader,
     bool forceRefresh = false,
   }) async {
+    final generation = ++_mainListRefreshGeneration;
     final requestKey = _mainListRequestKey;
-    _clearMainListCaches();
+    if (forceRefresh) {
+      // A later cleared search must not restore data from before this refresh.
+      if (_state.selectedStatus == AuditMemberStatus.deactivated) {
+        _defaultMyCheckInMainListCache = null;
+      } else {
+        _defaultActiveMainListCache = null;
+      }
+    } else {
+      _clearMainListCaches();
+    }
+    _isMainListRefreshing = true;
 
     _state = _state.copyWith(isLoading: showLoader, isLoadingMore: false);
     notifyListeners();
@@ -2870,12 +3093,14 @@ class CheckInController extends ChangeNotifier {
         pageSize: 12,
         forceRefresh: forceRefresh,
       );
-      if (_isDisposed) {
+      if (_isDisposed || generation != _mainListRefreshGeneration) {
         return;
       }
       if (requestKey != _mainListRequestKey) {
-        _state = _state.copyWith(isLoading: false, isLoadingMore: false);
-        notifyListeners();
+        if (showLoader) {
+          _state = _state.copyWith(isLoading: false, isLoadingMore: false);
+          notifyListeners();
+        }
         return;
       }
 
@@ -2891,12 +3116,14 @@ class CheckInController extends ChangeNotifier {
       );
       notifyListeners();
     } catch (error) {
-      if (_isDisposed) {
+      if (_isDisposed || generation != _mainListRefreshGeneration) {
         return;
       }
       if (requestKey != _mainListRequestKey) {
-        _state = _state.copyWith(isLoading: false, isLoadingMore: false);
-        notifyListeners();
+        if (showLoader) {
+          _state = _state.copyWith(isLoading: false, isLoadingMore: false);
+          notifyListeners();
+        }
         return;
       }
 
@@ -2904,7 +3131,8 @@ class CheckInController extends ChangeNotifier {
       notifyListeners();
       _logRecoverableError('refreshMainListSearchResults', error);
     } finally {
-      if (!_isDisposed) {
+      if (!_isDisposed && generation == _mainListRefreshGeneration) {
+        _isMainListRefreshing = false;
         _flushPendingMainListSearchRefresh();
       }
     }
@@ -2913,6 +3141,7 @@ class CheckInController extends ChangeNotifier {
   void _flushPendingMainListSearchRefresh() {
     if (!_hasPendingMainListSearchRefresh ||
         _state.isLoading ||
+        _isMainListRefreshing ||
         _state.isLoadingMore) {
       return;
     }

@@ -60,14 +60,133 @@ class CheckInDetailsPeriodControls extends StatelessWidget {
 
   Widget _buildSelector(BuildContext context) {
     final isQuarter = mode == CheckInDetailsPeriodMode.quarter;
-    final contentHeight = math.max(24.0, MediaQuery.textScalerOf(context).scale(12) * 1.4 + 6);
+    if (isQuarter) {
+      return CheckInQuarterSelector(
+        year: year,
+        quarter: quarter,
+        yearOptions: yearOptions,
+        onChanged: onQuarterChanged,
+      );
+    }
+    return Semantics(
+      button: true,
+      child: InkWell(
+        key: const ValueKey('check-in-details-date-range'),
+        onTap: onDateRangePressed,
+        borderRadius: BorderRadius.circular(12),
+        child: _PeriodSelectorField(
+          label: AppStrings.auditDateRange,
+          value: dateRangeLabel,
+          icon: Icons.calendar_month_outlined,
+        ),
+      ),
+    );
+  }
+}
+
+class CheckInQuarterSelector extends StatelessWidget {
+  const CheckInQuarterSelector({
+    super.key,
+    required this.year,
+    required this.quarter,
+    required this.yearOptions,
+    required this.onChanged,
+    this.allowWrapping = false,
+  });
+
+  final int year;
+  final int quarter;
+  final List<int> yearOptions;
+  final ValueChanged<String?> onChanged;
+  final bool allowWrapping;
+
+  @override
+  Widget build(BuildContext context) {
+    return _QuarterSelectorMenu(
+      year: year,
+      quarter: quarter,
+      yearOptions: yearOptions,
+      onChanged: onChanged,
+      child: _PeriodSelectorField(
+        label: AppStrings.auditSelectYearQuarter,
+        value: AppStrings.auditQuarterPeriodLabel(year, quarter),
+        icon: Icons.arrow_drop_down,
+        allowWrapping: allowWrapping,
+      ),
+    );
+  }
+}
+
+class _PeriodSelectorField extends StatelessWidget {
+  const _PeriodSelectorField({
+    required this.label,
+    required this.value,
+    required this.icon,
+    this.allowWrapping = false,
+  });
+
+  final String label;
+  final String value;
+  final IconData icon;
+  final bool allowWrapping;
+
+  static const _labelStyle = TextStyle(
+    color: AppColors.textSecondary,
+    fontSize: 11,
+  );
+
+  @override
+  Widget build(BuildContext context) {
+    if (!allowWrapping) return _buildField(context);
+    return LayoutBuilder(
+      builder: (context, constraints) {
+        final painter = TextPainter(
+          text: TextSpan(
+            text: label,
+            style: DefaultTextStyle.of(context).style.merge(_labelStyle),
+          ),
+          textScaler: MediaQuery.textScalerOf(context),
+          textDirection: Directionality.of(context),
+          maxLines: 1,
+        )..layout();
+        // Outlined inputs scale floating labels to 75% of their text size.
+        final labelNeedsOwnLine =
+            painter.width * 0.75 > constraints.maxWidth - 20;
+        painter.dispose();
+        final field = _buildField(
+          context,
+          showFloatingLabel: !labelNeedsOwnLine,
+        );
+        if (!labelNeedsOwnLine) return field;
+        return Column(
+          crossAxisAlignment: CrossAxisAlignment.stretch,
+          children: [
+            AppTextView.body2(
+              label,
+              color: AppColors.textSecondary,
+              fontSize: 11,
+              height: 1.4,
+            ),
+            const SizedBox(height: 6),
+            field,
+          ],
+        );
+      },
+    );
+  }
+
+  Widget _buildField(BuildContext context, {bool showFloatingLabel = true}) {
+    final contentHeight = math.max(
+      24.0,
+      MediaQuery.textScalerOf(context).scale(12) * 1.4 + 6,
+    );
     final border = OutlineInputBorder(
       borderRadius: BorderRadius.circular(12),
       borderSide: const BorderSide(color: AppColors.textPrimary),
     );
     final decoration = InputDecoration(
-      labelText: isQuarter ? AppStrings.auditSelectYearQuarter : AppStrings.auditDateRange,
-      labelStyle: const TextStyle(color: AppColors.textSecondary, fontSize: 11),
+      labelText: showFloatingLabel ? label : null,
+      labelStyle: _labelStyle,
       floatingLabelBehavior: FloatingLabelBehavior.always,
       isDense: true,
       contentPadding: const EdgeInsets.symmetric(horizontal: 10, vertical: 8),
@@ -78,44 +197,29 @@ class CheckInDetailsPeriodControls extends StatelessWidget {
       children: [
         Expanded(
           child: AppTextView.body(
-            isQuarter ? AppStrings.auditQuarterPeriodLabel(year, quarter) : dateRangeLabel,
+            value,
             fontSize: 12,
             height: 1.4,
             color: AppColors.textPrimary,
-            maxLines: 1,
-            overflow: TextOverflow.ellipsis,
+            maxLines: allowWrapping ? null : 1,
+            overflow: allowWrapping
+                ? TextOverflow.visible
+                : TextOverflow.ellipsis,
           ),
         ),
         const SizedBox(width: 8),
-        Icon(
-          isQuarter ? Icons.arrow_drop_down : Icons.calendar_month_outlined,
-          color: AppColors.textPrimary,
-          size: 20,
-        ),
+        Icon(icon, color: AppColors.textPrimary, size: 20),
       ],
     );
-    final field = InputDecorator(
+    return InputDecorator(
       key: const ValueKey('check-in-details-period-selector'),
       decoration: decoration,
-      child: SizedBox(height: contentHeight, child: content),
-    );
-    if (isQuarter) {
-      return _QuarterSelectorMenu(
-        year: year,
-        quarter: quarter,
-        yearOptions: yearOptions,
-        onChanged: onQuarterChanged,
-        child: field,
-      );
-    }
-    return Semantics(
-      button: true,
-      child: InkWell(
-        key: const ValueKey('check-in-details-date-range'),
-        onTap: onDateRangePressed,
-        borderRadius: BorderRadius.circular(12),
-        child: field,
-      ),
+      child: allowWrapping
+          ? ConstrainedBox(
+              constraints: BoxConstraints(minHeight: contentHeight),
+              child: content,
+            )
+          : SizedBox(height: contentHeight, child: content),
     );
   }
 }
@@ -158,100 +262,141 @@ class _QuarterSelectorMenuState extends State<_QuarterSelectorMenu> {
   @override
   Widget build(BuildContext context) {
     return LayoutBuilder(
-      builder: (context, constraints) => ValueListenableBuilder<({int year, bool choosingYear})>(
-        valueListenable: _selection,
-        builder: (context, selection, _) => MenuAnchor(
-          controller: _menuController,
-          crossAxisUnconstrained: false,
-          style: MenuStyle(
-            backgroundColor: const WidgetStatePropertyAll(AppColors.surfaceDark3),
-            surfaceTintColor: const WidgetStatePropertyAll(Colors.transparent),
-            minimumSize: WidgetStatePropertyAll(Size(constraints.maxWidth, 0)),
-            maximumSize: WidgetStatePropertyAll(Size(constraints.maxWidth, double.infinity)),
-            padding: const WidgetStatePropertyAll(EdgeInsets.all(8)),
-            shape: WidgetStatePropertyAll(
-              RoundedRectangleBorder(borderRadius: BorderRadius.circular(12)),
-            ),
-          ),
-          menuChildren: [
-            MenuItemButton(
-              key: const ValueKey('check-in-quarter-year-header'),
-              closeOnActivate: false,
-              style: _optionStyle(false, constraints.maxWidth),
-              onPressed: () =>
-                  _selection.value = (year: selection.year, choosingYear: !selection.choosingYear),
-              trailingIcon: Icon(
-                selection.choosingYear ? Icons.arrow_drop_up : Icons.arrow_drop_down,
-                color: AppColors.textPrimary,
-                size: 20,
-              ),
-              child: AppTextView.body(
-                '${selection.year}',
-                fontSize: 14,
-                color: AppColors.textPrimary,
-                fontWeight: FontWeight.w600,
-              ),
-            ),
-            Divider(height: 12, color: AppColors.fieldBorder.withValues(alpha: 0.35)),
-            if (selection.choosingYear)
-              ...widget.yearOptions.map(
-                (year) => MenuItemButton(
-                  key: ValueKey('check-in-quarter-year-$year'),
-                  closeOnActivate: false,
-                  style: _optionStyle(year == selection.year, constraints.maxWidth),
-                  onPressed: () => _selection.value = (year: year, choosingYear: false),
-                  child: AppTextView.body('$year', fontSize: 12, color: AppColors.textPrimary),
+      builder: (context, constraints) =>
+          ValueListenableBuilder<({int year, bool choosingYear})>(
+            valueListenable: _selection,
+            builder: (context, selection, _) => MenuAnchor(
+              controller: _menuController,
+              crossAxisUnconstrained: false,
+              style: MenuStyle(
+                backgroundColor: const WidgetStatePropertyAll(
+                  AppColors.surfaceDark3,
                 ),
-              )
-            else
-              ...List.generate(4, (index) {
-                final quarter = index + 1;
-                final selected = selection.year == widget.year && quarter == widget.quarter;
-                return MenuItemButton(
-                  key: ValueKey('check-in-quarter-option-${selection.year}-$quarter'),
-                  style: _optionStyle(selected, constraints.maxWidth),
-                  onPressed: () => widget.onChanged('${selection.year} - Q$quarter'),
-                  child: AppTextView.body(
-                    AppStrings.auditQuarterOptionLabel(quarter),
-                    fontSize: 12,
-                    color: AppColors.textPrimary,
-                    fontWeight: selected ? FontWeight.w600 : FontWeight.w400,
+                surfaceTintColor: const WidgetStatePropertyAll(
+                  Colors.transparent,
+                ),
+                minimumSize: WidgetStatePropertyAll(
+                  Size(constraints.maxWidth, 0),
+                ),
+                maximumSize: WidgetStatePropertyAll(
+                  Size(constraints.maxWidth, double.infinity),
+                ),
+                padding: const WidgetStatePropertyAll(EdgeInsets.all(8)),
+                shape: WidgetStatePropertyAll(
+                  RoundedRectangleBorder(
+                    borderRadius: BorderRadius.circular(12),
                   ),
-                );
-              }),
-          ],
-          builder: (context, controller, _) => Semantics(
-            button: true,
-            child: InkWell(
-              key: const ValueKey('check-in-details-quarter-selector'),
-              borderRadius: BorderRadius.circular(12),
-              onTap: () {
-                if (controller.isOpen) {
-                  controller.close();
-                } else {
-                  _selection.value = (year: widget.year, choosingYear: false);
-                  controller.open();
-                }
-              },
-              child: widget.child,
+                ),
+              ),
+              menuChildren: [
+                MenuItemButton(
+                  key: const ValueKey('check-in-quarter-year-header'),
+                  closeOnActivate: false,
+                  style: _optionStyle(false, constraints.maxWidth),
+                  onPressed: () => _selection.value = (
+                    year: selection.year,
+                    choosingYear: !selection.choosingYear,
+                  ),
+                  trailingIcon: Icon(
+                    selection.choosingYear
+                        ? Icons.arrow_drop_up
+                        : Icons.arrow_drop_down,
+                    color: AppColors.textPrimary,
+                    size: 20,
+                  ),
+                  child: AppTextView.body(
+                    '${selection.year}',
+                    fontSize: 14,
+                    color: AppColors.textPrimary,
+                    fontWeight: FontWeight.w600,
+                  ),
+                ),
+                Divider(
+                  height: 12,
+                  color: AppColors.fieldBorder.withValues(alpha: 0.35),
+                ),
+                if (selection.choosingYear)
+                  ...widget.yearOptions.map(
+                    (year) => MenuItemButton(
+                      key: ValueKey('check-in-quarter-year-$year'),
+                      closeOnActivate: false,
+                      style: _optionStyle(
+                        year == selection.year,
+                        constraints.maxWidth,
+                      ),
+                      onPressed: () =>
+                          _selection.value = (year: year, choosingYear: false),
+                      child: AppTextView.body(
+                        '$year',
+                        fontSize: 12,
+                        color: AppColors.textPrimary,
+                      ),
+                    ),
+                  )
+                else
+                  ...List.generate(4, (index) {
+                    final quarter = index + 1;
+                    final selected =
+                        selection.year == widget.year &&
+                        quarter == widget.quarter;
+                    return MenuItemButton(
+                      key: ValueKey(
+                        'check-in-quarter-option-${selection.year}-$quarter',
+                      ),
+                      style: _optionStyle(selected, constraints.maxWidth),
+                      onPressed: () =>
+                          widget.onChanged('${selection.year} - Q$quarter'),
+                      child: AppTextView.body(
+                        AppStrings.auditQuarterOptionLabel(quarter),
+                        fontSize: 12,
+                        color: AppColors.textPrimary,
+                        fontWeight: selected
+                            ? FontWeight.w600
+                            : FontWeight.w400,
+                      ),
+                    );
+                  }),
+              ],
+              builder: (context, controller, _) => Semantics(
+                button: true,
+                child: InkWell(
+                  key: const ValueKey('check-in-details-quarter-selector'),
+                  borderRadius: BorderRadius.circular(12),
+                  onTap: () {
+                    if (controller.isOpen) {
+                      controller.close();
+                    } else {
+                      _selection.value = (
+                        year: widget.year,
+                        choosingYear: false,
+                      );
+                      controller.open();
+                    }
+                  },
+                  child: widget.child,
+                ),
+              ),
             ),
           ),
-        ),
-      ),
     );
   }
 
   ButtonStyle _optionStyle(bool selected, double menuWidth) => ButtonStyle(
     backgroundColor: WidgetStateProperty.resolveWith((states) {
       if (selected) return AppColors.secondaryColor;
-      if (states.contains(WidgetState.hovered) || states.contains(WidgetState.focused)) {
+      if (states.contains(WidgetState.hovered) ||
+          states.contains(WidgetState.focused)) {
         return AppColors.surfaceDark1;
       }
       return Colors.transparent;
     }),
     minimumSize: WidgetStatePropertyAll(Size(menuWidth - 16, 40)),
-    padding: const WidgetStatePropertyAll(EdgeInsets.symmetric(horizontal: 12, vertical: 10)),
-    shape: WidgetStatePropertyAll(RoundedRectangleBorder(borderRadius: BorderRadius.circular(8))),
+    padding: const WidgetStatePropertyAll(
+      EdgeInsets.symmetric(horizontal: 12, vertical: 10),
+    ),
+    shape: WidgetStatePropertyAll(
+      RoundedRectangleBorder(borderRadius: BorderRadius.circular(8)),
+    ),
   );
 }
 
@@ -265,7 +410,10 @@ class _PeriodModeToggle extends StatelessWidget {
   Widget build(BuildContext context) {
     return Container(
       padding: const EdgeInsets.all(3),
-      decoration: BoxDecoration(color: AppColors.cardBg, borderRadius: BorderRadius.circular(10)),
+      decoration: BoxDecoration(
+        color: AppColors.cardBg,
+        borderRadius: BorderRadius.circular(10),
+      ),
       child: Row(
         mainAxisSize: MainAxisSize.min,
         children: CheckInDetailsPeriodMode.values
@@ -276,7 +424,9 @@ class _PeriodModeToggle extends StatelessWidget {
                 selected: selected,
                 inMutuallyExclusiveGroup: true,
                 button: true,
-                label: isQuarter ? AppStrings.auditQuarter : AppStrings.auditDateRange,
+                label: isQuarter
+                    ? AppStrings.auditQuarter
+                    : AppStrings.auditDateRange,
                 child: Material(
                   color: Colors.transparent,
                   child: Ink(
@@ -284,7 +434,10 @@ class _PeriodModeToggle extends StatelessWidget {
                       borderRadius: BorderRadius.circular(8),
                       gradient: selected
                           ? const LinearGradient(
-                              colors: [AppColors.secondaryColor, AppColors.purple1],
+                              colors: [
+                                AppColors.secondaryColor,
+                                AppColors.purple1,
+                              ],
                             )
                           : null,
                     ),
@@ -292,9 +445,14 @@ class _PeriodModeToggle extends StatelessWidget {
                       onTap: () => onChanged(value),
                       borderRadius: BorderRadius.circular(8),
                       child: Padding(
-                        padding: const EdgeInsets.symmetric(horizontal: 10, vertical: 5),
+                        padding: const EdgeInsets.symmetric(
+                          horizontal: 10,
+                          vertical: 5,
+                        ),
                         child: AppTextView.body(
-                          isQuarter ? AppStrings.auditQuarterMode : AppStrings.auditDateRangeMode,
+                          isQuarter
+                              ? AppStrings.auditQuarterMode
+                              : AppStrings.auditDateRangeMode,
                           fontSize: 12,
                           color: AppColors.textPrimary,
                           fontWeight: FontWeight.w500,

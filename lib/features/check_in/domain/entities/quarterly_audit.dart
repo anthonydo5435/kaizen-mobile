@@ -34,6 +34,7 @@ class QuarterlyAudit {
     required String auditId,
     required Map<String, int> counts,
     bool hasAudit = true,
+    bool? isMirror,
   }) {
     if (!descriptions.any((description) => description.uuid == descriptionId)) {
       return this;
@@ -58,6 +59,7 @@ class QuarterlyAudit {
                     auditId: auditId,
                     counts: counts,
                     hasAudit: hasAudit,
+                    isMirror: isMirror,
                   )
                 : description,
           )
@@ -121,11 +123,12 @@ class QuarterlyAuditDescription {
     required String auditId,
     required Map<String, int> counts,
     bool hasAudit = true,
+    bool? isMirror,
   }) {
     return QuarterlyAuditDescription(
       uuid: uuid,
       category: category,
-      isMirror: isMirror,
+      isMirror: isMirror ?? this.isMirror,
       description: description,
       jobSpecifics: jobSpecifics,
       trainingRoute: trainingRoute,

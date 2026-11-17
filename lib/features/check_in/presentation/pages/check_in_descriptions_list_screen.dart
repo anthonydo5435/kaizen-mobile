@@ -12,11 +12,14 @@ import 'package:sparrowkaizen/features/check_in/data/datasources/audit_remote_da
 import 'package:sparrowkaizen/features/check_in/data/repositories/audit_repository_impl.dart';
 import 'package:sparrowkaizen/features/check_in/domain/entities/audit_profile.dart';
 import 'package:sparrowkaizen/features/check_in/domain/entities/quarterly_audit.dart';
+import 'package:sparrowkaizen/features/check_in/domain/entities/seat_audit.dart';
 import 'package:sparrowkaizen/features/check_in/domain/usecases/get_audit_overview_usecase.dart';
 import 'package:sparrowkaizen/features/check_in/domain/usecases/get_quarterly_audit_usecase.dart';
 import 'package:sparrowkaizen/features/check_in/presentation/providers/check_in_controller.dart';
 
 import '../widgets/check_in_description_card.dart';
+import '../widgets/check_in_seat_profile_switcher.dart';
+import '../providers/general_seats_controller.dart';
 
 import 'View_all_team_members.dart';
 import 'check_in_single_description.dart';
@@ -31,6 +34,7 @@ class CheckInDescriptionsListScreen extends StatelessWidget {
     this.quarter,
     this.requireDescriptionSelection = false,
     this.isSelfAudit = false,
+    this.isGeneralSeatAudit = false,
   });
 
   final String quarterlyAuditId;
@@ -40,6 +44,7 @@ class CheckInDescriptionsListScreen extends StatelessWidget {
   final int? quarter;
   final bool requireDescriptionSelection;
   final bool isSelfAudit;
+  final bool isGeneralSeatAudit;
 
   @override
   Widget build(BuildContext context) {
@@ -77,11 +82,22 @@ class CheckInDescriptionsListScreen extends StatelessWidget {
                 year: year,
                 quarter: quarter,
                 isSelfAudit: isSelfAudit,
+                isGeneralSeatAudit: isGeneralSeatAudit,
               ),
         ),
+        if (isGeneralSeatAudit)
+          ChangeNotifierProvider<GeneralSeatsController>(
+            create: (context) => GeneralSeatsController(
+              context.read<AuditRepositoryImpl>(),
+              pageSize: 10,
+              filterByPeriod: false,
+            )..initialize(),
+          ),
       ],
       child: _CheckInDescriptionsListView(
-        key: ValueKey('$quarterlyAuditId|$date|$lastAuditDate|$year|$quarter'),
+        key: ValueKey(
+          '$quarterlyAuditId|$date|$lastAuditDate|$year|$quarter|$isGeneralSeatAudit',
+        ),
         quarterlyAuditId: quarterlyAuditId,
         date: date,
         lastAuditDate: lastAuditDate,
@@ -89,6 +105,7 @@ class CheckInDescriptionsListScreen extends StatelessWidget {
         quarter: quarter,
         requireDescriptionSelection: requireDescriptionSelection,
         isSelfAudit: isSelfAudit,
+        isGeneralSeatAudit: isGeneralSeatAudit,
       ),
     );
   }
@@ -104,6 +121,7 @@ class _CheckInDescriptionsListView extends StatefulWidget {
     this.quarter,
     required this.requireDescriptionSelection,
     required this.isSelfAudit,
+    required this.isGeneralSeatAudit,
   });
 
   final String date;
@@ -113,6 +131,7 @@ class _CheckInDescriptionsListView extends StatefulWidget {
   final int? quarter;
   final bool requireDescriptionSelection;
   final bool isSelfAudit;
+  final bool isGeneralSeatAudit;
 
   @override
   State<_CheckInDescriptionsListView> createState() =>
@@ -132,7 +151,8 @@ class _CheckInDescriptionsListViewState
         oldWidget.quarter != widget.quarter ||
         oldWidget.requireDescriptionSelection !=
             widget.requireDescriptionSelection ||
-        oldWidget.isSelfAudit != widget.isSelfAudit;
+        oldWidget.isSelfAudit != widget.isSelfAudit ||
+        oldWidget.isGeneralSeatAudit != widget.isGeneralSeatAudit;
     if (!didIdentityChange) {
       return;
     }
@@ -148,6 +168,7 @@ class _CheckInDescriptionsListViewState
         year: widget.year,
         quarter: widget.quarter,
         isSelfAudit: widget.isSelfAudit,
+        isGeneralSeatAudit: widget.isGeneralSeatAudit,
       );
     });
   }
@@ -192,7 +213,12 @@ class _CheckInDescriptionsListViewState
                         audit,
                         state.quarterlyAuditDate ?? widget.date,
                       ),
-                      if (state.isOwner && members.isNotEmpty) ...[
+                      if (widget.isGeneralSeatAudit) ...[
+                        const SizedBox(height: 18),
+                        CheckInSeatProfileSwitcher(
+                          onSelected: _openSelectedSeat,
+                        ),
+                      ] else if (state.isOwner && members.isNotEmpty) ...[
                         const SizedBox(height: 18),
                         _buildTeamMembersSection(context, audit, members),
                       ],
@@ -362,6 +388,17 @@ class _CheckInDescriptionsListViewState
     }
   }
 
+  Future<void> _openSelectedSeat(SeatAudit seat) async {
+    final errorMessage = await context
+        .read<CheckInController>()
+        .selectSingleAuditSeat(seat);
+    if (mounted && errorMessage != null) {
+      ScaffoldMessenger.of(
+        context,
+      ).showSnackBar(SnackBar(content: AppTextView.body(errorMessage)));
+    }
+  }
+
   Future<void> _openDescriptionDetails(
     BuildContext context,
     QuarterlyAudit audit,
@@ -390,6 +427,7 @@ class _CheckInDescriptionsListViewState
             isOwner: auditController.state.isOwner,
             isViewOnly: audit.isMismatch,
             isSelfAudit: auditController.state.isSelfAudit,
+            isGeneralSeatAudit: auditController.isGeneralSeatAudit,
             initialRatingCounts: initialRatingCounts,
           ),
         ),
@@ -628,6 +666,7 @@ class _CheckInDescriptionsListViewState
                             .state
                             .isOwner,
                         isSelfAudit: controller.state.isSelfAudit,
+                        isGeneralSeatAudit: controller.isGeneralSeatAudit,
                         onOpenDetails: (initialRatingCounts) =>
                             _openDescriptionDetails(
                               context,

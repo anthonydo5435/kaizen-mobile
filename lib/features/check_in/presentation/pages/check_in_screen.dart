@@ -1,3 +1,5 @@
+import 'dart:async';
+
 import 'package:flutter/material.dart';
 import 'package:provider/provider.dart';
 import 'package:sparrowkaizen/core/widgets/fast_circular_progress.dart';
@@ -5,6 +7,7 @@ import 'package:sparrowkaizen/core/widgets/fast_circular_progress.dart';
 import '../../../../core/constants/app_colors.dart';
 import '../../../../core/constants/app_strings.dart';
 import '../../../../core/navigation/app_menu_type.dart';
+import '../../../../core/navigation/main_navigation_controller.dart';
 import '../../../../core/widgets/app_text_view.dart';
 import '../../../../core/widgets/drawer_main_screen.dart';
 import '../../../../routes/app_router.dart';
@@ -13,12 +16,15 @@ import '../../data/repositories/audit_repository_impl.dart';
 import '../../domain/entities/audit_member_status.dart';
 import '../../domain/entities/audit_member.dart';
 import '../../domain/entities/audit_profile.dart';
+import '../../domain/entities/seat_audit.dart';
 import '../../domain/usecases/get_audit_overview_usecase.dart';
 import '../providers/check_in_controller.dart';
 import '../providers/check_in_state.dart';
+import '../providers/general_seats_controller.dart';
 import '../widgets/check_in_member_card.dart';
 import '../widgets/check_in_search_bar.dart';
 import '../widgets/check_in_status_switcher.dart';
+import '../widgets/general_seats_list.dart';
 import 'check_in_filter_sheet.dart';
 
 class CheckInScreen extends StatelessWidget {
@@ -51,6 +57,11 @@ class CheckInScreen extends StatelessWidget {
             context.read<AuditRepositoryImpl>(),
           )..initialize(),
         ),
+        ChangeNotifierProvider<GeneralSeatsController>(
+          create: (context) =>
+              GeneralSeatsController(context.read<AuditRepositoryImpl>())
+                ..initialize(),
+        ),
       ],
       child: _CheckInScreenView(),
     );
@@ -67,6 +78,8 @@ class _CheckInScreenView extends StatefulWidget {
 class _CheckInScreenViewState extends State<_CheckInScreenView> {
   late final TextEditingController _searchController;
   late final ScrollController _scrollController;
+  final ValueNotifier<bool> _showGeneralSeats = ValueNotifier(false);
+  AppMenuType? _selectedMainMenu;
 
   @override
   void initState() {
@@ -76,11 +89,54 @@ class _CheckInScreenViewState extends State<_CheckInScreenView> {
   }
 
   @override
+  void didChangeDependencies() {
+    super.didChangeDependencies();
+    final menu = context.watch<MainNavigationController?>()?.selectedMenu;
+    final isReturning =
+        _selectedMainMenu != null &&
+        _selectedMainMenu != AppMenuType.audits &&
+        menu == AppMenuType.audits;
+    _selectedMainMenu = menu;
+    if (isReturning) {
+      WidgetsBinding.instance.addPostFrameCallback((_) {
+        if (mounted && _selectedMainMenu == AppMenuType.audits) {
+          _refreshVisibleListing();
+        }
+      });
+    }
+  }
+
+  void _refreshVisibleListing() {
+    if (_showGeneralSeats.value) {
+      unawaited(
+        context.read<GeneralSeatsController>().refresh(showLoader: false),
+      );
+    } else {
+      unawaited(context.read<CheckInController>().refresh(showLoader: false));
+    }
+  }
+
+  void _selectGeneralSeats() {
+    if (_showGeneralSeats.value) return;
+    _showGeneralSeats.value = true;
+    _refreshVisibleListing();
+  }
+
+  void _selectCheckIns(CheckInController controller, AuditMemberStatus status) {
+    if (!_showGeneralSeats.value && controller.state.selectedStatus == status) {
+      return;
+    }
+    _showGeneralSeats.value = false;
+    unawaited(controller.selectStatus(status, refresh: true));
+  }
+
+  @override
   void dispose() {
     _scrollController
       ..removeListener(_handleScroll)
       ..dispose();
     _searchController.dispose();
+    _showGeneralSeats.dispose();
     super.dispose();
   }
 
@@ -120,10 +176,26 @@ class _CheckInScreenViewState extends State<_CheckInScreenView> {
         top: false,
         bottom: false,
         child: Builder(
-          builder: (bodyContext) => _buildContent(
-            controller,
-            state,
-            bottomInset: MediaQuery.paddingOf(bodyContext).bottom,
+          builder: (bodyContext) => ValueListenableBuilder<bool>(
+            valueListenable: _showGeneralSeats,
+            builder: (_, showGeneralSeats, __) => Column(
+              children: [
+                _buildListingTabs(controller, state, showGeneralSeats),
+                Expanded(
+                  child: showGeneralSeats
+                      ? GeneralSeatsList(
+                          yearQuarterOptions: controller.yearQuarterOptions,
+                          bottomInset: MediaQuery.paddingOf(bodyContext).bottom,
+                          onSeatTap: _openGeneralSeatDetails,
+                        )
+                      : _buildContent(
+                          controller,
+                          state,
+                          bottomInset: MediaQuery.paddingOf(bodyContext).bottom,
+                        ),
+                ),
+              ],
+            ),
           ),
         ),
       ),
@@ -141,6 +213,35 @@ class _CheckInScreenViewState extends State<_CheckInScreenView> {
     );
   }
 
+  Widget _buildListingTabs(
+    CheckInController controller,
+    CheckInState state,
+    bool showGeneralSeats,
+  ) {
+    final showTeamTabs = state.isOwner && !state.isActualOwner;
+    return Padding(
+      padding: const EdgeInsets.fromLTRB(8, 8, 8, 22),
+      child: CheckInStatusSwitcher(
+        selectedStatus: state.isOwner
+            ? state.selectedStatus
+            : AuditMemberStatus.active,
+        activeTitle: showTeamTabs
+            ? AppStrings.auditTeamMembersTab
+            : state.isActualOwner
+            ? AppStrings.auditCheckInsTab
+            : AppStrings.auditMyCheckInsTab,
+        deactivatedTitle: AppStrings.auditMyCheckInsTab,
+        showDeactivated: showTeamTabs,
+        isGeneralSeatsSelected: showGeneralSeats,
+        onGeneralSeatsSelected: _selectGeneralSeats,
+        onStatusSelected: (status) => _selectCheckIns(
+          controller,
+          state.isOwner ? status : AuditMemberStatus.deactivated,
+        ),
+      ),
+    );
+  }
+
   Widget _buildContent(
     CheckInController controller,
     CheckInState state, {
@@ -148,7 +249,6 @@ class _CheckInScreenViewState extends State<_CheckInScreenView> {
   }) {
     final members = controller.visibleMembers;
     final showSearchAndFilter = state.isOwner;
-    final showSelectionTabs = state.isOwner && !state.isActualOwner;
     final isInitialLoading = state.isLoading && state.mainList == null;
     final isSearchLoading =
         state.isLoading &&
@@ -156,16 +256,12 @@ class _CheckInScreenViewState extends State<_CheckInScreenView> {
         state.searchQuery.trim().isNotEmpty;
 
     final content = ListView(
+      key: const PageStorageKey('check-in-members-list'),
       controller: _scrollController,
       physics: const AlwaysScrollableScrollPhysics(
         parent: ClampingScrollPhysics(),
       ),
-      padding: EdgeInsets.fromLTRB(
-        8,
-        showSelectionTabs ? 0 : 8,
-        8,
-        bottomInset + 24,
-      ),
+      padding: EdgeInsets.fromLTRB(8, 0, 8, bottomInset + 24),
       children: [
         if (showSearchAndFilter) ...[
           CheckInSearchBar(
@@ -197,14 +293,15 @@ class _CheckInScreenViewState extends State<_CheckInScreenView> {
         if (!isInitialLoading && members.isEmpty)
           _buildEmptyCheckInState(state.selectedStatus)
         else if (!isInitialLoading) ...[
-          for (var index = 0; index < members.length; index++) ...[
-            CheckInMemberCard(
-              member: members[index],
-              onCheckInTap: () =>
-                  _openCheckInDetails(members[index], controller),
+          ...members.map(
+            (member) => Padding(
+              padding: const EdgeInsets.only(bottom: 18),
+              child: CheckInMemberCard(
+                member: member,
+                onCheckInTap: () => _openCheckInDetails(member, controller),
+              ),
             ),
-            if (index != members.length - 1) const SizedBox(height: 18),
-          ],
+          ),
           if (state.isLoadingMore) ...[
             const SizedBox(height: 18),
             Center(child: FastCircularProgressIndicator()),
@@ -213,32 +310,16 @@ class _CheckInScreenViewState extends State<_CheckInScreenView> {
       ],
     );
 
-    return Column(
+    return Stack(
+      fit: StackFit.expand,
       children: [
-        if (showSelectionTabs)
-          Padding(
-            padding: const EdgeInsets.fromLTRB(8, 8, 8, 22),
-            child: CheckInStatusSwitcher(
-              selectedStatus: state.selectedStatus,
-              activeTitle: AppStrings.auditTeamMembersTab,
-              deactivatedTitle: AppStrings.auditMyCheckInsTab,
-              onStatusSelected: controller.selectStatus,
-            ),
-          ),
-        Expanded(
-          child: Stack(
-            fit: StackFit.expand,
-            children: [
-              RefreshIndicator(
-                color: AppColors.purple2,
-                onRefresh: controller.refresh,
-                child: content,
-              ),
-              if (isInitialLoading)
-                const Center(child: FastCircularProgressIndicator()),
-            ],
-          ),
+        RefreshIndicator(
+          color: AppColors.purple2,
+          onRefresh: controller.refresh,
+          child: content,
         ),
+        if (isInitialLoading)
+          const Center(child: FastCircularProgressIndicator()),
       ],
     );
   }
@@ -260,7 +341,23 @@ class _CheckInScreenViewState extends State<_CheckInScreenView> {
     if (!mounted) return;
 
     // Fetch the saved summary after the entire description/detail flow closes.
-    await controller.refresh();
+    await controller.refresh(showLoader: false);
+  }
+
+  Future<void> _openGeneralSeatDetails(SeatAudit seat) async {
+    final controller = context.read<GeneralSeatsController>();
+    await AppRouter.pushNamed<void>(
+      context,
+      AppRouter.checkInDetails,
+      arguments: CheckInDetailsRouteArgs(
+        profileJobId: '',
+        seatId: seat.job.uuid,
+        year: controller.year,
+        quarter: controller.quarter,
+      ),
+    );
+    if (!mounted) return;
+    await controller.refresh(showLoader: false);
   }
 
   Future<void> _openFilterSheet(

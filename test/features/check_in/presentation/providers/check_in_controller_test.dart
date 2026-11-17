@@ -21,6 +21,119 @@ void main() {
     await AppPreference.saveUser(User(isOwner: true));
   });
 
+  test(
+    'silent refresh keeps content visible and guards duplicate loads',
+    () async {
+      final pending = Completer<AuditMainList>();
+      var refreshing = false;
+      final repository = _FakeAuditRepository();
+      repository.getAuditMainListHandler =
+          ({
+            required page,
+            required pageSize,
+            required year,
+            required quarter,
+            search,
+            jobUuid,
+          }) => refreshing
+          ? pending.future
+          : Future.value(_buildMainList(['Original'], next: '?page=2'));
+      final controller = _controller(repository);
+      addTearDown(controller.dispose);
+      await controller.initialize();
+      refreshing = true;
+      final request = controller.refresh(showLoader: false);
+      expect(controller.state.isLoading, isFalse);
+      expect(controller.state.mainList!.results.single.name, 'Original');
+      await controller.refresh(showLoader: false);
+      await controller.loadNextPage();
+      expect(repository.forceRefreshes, [false, true]);
+      pending.complete(_buildMainList(['Updated']));
+      await request;
+      expect(controller.state.mainList!.results.single.name, 'Updated');
+    },
+  );
+
+  test('rapid tab switches discard older responses to the same tab', () async {
+    await AppPreference.saveUser(User(roles: ['team_lead']));
+    final repository = _FakeAuditRepository();
+    repository.getAuditMainListHandler =
+        ({
+          required page,
+          required pageSize,
+          required year,
+          required quarter,
+          search,
+          jobUuid,
+        }) => Future.value(_buildMainList(['Team Member']));
+    final controller = _controller(repository);
+    addTearDown(controller.dispose);
+    await controller.initialize();
+
+    final olderMyList = Completer<AuditMainList>();
+    final olderTeamList = Completer<AuditMainList>();
+    final latestMyList = Completer<AuditMainList>();
+    repository.getMyAuditsHandler = () => olderMyList.future;
+    final first = controller.selectStatus(
+      AuditMemberStatus.deactivated,
+      refresh: true,
+    );
+    expect(controller.state.isLoading, isFalse);
+    repository.getAuditMainListHandler =
+        ({
+          required page,
+          required pageSize,
+          required year,
+          required quarter,
+          search,
+          jobUuid,
+        }) => olderTeamList.future;
+    final second = controller.selectStatus(
+      AuditMemberStatus.active,
+      refresh: true,
+    );
+    repository.getMyAuditsHandler = () => latestMyList.future;
+    final third = controller.selectStatus(
+      AuditMemberStatus.deactivated,
+      refresh: true,
+    );
+    expect(controller.state.isLoading, isFalse);
+    latestMyList.complete(_buildMainList(['Latest My Member']));
+    await third;
+    olderMyList.complete(_buildMainList(['Older My Member']));
+    olderTeamList.complete(_buildMainList(['Older Team Member']));
+    await Future.wait([first, second]);
+    expect(controller.state.selectedStatus, AuditMemberStatus.deactivated);
+    expect(controller.state.mainList!.results.single.name, 'Latest My Member');
+    expect(controller.state.isLoading, isFalse);
+  });
+
+  test('tab reentry discards pagination from the previous tab', () async {
+    await AppPreference.saveUser(User(roles: ['team_lead']));
+    final pending = Completer<AuditMainList>();
+    final repository = _FakeAuditRepository();
+    repository.getAuditMainListHandler =
+        ({
+          required page,
+          required pageSize,
+          required year,
+          required quarter,
+          search,
+          jobUuid,
+        }) => page == 2
+        ? pending.future
+        : Future.value(_buildMainList(['Team Member'], next: '?page=2'));
+    final controller = _controller(repository);
+    addTearDown(controller.dispose);
+    await controller.initialize();
+    final pagination = controller.loadNextPage();
+    await controller.selectStatus(AuditMemberStatus.deactivated, refresh: true);
+    pending.complete(_buildMainList(['Older Team Page']));
+    await pagination;
+    expect(controller.state.mainList!.results.single.name, 'My Member');
+    expect(controller.state.isLoadingMore, isFalse);
+  });
+
   group('CheckInController search', () {
     test(
       'continues with the latest query after an older response finishes',
@@ -219,6 +332,17 @@ void main() {
   });
 }
 
+CheckInController _controller(AuditRepository repository) => CheckInController(
+  GetAuditOverviewUseCase(repository),
+  null,
+  null,
+  null,
+  null,
+  null,
+  null,
+  repository,
+);
+
 AuditMainList _buildMainList(List<String> names, {String? next}) {
   return AuditMainList(
     count: names.length,
@@ -255,6 +379,8 @@ class _FakeAuditRepository extends Fake implements AuditRepository {
   final List<String?> requestedSearches = <String?>[];
   final List<_AuditListRequest> requests = <_AuditListRequest>[];
   List<AuditJobOption> jobOptions = const <AuditJobOption>[];
+  final forceRefreshes = <bool>[];
+  Future<AuditMainList> Function()? getMyAuditsHandler;
 
   late Future<AuditMainList> Function({
     required int page,
@@ -276,6 +402,7 @@ class _FakeAuditRepository extends Fake implements AuditRepository {
     String? jobUuid,
     bool forceRefresh = false,
   }) {
+    forceRefreshes.add(forceRefresh);
     return getAuditMainListHandler(
       page: page,
       pageSize: pageSize,
@@ -285,6 +412,17 @@ class _FakeAuditRepository extends Fake implements AuditRepository {
       jobUuid: jobUuid,
     );
   }
+
+  @override
+  Future<AuditMainList> getMyAudits({
+    required int page,
+    required int pageSize,
+    int? year,
+    int? quarter,
+    String? search,
+    bool forceRefresh = false,
+  }) =>
+      getMyAuditsHandler?.call() ?? Future.value(_buildMainList(['My Member']));
 
   @override
   Future<List<AuditJobOption>> getSubordinateJobOptions() {

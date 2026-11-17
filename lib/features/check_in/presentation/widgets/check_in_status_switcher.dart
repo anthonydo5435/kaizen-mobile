@@ -13,6 +13,8 @@ class CheckInStatusSwitcher extends StatelessWidget {
     this.activeTitle = AppStrings.auditActive,
     this.deactivatedTitle = AppStrings.auditDeactivated,
     this.showDeactivated = true,
+    this.onGeneralSeatsSelected,
+    this.isGeneralSeatsSelected = false,
   });
 
   final AuditMemberStatus selectedStatus;
@@ -20,6 +22,8 @@ class CheckInStatusSwitcher extends StatelessWidget {
   final String activeTitle;
   final String deactivatedTitle;
   final bool showDeactivated;
+  final VoidCallback? onGeneralSeatsSelected;
+  final bool isGeneralSeatsSelected;
 
   @override
   Widget build(BuildContext context) {
@@ -35,16 +39,30 @@ class CheckInStatusSwitcher extends StatelessWidget {
           Expanded(
             child: _StatusChip(
               title: activeTitle,
-              isSelected: selectedStatus == AuditMemberStatus.active,
+              isSelected:
+                  !isGeneralSeatsSelected &&
+                  selectedStatus == AuditMemberStatus.active,
               onTap: () => onStatusSelected(AuditMemberStatus.active),
             ),
           ),
+          if (onGeneralSeatsSelected != null) ...[
+            const SizedBox(width: 6),
+            Expanded(
+              child: _StatusChip(
+                title: AppStrings.auditGeneralSeatsTab,
+                isSelected: isGeneralSeatsSelected,
+                onTap: onGeneralSeatsSelected!,
+              ),
+            ),
+          ],
           if (showDeactivated) ...[
             const SizedBox(width: 6),
             Expanded(
               child: _StatusChip(
                 title: deactivatedTitle,
-                isSelected: selectedStatus == AuditMemberStatus.deactivated,
+                isSelected:
+                    !isGeneralSeatsSelected &&
+                    selectedStatus == AuditMemberStatus.deactivated,
                 onTap: () => onStatusSelected(AuditMemberStatus.deactivated),
               ),
             ),

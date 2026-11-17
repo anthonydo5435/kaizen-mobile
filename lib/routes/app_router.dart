@@ -380,6 +380,7 @@ class AppRouter {
             selectedProfileUuid: args is CheckInDetailsRouteArgs
                 ? args.selectedProfileUuid
                 : null,
+            seatId: args is CheckInDetailsRouteArgs ? args.seatId : null,
           ),
         );
       case checkInDescriptionsList:
@@ -404,6 +405,9 @@ class AppRouter {
                 : false,
             isSelfAudit: args is CheckInDescriptionsListRouteArgs
                 ? args.isSelfAudit
+                : false,
+            isGeneralSeatAudit: args is CheckInDescriptionsListRouteArgs
+                ? args.isGeneralSeatAudit
                 : false,
           ),
         );
@@ -561,12 +565,14 @@ class CheckInDetailsRouteArgs {
     this.year,
     this.quarter,
     this.selectedProfileUuid,
+    this.seatId,
   });
 
   final String profileJobId;
   final int? year;
   final int? quarter;
   final String? selectedProfileUuid;
+  final String? seatId;
 }
 
 class SeatProfileDetailRouteArgs {
@@ -643,6 +649,7 @@ class CheckInDescriptionsListRouteArgs {
     this.quarter,
     this.requireDescriptionSelection = false,
     this.isSelfAudit = false,
+    this.isGeneralSeatAudit = false,
   });
 
   final String quarterlyAuditId;
@@ -652,6 +659,7 @@ class CheckInDescriptionsListRouteArgs {
   final int? quarter;
   final bool requireDescriptionSelection;
   final bool isSelfAudit;
+  final bool isGeneralSeatAudit;
 }
 
 class CheckInReportRouteArgs {

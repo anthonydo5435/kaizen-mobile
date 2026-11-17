@@ -18,11 +18,21 @@ class _PassSelectionCard extends StatelessWidget {
       child: Column(
         crossAxisAlignment: CrossAxisAlignment.start,
         children: [
-          const AppTextView.body(
-            AppStrings.auditSelectRatings,
-            color: AppColors.textPrimary,
-            fontSize: 16,
-            fontWeight: FontWeight.w800,
+          Row(
+            children: [
+              const Expanded(
+                child: AppTextView.body(
+                  AppStrings.auditSelectRatings,
+                  color: AppColors.textPrimary,
+                  fontSize: 16,
+                  fontWeight: FontWeight.w800,
+                ),
+              ),
+              if (controller.showGeneralSeatRatingLock) ...[
+                const SizedBox(width: 8),
+                const Flexible(child: CheckInGeneralSeatRatingLock()),
+              ],
+            ],
           ),
           if (!controller.isLoading) ...[
             const SizedBox(height: 8),
@@ -30,10 +40,7 @@ class _PassSelectionCard extends StatelessWidget {
               spacing: 14,
               runSpacing: 10,
               children: ratings
-                  .map(
-                    (rating) =>
-                        _LegendItem(color: rating.color, label: rating.label),
-                  )
+                  .map((rating) => _LegendItem(color: rating.color, label: rating.label))
                   .toList(growable: false),
             ),
             const SizedBox(height: 18),
@@ -42,9 +49,7 @@ class _PassSelectionCard extends StatelessWidget {
               children: List<Widget>.generate(ratings.length, (index) {
                 final rating = ratings[index];
                 return Padding(
-                  padding: EdgeInsets.only(
-                    right: index == ratings.length - 1 ? 0 : 25,
-                  ),
+                  padding: EdgeInsets.only(right: index == ratings.length - 1 ? 0 : 25),
                   child: _SelectionCounter(
                     color: controller.canEditRatings
                         ? rating.color
@@ -154,15 +159,11 @@ class _SelectionCounter extends StatelessWidget {
               width: 48,
               height: 28,
               decoration: BoxDecoration(
-                color: canEditBlocks
-                    ? AppColors.grey1
-                    : AppColors.grey1.withValues(alpha: 0.5),
+                color: canEditBlocks ? AppColors.grey1 : AppColors.grey1.withValues(alpha: 0.5),
                 borderRadius: BorderRadius.circular(12),
               ),
               child: Icon(
-                canEditBlocks
-                    ? Icons.keyboard_arrow_down_rounded
-                    : Icons.lock_rounded,
+                canEditBlocks ? Icons.keyboard_arrow_down_rounded : Icons.lock_rounded,
                 color: Colors.white,
                 size: canEditBlocks ? 28 : 18,
               ),

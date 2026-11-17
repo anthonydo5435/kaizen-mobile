@@ -23,12 +23,14 @@ class CheckInFilterSheet extends StatefulWidget {
     required this.seatProfileOptions,
     this.initialYearQuarter,
     this.initialSeatProfile,
+    this.showSeatProfile = true,
   });
 
   final List<String> yearQuarterOptions;
   final List<String> seatProfileOptions;
   final String? initialYearQuarter;
   final String? initialSeatProfile;
+  final bool showSeatProfile;
 
   @override
   State<CheckInFilterSheet> createState() => _CheckInFilterSheetState();
@@ -82,12 +84,14 @@ class _CheckInFilterSheetState extends State<CheckInFilterSheet> {
                     mainAxisSize: MainAxisSize.min,
                     crossAxisAlignment: CrossAxisAlignment.stretch,
                     children: [
-                      _FilterSelectionTile(
-                        title: AppStrings.auditSeatProfile,
-                        value: selection.seatProfile,
-                        onTap: () => _openSeatProfileSheet(context),
-                      ),
-                      const SizedBox(height: 28),
+                      if (widget.showSeatProfile) ...[
+                        _FilterSelectionTile(
+                          title: AppStrings.auditSeatProfile,
+                          value: selection.seatProfile,
+                          onTap: () => _openSeatProfileSheet(context),
+                        ),
+                        const SizedBox(height: 28),
+                      ],
                       _FilterSelectionTile(
                         title: AppStrings.auditSelectYearQuarter,
                         value: selection.yearQuarter,

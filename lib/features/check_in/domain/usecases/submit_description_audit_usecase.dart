@@ -13,13 +13,33 @@ class SubmitDescriptionAuditUseCase {
     required Map<String, int> audit,
   }) {
     final counts = Map<String, int>.unmodifiable(audit);
-    final previous = _pendingSubmissions[descriptionId] ?? Future<void>.value();
-    final submission = previous.then((_) {
-      beforeSubmit?.call();
+    return _enqueue(descriptionId, () {
       return _repository.submitDescriptionAudit(
         descriptionId: descriptionId,
         audit: counts,
       );
+    });
+  }
+
+  Future<void> assign({
+    required String descriptionId,
+    required List<String> profileJobIds,
+  }) {
+    final ids = List<String>.unmodifiable(profileJobIds);
+    return _enqueue(
+      descriptionId,
+      () => _repository.assignDescriptionAudit(
+        descriptionId: descriptionId,
+        profileJobIds: ids,
+      ),
+    );
+  }
+
+  Future<T> _enqueue<T>(String descriptionId, Future<T> Function() action) {
+    final previous = _pendingSubmissions[descriptionId] ?? Future<void>.value();
+    final submission = previous.then((_) {
+      beforeSubmit?.call();
+      return action();
     });
 
     // Keep writes to one description ordered, even if an earlier write fails.

@@ -2,6 +2,43 @@ import 'package:flutter_test/flutter_test.dart';
 import 'package:sparrowkaizen/features/check_in/data/models/audit_description_audit_model.dart';
 
 void main() {
+  test(
+    'decodes unique assignment IDs and distinguishes omitted and empty lists',
+    () {
+      final response = AuditDescriptionAuditModel.fromApiJson({
+        'assignments': [
+          'profile-job-one',
+          ' profile-job-two ',
+          'profile-job-one',
+          '',
+          null,
+        ],
+      });
+      expect(response.assignments, ['profile-job-one', 'profile-job-two']);
+      expect(AuditDescriptionAuditModel.fromApiJson({}).assignments, isNull);
+      expect(
+        AuditDescriptionAuditModel.fromApiJson({'assignments': []}).assignments,
+        isEmpty,
+      );
+    },
+  );
+
+  test('reads mirror flags from snake-case and camel-case responses', () {
+    for (final key in ['is_mirror', 'isMirror']) {
+      expect(
+        AuditDescriptionAuditModel.fromApiJson({key: true}).isMirror,
+        isTrue,
+      );
+      expect(
+        AuditDescriptionAuditModel.fromApiJson({key: 'true'}).isMirror,
+        isTrue,
+      );
+      expect(
+        AuditDescriptionAuditModel.fromApiJson({key: false}).isMirror,
+        isFalse,
+      );
+    }
+  });
   test('decodes rating count objects without expanding them into a list', () {
     final response = AuditDescriptionAuditModel.fromApiJson({
       'uuid': 'audit-description',
