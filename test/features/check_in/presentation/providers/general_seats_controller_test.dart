@@ -95,6 +95,50 @@ void main() {
     },
   );
 
+  test('silent refresh retains seats and guards duplicate loads', () async {
+    await controller.initialize();
+    final pending = Completer<SeatAuditPage>();
+    repository.respond = (_) => pending.future;
+    final refreshing = controller.refresh(showLoader: false);
+    expect(controller.isLoading, isFalse);
+    expect(controller.seats.single.uuid, 'seat-1');
+    await controller.refresh(showLoader: false);
+    await controller.loadNextPage();
+    expect(repository.requests, hasLength(2));
+    expect(repository.requests.last.forceRefresh, isTrue);
+    pending.complete(_page(1, ids: ['refreshed-seat']));
+    await refreshing;
+    expect(controller.seats.single.uuid, 'refreshed-seat');
+  });
+
+  test(
+    'silent refresh failure retains seats without an inline error',
+    () async {
+      await controller.initialize();
+      repository.respond = (_) => Future.error(StateError('offline'));
+      await controller.refresh(showLoader: false);
+      expect(controller.isLoading, isFalse);
+      expect(controller.error, isNull);
+      expect(controller.seats.single.uuid, 'seat-1');
+      repository.respond = (_) => Future.value(_page(1, ids: ['retry-seat']));
+      await controller.refresh(showLoader: false);
+      expect(controller.seats.single.uuid, 'retry-seat');
+    },
+  );
+
+  test('a quarter change discards an older silent refresh', () async {
+    await controller.initialize();
+    final pending = Completer<SeatAuditPage>();
+    repository.respond = (_) => pending.future;
+    final refreshing = controller.refresh(showLoader: false);
+    repository.respond = (_) => Future.value(_page(1, ids: ['new-quarter']));
+    await controller.applyYearQuarter('2025 - Q2');
+    pending.complete(_page(1, ids: ['old-quarter']));
+    await refreshing;
+    expect(controller.seats.single.uuid, 'new-quarter');
+    expect(controller.isLoading, isFalse);
+  });
+
   test('zero is unavailable only when the seat has never been audited', () {
     expect(controller.scoreLabel(_seat('new')), '-');
     expect(controller.scoreLabel(_seat('audited', date: 'Oct 16, 2026')), '0');

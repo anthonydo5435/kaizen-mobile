@@ -67,7 +67,13 @@ class _GeneralSeatsListState extends State<GeneralSeatsList> {
         ),
         slivers: [
           SliverPadding(
-            padding: const EdgeInsets.fromLTRB(8, 0, 8, 18),
+            // Keep the floating label inside the scroll viewport's clip.
+            padding: EdgeInsets.fromLTRB(
+              8,
+              MediaQuery.textScalerOf(context).scale(8),
+              8,
+              18,
+            ),
             sliver: SliverToBoxAdapter(
               child: _PeriodFilterRow(
                 controller: controller,
@@ -182,6 +188,7 @@ class _PeriodFilterRow extends StatelessWidget {
             quarter: controller.quarter,
             yearOptions: controller.yearOptions,
             onChanged: onQuarterChanged,
+            allowWrapping: true,
           ),
         ),
         const SizedBox(width: 8),

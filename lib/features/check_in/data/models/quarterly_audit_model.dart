@@ -135,7 +135,7 @@ class QuarterlyAuditDescriptionModel extends QuarterlyAuditDescription {
     return QuarterlyAuditDescriptionModel(
       uuid: _readString(json['uuid']) ?? '',
       category: _readString(json['category']) ?? '',
-      isMirror: _readBool(json['is_mirror']) ?? false,
+      isMirror: _readBool(json['is_mirror'] ?? json['isMirror']) ?? false,
       description: _readString(json['description']) ?? '',
       jobSpecifics: _readString(json['job_specifics']) ?? '',
       trainingRoute: SeatDescriptionTrainingRoute(

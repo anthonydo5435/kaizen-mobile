@@ -191,6 +191,11 @@ abstract class AuditRepository {
     required Map<String, int> audit,
   });
 
+  Future<void> assignDescriptionAudit({
+    required String descriptionId,
+    required List<String> profileJobIds,
+  });
+
   Future<String> generateAuditDescriptionMediaUploadUrl({
     required String fileName,
   });

@@ -862,6 +862,19 @@ class AuditRemoteDataSource {
     );
   }
 
+  Future<void> assignDescriptionAudit({
+    required String descriptionId,
+    required List<String> profileJobIds,
+  }) {
+    return _apiCallExecutor.processApi<void>(
+      apiCallType: ApiCallType.put,
+      endpoint: ApiEndPoints.assignAuditDescription(descriptionId),
+      authToken: AppPreference.getAuthToken(),
+      parameters: {'profile_jobs': profileJobIds},
+      decoder: (_) {},
+    );
+  }
+
   Future<String> generateAuditDescriptionMediaUploadUrl({
     required String fileName,
   }) {

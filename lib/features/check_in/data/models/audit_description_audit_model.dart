@@ -8,6 +8,7 @@ class AuditDescriptionAuditModel extends AuditDescriptionAudit {
     required super.isMirror,
     required super.auditMedia,
     required super.weightedScore,
+    super.assignments,
     super.ratingCounts,
   });
 
@@ -19,7 +20,7 @@ class AuditDescriptionAuditModel extends AuditDescriptionAudit {
       audit: _readAuditRatings(json['audit']),
       ratingCounts: _readRatingCounts(json['audit']),
       isGeneral: _readBool(json['is_general']) ?? false,
-      isMirror: _readBool(json['is_mirror']) ?? false,
+      isMirror: _readBool(json['is_mirror'] ?? json['isMirror']) ?? false,
       auditMedia: auditMediaJson is List
           ? auditMediaJson
                 .map(_readMap)
@@ -28,6 +29,18 @@ class AuditDescriptionAuditModel extends AuditDescriptionAudit {
                 .toList(growable: false)
           : const <AuditDescriptionMedia>[],
       weightedScore: _readDouble(json['weighted_score']) ?? 0,
+      assignments: _readAssignments(json['assignments']),
+    );
+  }
+
+  static List<String>? _readAssignments(dynamic value) {
+    if (value is! List) return null;
+    return List<String>.unmodifiable(
+      value
+          .whereType<String>()
+          .map((id) => id.trim())
+          .where((id) => id.isNotEmpty)
+          .toSet(),
     );
   }
 

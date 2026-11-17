@@ -6,7 +6,12 @@ import 'package:flutter_svg/flutter_svg.dart';
 import 'package:provider/provider.dart';
 import 'package:sparrowkaizen/core/constants/app_colors.dart';
 import 'package:sparrowkaizen/core/constants/app_strings.dart';
+import 'package:sparrowkaizen/core/utils/custom_functions.dart';
 import 'package:sparrowkaizen/core/widgets/app_button.dart';
+import 'package:sparrowkaizen/core/widgets/app_dialog_style.dart';
+import 'package:sparrowkaizen/core/widgets/app_gradient_action_button.dart';
+import 'package:sparrowkaizen/core/widgets/app_listing_search_bar.dart';
+import 'package:sparrowkaizen/core/widgets/app_overlay_close_button.dart';
 import 'package:sparrowkaizen/core/widgets/app_text_view.dart';
 import 'package:sparrowkaizen/core/widgets/fast_circular_progress.dart';
 import 'package:sparrowkaizen/features/check_in/domain/entities/audit_description_audit.dart';
@@ -18,9 +23,11 @@ import 'package:sparrowkaizen/features/check_in/presentation/widgets/description
 import '../../../training/presentation/pages/edit_training_screen.dart';
 import '../providers/check_in_single_description_controller.dart';
 import '../widgets/description_text_comment_dialog.dart';
+import '../widgets/check_in_general_seat_rating_lock.dart';
 import 'check_in_media_comments_bottom_sheet.dart';
 import 'check_in_screen_recording_capture_screen.dart';
 
+part '../widgets/check_in_single_description_assignment.dart';
 part '../widgets/check_in_single_description_cards.dart';
 part '../widgets/check_in_single_description_comments.dart';
 part '../widgets/check_in_single_description_ratings.dart';
@@ -35,6 +42,7 @@ class SingleDescriptionDetails extends StatefulWidget {
     required this.isOwner,
     this.isViewOnly = false,
     this.isSelfAudit = false,
+    this.isGeneralSeatAudit = false,
     this.initialRatingCounts,
   });
 
@@ -45,6 +53,7 @@ class SingleDescriptionDetails extends StatefulWidget {
   final bool isOwner;
   final bool isViewOnly;
   final bool isSelfAudit;
+  final bool isGeneralSeatAudit;
   final Map<String, int>? initialRatingCounts;
 
   @override
@@ -154,6 +163,7 @@ class _SingleDescriptionDetailsState extends State<SingleDescriptionDetails> {
             isOwner: widget.isOwner,
             isViewOnly: widget.isViewOnly,
             isSelfAudit: widget.isSelfAudit,
+            isGeneralSeatAudit: widget.isGeneralSeatAudit,
             initialRatingCounts: index == widget.initialDescriptionIndex
                 ? widget.initialRatingCounts
                 : null,
@@ -310,6 +320,7 @@ class _DescriptionDetailsPage extends StatefulWidget {
     required this.isOwner,
     required this.isViewOnly,
     required this.isSelfAudit,
+    required this.isGeneralSeatAudit,
     this.initialRatingCounts,
   });
 
@@ -319,6 +330,7 @@ class _DescriptionDetailsPage extends StatefulWidget {
   final bool isOwner;
   final bool isViewOnly;
   final bool isSelfAudit;
+  final bool isGeneralSeatAudit;
   final Map<String, int>? initialRatingCounts;
 
   @override
@@ -346,6 +358,7 @@ class _DescriptionDetailsPageState extends State<_DescriptionDetailsPage>
       isOwner: widget.isOwner,
       isViewOnly: widget.isViewOnly,
       isSelfAudit: widget.isSelfAudit,
+      isGeneralSeatAudit: widget.isGeneralSeatAudit,
       initialRatingCounts: widget.initialRatingCounts,
     )..addListener(_handleControllerChanged);
   }
@@ -427,6 +440,10 @@ class _DescriptionDetailsPageState extends State<_DescriptionDetailsPage>
               controller: _controller,
               onCommentsSheetClosed: _scrollToCommentsSection,
             ),
+            if (_controller.isGeneralSeatAudit) ...[
+              const SizedBox(height: 18),
+              _DescriptionAssignmentCard(controller: _controller),
+            ],
             const SizedBox(height: 24),
           ],
         ),

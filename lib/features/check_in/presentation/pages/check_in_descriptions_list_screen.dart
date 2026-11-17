@@ -427,6 +427,7 @@ class _CheckInDescriptionsListViewState
             isOwner: auditController.state.isOwner,
             isViewOnly: audit.isMismatch,
             isSelfAudit: auditController.state.isSelfAudit,
+            isGeneralSeatAudit: auditController.isGeneralSeatAudit,
             initialRatingCounts: initialRatingCounts,
           ),
         ),
@@ -665,6 +666,7 @@ class _CheckInDescriptionsListViewState
                             .state
                             .isOwner,
                         isSelfAudit: controller.state.isSelfAudit,
+                        isGeneralSeatAudit: controller.isGeneralSeatAudit,
                         onOpenDetails: (initialRatingCounts) =>
                             _openDescriptionDetails(
                               context,

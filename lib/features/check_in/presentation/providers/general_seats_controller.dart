@@ -24,6 +24,7 @@ class GeneralSeatsController extends ChangeNotifier {
   late int _quarter;
   SeatAuditPage? _page;
   bool _isLoading = true;
+  bool _isRefreshing = false;
   bool _isLoadingMore = false;
   bool _hasInitialized = false;
   bool _isDisposed = false;
@@ -61,7 +62,10 @@ class GeneralSeatsController extends ChangeNotifier {
     await _loadFirstPage();
   }
 
-  Future<void> refresh() => _loadFirstPage(forceRefresh: true);
+  Future<void> refresh({bool showLoader = true}) async {
+    if (_isDisposed || _isLoading || _isRefreshing || _isLoadingMore) return;
+    await _loadFirstPage(forceRefresh: true, showLoader: showLoader);
+  }
 
   Future<void> applyYearQuarter(String? label) async {
     if (label == null) return;
@@ -78,10 +82,12 @@ class GeneralSeatsController extends ChangeNotifier {
   Future<void> _loadFirstPage({
     bool clear = false,
     bool forceRefresh = false,
+    bool showLoader = true,
   }) async {
     if (_isDisposed) return;
     final generation = ++_requestGeneration;
-    _isLoading = true;
+    _isLoading = showLoader || _page == null;
+    _isRefreshing = true;
     _isLoadingMore = false;
     _error = null;
     _paginationError = null;
@@ -99,16 +105,23 @@ class GeneralSeatsController extends ChangeNotifier {
       _page = page;
     } catch (_) {
       if (_isDisposed || generation != _requestGeneration) return;
-      _error = AppStrings.auditGeneralSeatsLoadError;
+      if (showLoader || _page == null) {
+        _error = AppStrings.auditGeneralSeatsLoadError;
+      }
     }
     if (_isDisposed || generation != _requestGeneration) return;
     _isLoading = false;
+    _isRefreshing = false;
     notifyListeners();
   }
 
   Future<void> loadNextPage() async {
     final current = _page;
-    if (_isDisposed || _isLoading || _isLoadingMore || current?.next == null) {
+    if (_isDisposed ||
+        _isLoading ||
+        _isRefreshing ||
+        _isLoadingMore ||
+        current?.next == null) {
       return;
     }
     final generation = _requestGeneration;

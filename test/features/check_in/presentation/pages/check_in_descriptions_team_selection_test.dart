@@ -108,6 +108,161 @@ void main() {
   }
 
   testWidgets(
+    'mirrored list counters ignore taps while the card still opens locked details',
+    (tester) async {
+      audits['a'] = _audit('a', isMirror: true);
+      await http.runWithClient(() async {
+        final observer = await mount(
+          tester,
+          date: CustomFunctions.apiDateString(),
+        );
+        final card = find.byKey(const ValueKey('audit-a:a-first'));
+        await tester.ensureVisible(card);
+        expect(
+          find.descendant(
+            of: card,
+            matching: find.text(AppStrings.auditGeneralSeatRatingLabel),
+          ),
+          findsOneWidget,
+        );
+        final pushes = observer.pushes;
+        await tester.tap(find.descendant(of: card, matching: find.text('77')));
+        await tester.pumpAndSettle();
+        await tester.tap(
+          find
+              .descendant(of: card, matching: find.byIcon(Icons.lock_rounded))
+              .first,
+        );
+        await tester.pumpAndSettle();
+        expect(observer.pushes, pushes);
+        expect(requests.where((request) => request.method == 'PATCH'), isEmpty);
+        await tester.tap(find.text('a task 1'));
+        await tester.pumpAndSettle();
+        expect(find.byType(SingleDescriptionDetails), findsOneWidget);
+        expect(
+          find.text(AppStrings.auditGeneralSeatRatingLabel),
+          findsOneWidget,
+        );
+        await tester.ensureVisible(find.text('77'));
+        await tester.tap(find.text('77'));
+        await tester.tap(find.byIcon(Icons.lock_rounded).first);
+        await tester.pumpAndSettle();
+        expect(requests.where((request) => request.method == 'PATCH'), isEmpty);
+        expect(tester.takeException(), isNull);
+      }, () => client);
+    },
+  );
+
+  testWidgets(
+    'General Seat mirrors keep list counters editable without the lock marker',
+    (tester) async {
+      audits['a'] = _audit('a', isMirror: true);
+      intercept = (request) async {
+        if (request.url.path.endsWith(ApiEndPoints.quarterlyAuditSeatAudits)) {
+          return http.Response(
+            jsonEncode({
+              'count': 1,
+              'current': 1,
+              'next': null,
+              'results': [_seatOption('a')],
+            }),
+            200,
+          );
+        }
+        if (request.method == 'PATCH') {
+          return http.Response(jsonEncode({'uuid': 'summary-a-0'}), 200);
+        }
+        return null;
+      };
+      await http.runWithClient(() async {
+        await mount(
+          tester,
+          date: CustomFunctions.apiDateString(),
+          isGeneralSeatAudit: true,
+        );
+        final card = find.byKey(const ValueKey('audit-a:a-first'));
+        await tester.ensureVisible(card);
+        expect(
+          find.descendant(
+            of: card,
+            matching: find.text(AppStrings.auditGeneralSeatRatingLabel),
+          ),
+          findsNothing,
+        );
+        await tester.tap(find.descendant(of: card, matching: find.text('77')));
+        await tester.pumpAndSettle();
+        expect(
+          jsonDecode(
+            requests.lastWhere((request) => request.method == 'PATCH').body,
+          )['audit']['great'],
+          78,
+        );
+        await tester.tap(
+          find
+              .descendant(
+                of: card,
+                matching: find.byIcon(Icons.keyboard_arrow_down_rounded),
+              )
+              .first,
+        );
+        await tester.pumpAndSettle();
+        expect(
+          jsonDecode(
+            requests.lastWhere((request) => request.method == 'PATCH').body,
+          )['audit']['great'],
+          77,
+        );
+        expect(tester.takeException(), isNull);
+      }, () => client);
+    },
+  );
+
+  testWidgets(
+    'a mirror discovered in details stays locked after returning to the list',
+    (tester) async {
+      intercept = (request) async =>
+          request.url.path.endsWith(_descriptionEndpoint('a'))
+          ? http.Response(
+              jsonEncode({..._specificAudit('a'), 'is_mirror': true}),
+              200,
+            )
+          : null;
+      await http.runWithClient(() async {
+        await mount(tester, date: CustomFunctions.apiDateString());
+        final card = find.byKey(const ValueKey('audit-a:a-first'));
+        await tester.ensureVisible(card);
+        expect(find.text(AppStrings.auditGeneralSeatRatingLabel), findsNothing);
+        await tester.tap(find.text('a task 1'));
+        await tester.pumpAndSettle();
+        expect(
+          find.text(AppStrings.auditGeneralSeatRatingLabel),
+          findsOneWidget,
+        );
+        Navigator.of(
+          tester.element(find.byType(SingleDescriptionDetails)),
+        ).pop();
+        await tester.pumpAndSettle();
+        expect(
+          find.descendant(
+            of: card,
+            matching: find.text(AppStrings.auditGeneralSeatRatingLabel),
+          ),
+          findsOneWidget,
+        );
+        expect(
+          tester.widget<CheckInDescriptionCard>(card).description.isMirror,
+          isTrue,
+        );
+        await tester.tap(find.descendant(of: card, matching: find.text('77')));
+        await tester.pumpAndSettle();
+        expect(find.byType(SingleDescriptionDetails), findsNothing);
+        expect(requests.where((request) => request.method == 'PATCH'), isEmpty);
+        expect(tester.takeException(), isNull);
+      }, () => client);
+    },
+  );
+
+  testWidgets(
     'general seat descriptions show title-only seat switching instead of team members',
     (tester) async {
       intercept = (request) async {
@@ -183,6 +338,20 @@ void main() {
           endsWith(_descriptionEndpoint('b')),
         ]);
         expect(find.text(AppStrings.auditSwitchSeatProfile), findsOneWidget);
+        await tester.ensureVisible(
+          find.byKey(const ValueKey('audit-b:b-first')),
+        );
+        await tester.tap(find.text('b task 1'));
+        await tester.pumpAndSettle();
+        expect(
+          tester
+              .widget<SingleDescriptionDetails>(
+                find.byType(SingleDescriptionDetails),
+              )
+              .isGeneralSeatAudit,
+          isTrue,
+        );
+        expect(find.text(AppStrings.auditAssignTo), findsOneWidget);
         expect(tester.takeException(), isNull);
       }, () => client);
     },
@@ -1036,7 +1205,7 @@ Map<String, Object?> _seatOption(String id) => {
   ],
 };
 
-Map<String, Object?> _audit(String id) => {
+Map<String, Object?> _audit(String id, {bool isMirror = false}) => {
   ..._member(id),
   'categories': [
     {'uuid': 'category', 'category_title': 'Responsibilities'},
@@ -1047,6 +1216,7 @@ Map<String, Object?> _audit(String id) => {
       'uuid': '$id-${index == 0 ? 'first' : 'second'}',
       'category': 'category',
       'description': '$id task ${index + 1}',
+      'is_mirror': index == 0 && isMirror,
       'audit_details': {
         'has_audit': true,
         'audit_uuid': 'summary-$id-$index',

@@ -100,12 +100,50 @@ void main() {
     await blocked;
     expect(repository.requests, hasLength(1));
   });
+
+  test(
+    'assignments and rating saves for one description stay ordered',
+    () async {
+      final first = submit(descriptionId: 'audit-a', audit: {'great': 4});
+      final ids = ['profile-job-a'];
+      final assignment = submit.assign(
+        descriptionId: 'audit-a',
+        profileJobIds: ids,
+      );
+      ids.add('profile-job-b');
+      final last = submit(descriptionId: 'audit-a', audit: {'great': 5});
+      await _drainMicrotasks();
+      expect(repository.assignments, isEmpty);
+      repository.requests.first.complete();
+      await first;
+      await _drainMicrotasks();
+      expect(repository.assignments.single.ids, ['profile-job-a']);
+      expect(repository.requests, hasLength(1));
+      repository.assignments.single.result.complete();
+      await assignment;
+      await _drainMicrotasks();
+      expect(repository.requests.last.counts['great'], 5);
+      repository.requests.last.complete();
+      await last;
+    },
+  );
 }
 
 Future<void> _drainMicrotasks() => Future<void>.delayed(Duration.zero);
 
 class _AuditRepository implements AuditRepository {
   final List<_Request> requests = [];
+  final assignments = <({List<String> ids, Completer<void> result})>[];
+
+  @override
+  Future<void> assignDescriptionAudit({
+    required String descriptionId,
+    required List<String> profileJobIds,
+  }) {
+    final request = (ids: profileJobIds, result: Completer<void>());
+    assignments.add(request);
+    return request.result.future;
+  }
 
   @override
   Future<AuditDescriptionAudit> submitDescriptionAudit({

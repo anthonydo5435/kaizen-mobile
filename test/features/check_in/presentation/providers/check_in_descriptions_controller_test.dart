@@ -34,6 +34,7 @@ void main() {
 
   CheckInDescriptionCardController buildCard({
     QuarterlyAuditDescription? description,
+    bool isGeneralSeatAudit = false,
   }) {
     final card = CheckInDescriptionCardController(
       checkInController: checkInController,
@@ -42,10 +43,76 @@ void main() {
       date: today,
       isOwner: true,
       isSelfAudit: false,
+      isGeneralSeatAudit: isGeneralSeatAudit,
     );
     addTearDown(card.dispose);
     return card;
   }
+
+  testWidgets(
+    'mirrors lock list increments and decrements while General Seat stays editable',
+    (tester) async {
+      final locked = buildCard(
+        description: _description('first', isMirror: true),
+      );
+      expect(locked.showGeneralSeatRatingLock, isTrue);
+      expect(locked.canEditRatings, isFalse);
+      expect(locked.canCreateComments, isTrue);
+      locked.incrementRating(AuditRating.great);
+      locked.decrementRating(AuditRating.great);
+      await tester.pump(const Duration(milliseconds: 200));
+      expect(locked.countFor(AuditRating.great), 1);
+      expect(repository.saves, isEmpty);
+      final general = buildCard(
+        description: _description('first', isMirror: true),
+        isGeneralSeatAudit: true,
+      );
+      expect(general.showGeneralSeatRatingLock, isFalse);
+      expect(general.canEditRatings, isTrue);
+      general.incrementRating(AuditRating.great);
+      general.decrementRating(AuditRating.great);
+      general.incrementRating(AuditRating.almostThere);
+      await tester.pump(const Duration(milliseconds: 200));
+      expect(repository.saves.single.counts['great'], 1);
+      expect(repository.saves.single.counts['almost_there'], 1);
+      repository.saves.single.complete();
+      await tester.pump();
+    },
+  );
+
+  testWidgets('receiving a mirror summary cancels a pending rating draft', (
+    tester,
+  ) async {
+    final card = buildCard();
+    card.incrementRating(AuditRating.great);
+    card.update(
+      audit: _audit(),
+      description: _description('first', isMirror: true),
+      date: today,
+      isOwner: true,
+      isSelfAudit: false,
+    );
+    await tester.pump(const Duration(milliseconds: 200));
+    expect(card.countFor(AuditRating.great), 1);
+    expect(card.showGeneralSeatRatingLock, isTrue);
+    expect(repository.saves, isEmpty);
+  });
+
+  testWidgets(
+    'a mirror discovered during UUID loading prevents a queued rating write',
+    (tester) async {
+      final response = Completer<AuditDescriptionAudit>();
+      repository.lookupResponse = response.future;
+      final card = buildCard(description: _description('first', auditUuid: ''));
+      card.incrementRating(AuditRating.great);
+      await tester.pump(const Duration(milliseconds: 200));
+      response.complete(_saved('resolved-audit', isMirror: true));
+      await tester.pump();
+      expect(card.showGeneralSeatRatingLock, isTrue);
+      expect(card.countFor(AuditRating.great), 1);
+      expect(repository.saves, isEmpty);
+    },
+  );
 
   testWidgets(
     'rapid edits debounce and retain accepted counts when PATCH omits ratings',
@@ -316,10 +383,11 @@ QuarterlyAuditDescription _description(
   String id, {
   int great = 1,
   String? auditUuid,
+  bool isMirror = false,
 }) => QuarterlyAuditDescription(
   uuid: id,
   category: id == 'first' ? 'category-a' : 'category-b',
-  isMirror: false,
+  isMirror: isMirror,
   description: 'Description $id',
   jobSpecifics: '',
   trainingRoute: SeatDescriptionTrainingRoute(
@@ -340,14 +408,15 @@ QuarterlyAuditDescription _description(
   auditFactorType: id == 'first' ? 'observation' : 'examination',
 );
 
-AuditDescriptionAudit _saved(String id) => AuditDescriptionAudit(
-  uuid: id,
-  audit: const [],
-  isGeneral: false,
-  isMirror: false,
-  auditMedia: const [],
-  weightedScore: 0,
-);
+AuditDescriptionAudit _saved(String id, {bool isMirror = false}) =>
+    AuditDescriptionAudit(
+      uuid: id,
+      audit: const [],
+      isGeneral: false,
+      isMirror: isMirror,
+      auditMedia: const [],
+      weightedScore: 0,
+    );
 
 class _Repository implements AuditRepository {
   final saves = <_Save>[];

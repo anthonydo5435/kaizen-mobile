@@ -1,6 +1,8 @@
+import 'dart:async';
 import 'dart:convert';
 
 import 'package:flutter/material.dart';
+import 'package:flutter/rendering.dart';
 import 'package:flutter_test/flutter_test.dart';
 import 'package:http/http.dart' as http;
 import 'package:http/testing.dart';
@@ -8,9 +10,13 @@ import 'package:provider/provider.dart';
 import 'package:shared_preferences/shared_preferences.dart';
 import 'package:sparrowkaizen/core/constants/app_strings.dart';
 import 'package:sparrowkaizen/core/managers/app_manager.dart';
+import 'package:sparrowkaizen/core/navigation/app_menu_type.dart';
+import 'package:sparrowkaizen/core/navigation/main_navigation_controller.dart';
 import 'package:sparrowkaizen/core/network/api_processor.dart';
 import 'package:sparrowkaizen/core/preference/app_preference.dart';
 import 'package:sparrowkaizen/core/utils/custom_functions.dart';
+import 'package:sparrowkaizen/core/widgets/fast_circular_progress.dart';
+import 'package:sparrowkaizen/core/widgets/main_navigation_shell.dart';
 import 'package:sparrowkaizen/features/check_in/domain/entities/audit_member_status.dart';
 import 'package:sparrowkaizen/features/check_in/presentation/pages/check_in_details_screen.dart';
 import 'package:sparrowkaizen/features/check_in/presentation/pages/check_in_screen.dart';
@@ -27,11 +33,15 @@ void main() {
   late MockClient client;
   RouteSettings? descriptionRoute;
   var emptyMainList = false;
+  Completer<void>? listingGate;
+  var updatedScores = false;
 
   setUp(() async {
     requests.clear();
     descriptionRoute = null;
     emptyMainList = false;
+    listingGate = null;
+    updatedScores = false;
     SharedPreferences.setMockInitialValues({});
     await AppPreference.init();
     await AppPreference.setAuthToken('test-token');
@@ -62,13 +72,14 @@ void main() {
           },
         ];
       } else if (path.endsWith('quarterly_audit/seat_audits/')) {
+        await listingGate?.future;
         response = {
           'count': 2,
           'current': 1,
           'next': null,
           'previous': null,
           'results': [
-            _seat,
+            {..._seat, if (updatedScores) 'overall_score': 9},
             {
               ..._seat,
               'uuid': 'new-audit',
@@ -96,6 +107,7 @@ void main() {
         };
       } else if (path.endsWith('quarterly_audit/') ||
           path.endsWith('quarterly_audit/my_audits/')) {
+        await listingGate?.future;
         response = {
           'count': 1,
           'current': 1,
@@ -111,6 +123,7 @@ void main() {
                       'onboarded': true,
                     },
                     'job': {'uuid': 'normal-job', 'title': 'Normal Seat'},
+                    'overall_score': updatedScores ? 8 : 1,
                   },
                 ],
         };
@@ -127,7 +140,7 @@ void main() {
     AppManager.instance.resetSessionState();
   });
 
-  Widget screen({double textScale = 1}) =>
+  Widget screen({double textScale = 1, MainNavigationController? navigation}) =>
       ChangeNotifierProvider<AppManager>.value(
         value: AppManager.instance,
         child: MaterialApp(
@@ -137,7 +150,9 @@ void main() {
             ).copyWith(textScaler: TextScaler.linear(textScale)),
             child: child!,
           ),
-          home: const CheckInScreen(),
+          home: navigation == null
+              ? const CheckInScreen()
+              : MainNavigationShell(controller: navigation),
           onGenerateRoute: (settings) {
             if (settings.name == AppRouter.checkInDescriptionsList) {
               descriptionRoute = settings;
@@ -150,46 +165,166 @@ void main() {
         ),
       );
 
+  testWidgets('General Seats loads on selection and refreshes on reentry', (
+    tester,
+  ) async {
+    _setViewport(tester);
+    await http.runWithClient(() async {
+      await tester.pumpWidget(screen());
+      await tester.pumpAndSettle();
+      expect(find.byType(CheckInStatusSwitcher), findsOneWidget);
+      expect(find.byType(CheckInMemberCard), findsOneWidget);
+      expect(requests.where(_isSeatList), isEmpty);
+      await _tap(tester, find.text(AppStrings.auditGeneralSeatsTab));
+      expect(requests.where(_isSeatList), hasLength(1));
+      final request = requests.last;
+      final current = CustomFunctions.currentYearQuarter();
+      expect(request.url.queryParameters, {
+        'page': '1',
+        'page_size': '12',
+        'year': '${current.year}',
+        'quarter': '${current.quarter}',
+      });
+      expect(find.byType(GeneralSeatAuditCard), findsNWidgets(2));
+      expect(find.text('3'), findsOneWidget);
+      expect(find.text(AppStrings.auditScoreUnavailable), findsOneWidget);
+      final cards = tester.getTopLeft(find.byType(GeneralSeatAuditCard).first);
+      final nextCard = tester.getTopLeft(
+        find.byType(GeneralSeatAuditCard).last,
+      );
+      expect(cards.dx, nextCard.dx);
+      expect(nextCard.dy, greaterThan(cards.dy));
+      await _tap(tester, find.text(AppStrings.auditCheckInsTab));
+      expect(find.byType(CheckInMemberCard), findsOneWidget);
+      await _tap(tester, find.text(AppStrings.auditGeneralSeatsTab));
+      expect(requests.where(_isSeatList), hasLength(2));
+      expect(tester.takeException(), isNull);
+      await tester.pumpWidget(const SizedBox.shrink());
+    }, () => client);
+  });
+
   testWidgets(
-    'General Seats loads on selection and preserves the Check-ins list',
+    'tab reentry refreshes silently and retains search and quarters',
     (tester) async {
       _setViewport(tester);
       await http.runWithClient(() async {
         await tester.pumpWidget(screen());
         await tester.pumpAndSettle();
-        expect(find.byType(CheckInStatusSwitcher), findsOneWidget);
-        expect(find.byType(CheckInMemberCard), findsOneWidget);
-        expect(requests.where(_isSeatList), isEmpty);
+        final checkIns = tester
+            .element(find.byType(CheckInMemberCard))
+            .read<CheckInController>();
+        await checkIns.applyFilters(yearQuarter: '2025 - Q2');
+        checkIns.updateSearchQuery('Member');
+        await tester.pump(const Duration(milliseconds: 450));
+        await tester.pumpAndSettle();
         await _tap(tester, find.text(AppStrings.auditGeneralSeatsTab));
-        expect(requests.where(_isSeatList), hasLength(1));
-        final request = requests.last;
-        final current = CustomFunctions.currentYearQuarter();
-        expect(request.url.queryParameters, {
-          'page': '1',
-          'page_size': '12',
-          'year': '${current.year}',
-          'quarter': '${current.quarter}',
-        });
-        expect(find.byType(GeneralSeatAuditCard), findsNWidgets(2));
-        expect(find.text('3'), findsOneWidget);
-        expect(find.text(AppStrings.auditScoreUnavailable), findsOneWidget);
-        final cards = tester.getTopLeft(
-          find.byType(GeneralSeatAuditCard).first,
+        final generalSeats = tester
+            .element(find.byType(GeneralSeatAuditCard).first)
+            .read<GeneralSeatsController>();
+        await generalSeats.applyYearQuarter('2025 - Q3');
+        await tester.pumpAndSettle();
+
+        listingGate = Completer<void>();
+        final beforeCheckIns = requests.length;
+        updatedScores = true;
+        await tester.tap(find.text(AppStrings.auditCheckInsTab));
+        await tester.pumpAndSettle();
+        expect(requests, hasLength(beforeCheckIns + 1));
+        expect(requests.last.url.queryParameters['search'], 'Member');
+        expect(requests.last.url.queryParameters['year'], '2025');
+        expect(requests.last.url.queryParameters['quarter'], '2');
+        expect(checkIns.state.isLoading, isFalse);
+        expect(find.byType(FastCircularProgressIndicator), findsNothing);
+        expect(
+          tester
+              .widget<CheckInMemberCard>(find.byType(CheckInMemberCard))
+              .member
+              .overallScore,
+          1,
         );
-        final nextCard = tester.getTopLeft(
-          find.byType(GeneralSeatAuditCard).last,
-        );
-        expect(cards.dx, nextCard.dx);
-        expect(nextCard.dy, greaterThan(cards.dy));
-        await _tap(tester, find.text(AppStrings.auditCheckInsTab));
-        expect(find.byType(CheckInMemberCard), findsOneWidget);
-        await _tap(tester, find.text(AppStrings.auditGeneralSeatsTab));
-        expect(requests.where(_isSeatList), hasLength(1));
+        await tester.tap(find.text(AppStrings.auditCheckInsTab));
+        await tester.pumpAndSettle();
+        expect(requests, hasLength(beforeCheckIns + 1));
+        listingGate!.complete();
+        await tester.pumpAndSettle();
+        expect(checkIns.state.mainList!.results.single.overallScore, 8);
+
+        listingGate = Completer<void>();
+        final beforeGeneralSeats = requests.length;
+        await tester.tap(find.text(AppStrings.auditGeneralSeatsTab));
+        await tester.pumpAndSettle();
+        expect(requests, hasLength(beforeGeneralSeats + 1));
+        expect(requests.last.url.queryParameters['year'], '2025');
+        expect(requests.last.url.queryParameters['quarter'], '3');
+        expect(generalSeats.isLoading, isFalse);
+        expect(find.byType(FastCircularProgressIndicator), findsNothing);
+        expect(generalSeats.seats.first.overallScore, 3);
+        listingGate!.complete();
+        await tester.pumpAndSettle();
+        expect(generalSeats.seats.first.overallScore, 9);
         expect(tester.takeException(), isNull);
         await tester.pumpWidget(const SizedBox.shrink());
       }, () => client);
     },
   );
+
+  for (final showGeneralSeats in [false, true]) {
+    testWidgets(
+      'bottom navigation return refreshes only the visible list (general: $showGeneralSeats)',
+      (tester) async {
+        _setViewport(tester);
+        final navigation = MainNavigationController(
+          initialMenu: AppMenuType.audits,
+          destinations: [
+            MainNavigationDestination(
+              menu: AppMenuType.audits,
+              routeName: AppRouter.checkIn,
+              builder: (_) => const CheckInScreen(),
+            ),
+            MainNavigationDestination(
+              menu: AppMenuType.library,
+              routeName: AppRouter.trainingLibrary,
+              builder: (_) => const SizedBox.shrink(),
+            ),
+          ],
+        );
+        addTearDown(navigation.dispose);
+        await http.runWithClient(() async {
+          await tester.pumpWidget(screen(navigation: navigation));
+          await tester.pumpAndSettle();
+          if (showGeneralSeats) {
+            await _tap(tester, find.text(AppStrings.auditGeneralSeatsTab));
+          }
+          final existingCard = tester.element(
+            showGeneralSeats
+                ? find.byType(GeneralSeatAuditCard).first
+                : find.byType(CheckInMemberCard),
+          );
+          navigation.selectMenu(AppMenuType.library);
+          await tester.pumpAndSettle();
+          final previousRequests = requests.length;
+          listingGate = Completer<void>();
+          navigation.selectMenu(AppMenuType.audits);
+          await tester.pumpAndSettle();
+          expect(requests, hasLength(previousRequests + 1));
+          expect(_isSeatList(requests.last), showGeneralSeats);
+          expect(find.byType(FastCircularProgressIndicator), findsNothing);
+          expect(
+            tester.element(
+              showGeneralSeats
+                  ? find.byType(GeneralSeatAuditCard).first
+                  : find.byType(CheckInMemberCard),
+            ),
+            same(existingCard),
+          );
+          listingGate!.complete();
+          await tester.pumpAndSettle();
+          expect(tester.takeException(), isNull);
+          await tester.pumpWidget(const SizedBox.shrink());
+        }, () => client);
+      },
+    );
+  }
 
   for (final textScale in [1.0, 2.0]) {
     testWidgets(
@@ -255,7 +390,7 @@ void main() {
             tester.widget<CheckInStatusSwitcher>(switcher).selectedStatus,
             AuditMemberStatus.active,
           );
-          expect(requests.where(_isSeatList), hasLength(1));
+          expect(requests.where(_isSeatList), hasLength(2));
           expect(tester.takeException(), isNull);
           await tester.pumpWidget(const SizedBox.shrink());
         }, () => client);
@@ -480,21 +615,53 @@ void main() {
     },
   );
 
-  testWidgets(
-    'General Seats is overflow-safe on a narrow phone with large text',
-    (tester) async {
-      _setViewport(tester, width: 320);
-      emptyMainList = true;
-      await http.runWithClient(() async {
-        await tester.pumpWidget(screen(textScale: 2));
-        await tester.pumpAndSettle();
-        await _tap(tester, find.text(AppStrings.auditGeneralSeatsTab));
-        expect(find.byType(GeneralSeatAuditCard), findsWidgets);
-        expect(tester.takeException(), isNull);
-        await tester.pumpWidget(const SizedBox.shrink());
-      }, () => client);
-    },
-  );
+  for (final textScale in [1.0, 2.0]) {
+    testWidgets(
+      'General Seats year and quarter stay visible on a narrow phone ($textScale)',
+      (tester) async {
+        _setViewport(tester, width: 320);
+        emptyMainList = true;
+        await http.runWithClient(() async {
+          await tester.pumpWidget(screen(textScale: textScale));
+          await tester.pumpAndSettle();
+          await _tap(tester, find.text(AppStrings.auditGeneralSeatsTab));
+          expect(find.byType(GeneralSeatAuditCard), findsWidgets);
+          final viewport = tester.getRect(
+            find.byKey(const PageStorageKey('general-seats-list')),
+          );
+          final selector = find.byKey(
+            const ValueKey('general-seats-quarter-selector'),
+          );
+          final label = find.descendant(
+            of: selector,
+            matching: find.text(AppStrings.auditSelectYearQuarter),
+          );
+          final labelBounds = tester.getRect(label);
+          expect(labelBounds.top, greaterThanOrEqualTo(viewport.top));
+          expect(labelBounds.right, lessThanOrEqualTo(viewport.right));
+          final period = CustomFunctions.currentYearQuarter();
+          final value = find.descendant(
+            of: selector,
+            matching: find.text(
+              AppStrings.auditQuarterPeriodLabel(period.year, period.quarter),
+            ),
+          );
+          final clippedText = <String>[];
+          for (final text in [label, value]) {
+            final paragraph = tester.renderObject<RenderParagraph>(
+              find.descendant(of: text, matching: find.byType(RichText)),
+            );
+            if (paragraph.didExceedMaxLines) {
+              clippedText.add(paragraph.text.toPlainText());
+            }
+          }
+          expect(clippedText, isEmpty);
+          expect(tester.takeException(), isNull);
+          await tester.pumpWidget(const SizedBox.shrink());
+        }, () => client);
+      },
+    );
+  }
 }
 
 const _seat = {

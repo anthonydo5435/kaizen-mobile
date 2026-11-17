@@ -1,3 +1,5 @@
+import 'dart:async';
+
 import 'package:flutter/material.dart';
 import 'package:provider/provider.dart';
 import 'package:sparrowkaizen/core/widgets/fast_circular_progress.dart';
@@ -5,6 +7,7 @@ import 'package:sparrowkaizen/core/widgets/fast_circular_progress.dart';
 import '../../../../core/constants/app_colors.dart';
 import '../../../../core/constants/app_strings.dart';
 import '../../../../core/navigation/app_menu_type.dart';
+import '../../../../core/navigation/main_navigation_controller.dart';
 import '../../../../core/widgets/app_text_view.dart';
 import '../../../../core/widgets/drawer_main_screen.dart';
 import '../../../../routes/app_router.dart';
@@ -76,12 +79,55 @@ class _CheckInScreenViewState extends State<_CheckInScreenView> {
   late final TextEditingController _searchController;
   late final ScrollController _scrollController;
   final ValueNotifier<bool> _showGeneralSeats = ValueNotifier(false);
+  AppMenuType? _selectedMainMenu;
 
   @override
   void initState() {
     super.initState();
     _searchController = TextEditingController();
     _scrollController = ScrollController()..addListener(_handleScroll);
+  }
+
+  @override
+  void didChangeDependencies() {
+    super.didChangeDependencies();
+    final menu = context.watch<MainNavigationController?>()?.selectedMenu;
+    final isReturning =
+        _selectedMainMenu != null &&
+        _selectedMainMenu != AppMenuType.audits &&
+        menu == AppMenuType.audits;
+    _selectedMainMenu = menu;
+    if (isReturning) {
+      WidgetsBinding.instance.addPostFrameCallback((_) {
+        if (mounted && _selectedMainMenu == AppMenuType.audits) {
+          _refreshVisibleListing();
+        }
+      });
+    }
+  }
+
+  void _refreshVisibleListing() {
+    if (_showGeneralSeats.value) {
+      unawaited(
+        context.read<GeneralSeatsController>().refresh(showLoader: false),
+      );
+    } else {
+      unawaited(context.read<CheckInController>().refresh(showLoader: false));
+    }
+  }
+
+  void _selectGeneralSeats() {
+    if (_showGeneralSeats.value) return;
+    _showGeneralSeats.value = true;
+    _refreshVisibleListing();
+  }
+
+  void _selectCheckIns(CheckInController controller, AuditMemberStatus status) {
+    if (!_showGeneralSeats.value && controller.state.selectedStatus == status) {
+      return;
+    }
+    _showGeneralSeats.value = false;
+    unawaited(controller.selectStatus(status, refresh: true));
   }
 
   @override
@@ -187,13 +233,11 @@ class _CheckInScreenViewState extends State<_CheckInScreenView> {
         deactivatedTitle: AppStrings.auditMyCheckInsTab,
         showDeactivated: showTeamTabs,
         isGeneralSeatsSelected: showGeneralSeats,
-        onGeneralSeatsSelected: () => _showGeneralSeats.value = true,
-        onStatusSelected: (status) {
-          _showGeneralSeats.value = false;
-          controller.selectStatus(
-            state.isOwner ? status : AuditMemberStatus.deactivated,
-          );
-        },
+        onGeneralSeatsSelected: _selectGeneralSeats,
+        onStatusSelected: (status) => _selectCheckIns(
+          controller,
+          state.isOwner ? status : AuditMemberStatus.deactivated,
+        ),
       ),
     );
   }
@@ -297,7 +341,7 @@ class _CheckInScreenViewState extends State<_CheckInScreenView> {
     if (!mounted) return;
 
     // Fetch the saved summary after the entire description/detail flow closes.
-    await controller.refresh();
+    await controller.refresh(showLoader: false);
   }
 
   Future<void> _openGeneralSeatDetails(SeatAudit seat) async {
@@ -313,7 +357,7 @@ class _CheckInScreenViewState extends State<_CheckInScreenView> {
       ),
     );
     if (!mounted) return;
-    await controller.refresh();
+    await controller.refresh(showLoader: false);
   }
 
   Future<void> _openFilterSheet(

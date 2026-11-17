@@ -116,6 +116,8 @@ class CheckInController extends ChangeNotifier {
   Map<String, String> _seatProfileJobUuids = const <String, String>{};
   String? _selectedSeatProfileJobUuid;
   bool _hasPendingMainListSearchRefresh = false;
+  bool _isMainListRefreshing = false;
+  int _mainListRefreshGeneration = 0;
   bool _hasPendingTeamMembersSearchRefresh = false;
   final Map<String, _CachedCertifiedReportPdfUrl> _certifiedReportPdfUrlCache =
       <String, _CachedCertifiedReportPdfUrl>{};
@@ -945,23 +947,32 @@ class CheckInController extends ChangeNotifier {
     }
   }
 
-  Future<void> refresh() async {
-    if (_isDisposed || _state.isLoading || _state.isLoadingMore) {
+  Future<void> refresh({bool showLoader = true}) async {
+    if (_isDisposed ||
+        _state.isLoading ||
+        _isMainListRefreshing ||
+        _state.isLoadingMore) {
       return;
     }
     _cancelPendingMainListSearchRefresh();
-    _clearMainListCaches(clearDefaultCaches: true);
-    await _refreshMainListSearchResults(showLoader: true, forceRefresh: true);
+    await _refreshMainListSearchResults(
+      showLoader: showLoader,
+      forceRefresh: true,
+    );
   }
 
   Future<void> loadNextPage() async {
     final currentList = _state.mainList;
     if (_state.isLoading ||
+        _isMainListRefreshing ||
         _state.isLoadingMore ||
         currentList == null ||
         currentList.next == null) {
       return;
     }
+
+    final generation = _mainListRefreshGeneration;
+    final requestKey = _mainListRequestKey;
 
     _state = _state.copyWith(isLoadingMore: true);
     notifyListeners();
@@ -972,6 +983,11 @@ class CheckInController extends ChangeNotifier {
         page: nextPage,
         pageSize: 12,
       );
+      if (_isDisposed ||
+          generation != _mainListRefreshGeneration ||
+          requestKey != _mainListRequestKey) {
+        return;
+      }
       final mergedList = AuditMainList(
         count: nextList.count,
         next: nextList.next,
@@ -989,6 +1005,11 @@ class CheckInController extends ChangeNotifier {
       _state = _state.copyWith(isLoadingMore: false, mainList: mergedList);
       notifyListeners();
     } catch (error) {
+      if (_isDisposed ||
+          generation != _mainListRefreshGeneration ||
+          requestKey != _mainListRequestKey) {
+        return;
+      }
       _state = _state.copyWith(isLoadingMore: false);
       notifyListeners();
       _logRecoverableError('loadNextPage', error);
@@ -1517,6 +1538,7 @@ class CheckInController extends ChangeNotifier {
               description.hasAudit ||
               (counts?.values.any((count) => count > 0) ?? false),
           counts: counts ?? const {},
+          isMirror: description.isMirror || descriptionAudit.isMirror,
         ),
       );
       notifyListeners();
@@ -1588,6 +1610,44 @@ class CheckInController extends ChangeNotifier {
     );
   }
 
+  Future<List<SubordinateProfileJob>> loadDescriptionAssignmentMembers({
+    required String seatId,
+  }) {
+    final repository = _auditRepository;
+    if (repository == null) {
+      throw StateError('AuditRepository is not configured.');
+    }
+    return repository.getSubordinateProfileJobs(seatId: seatId);
+  }
+
+  void markDescriptionAsMirror({
+    required String quarterlyAuditId,
+    required String descriptionId,
+    required String date,
+  }) {
+    final audit = _state.quarterlyAudit;
+    if (_isDisposed ||
+        audit == null ||
+        audit.uuid != quarterlyAuditId ||
+        _state.quarterlyAuditDate != date) {
+      return;
+    }
+    final description = audit.descriptions
+        .where((description) => description.uuid == descriptionId)
+        .firstOrNull;
+    if (description == null || description.isMirror) return;
+    _state = _state.copyWith(
+      quarterlyAudit: audit.withDescriptionRatingCounts(
+        descriptionId: descriptionId,
+        auditId: description.auditUuid,
+        counts: const {},
+        hasAudit: description.hasAudit,
+        isMirror: true,
+      ),
+    );
+    notifyListeners();
+  }
+
   Future<AuditDescriptionAudit> submitAuditDescriptionSelection({
     required String quarterlyAuditId,
     required String seatDescriptionId,
@@ -1622,6 +1682,20 @@ class CheckInController extends ChangeNotifier {
       notifyListeners();
     }
     return response;
+  }
+
+  Future<void> assignAuditDescription({
+    required String descriptionId,
+    required List<String> profileJobIds,
+  }) {
+    final submit = _submitDescriptionAuditUseCase;
+    if (submit == null) {
+      throw StateError('AuditRepository is not configured.');
+    }
+    return submit.assign(
+      descriptionId: descriptionId,
+      profileJobIds: profileJobIds,
+    );
   }
 
   Future<List<AuditList>> loadAuditReport({
@@ -1884,12 +1958,35 @@ class CheckInController extends ChangeNotifier {
     notifyListeners();
   }
 
-  Future<void> selectStatus(AuditMemberStatus status) async {
+  Future<void> selectStatus(
+    AuditMemberStatus status, {
+    bool refresh = false,
+  }) async {
     if (_state.selectedStatus == status) {
+      if (refresh) await this.refresh(showLoader: false);
       return;
     }
 
     _cancelPendingMainListSearchRefresh();
+
+    if (refresh) {
+      final cachedList = _state.isActualOwner
+          ? _state.mainList
+          : _cachedListFor(status) ??
+                (!_hasMainListSearchQuery()
+                    ? _defaultCachedListFor(status)
+                    : null);
+      _state = _state.copyWith(
+        selectedStatus: status,
+        mainList: cachedList,
+        clearMainList: cachedList == null,
+      );
+      await _refreshMainListSearchResults(
+        showLoader: cachedList == null,
+        forceRefresh: true,
+      );
+      return;
+    }
 
     _state = _state.copyWith(
       selectedStatus: status,
@@ -2960,7 +3057,7 @@ class CheckInController extends ChangeNotifier {
   }
 
   Future<void> _runDebouncedMainListSearchRefresh() async {
-    if (_state.isLoading || _state.isLoadingMore) {
+    if (_state.isLoading || _isMainListRefreshing || _state.isLoadingMore) {
       _hasPendingMainListSearchRefresh = true;
       return;
     }
@@ -2973,8 +3070,19 @@ class CheckInController extends ChangeNotifier {
     required bool showLoader,
     bool forceRefresh = false,
   }) async {
+    final generation = ++_mainListRefreshGeneration;
     final requestKey = _mainListRequestKey;
-    _clearMainListCaches();
+    if (forceRefresh) {
+      // A later cleared search must not restore data from before this refresh.
+      if (_state.selectedStatus == AuditMemberStatus.deactivated) {
+        _defaultMyCheckInMainListCache = null;
+      } else {
+        _defaultActiveMainListCache = null;
+      }
+    } else {
+      _clearMainListCaches();
+    }
+    _isMainListRefreshing = true;
 
     _state = _state.copyWith(isLoading: showLoader, isLoadingMore: false);
     notifyListeners();
@@ -2985,12 +3093,14 @@ class CheckInController extends ChangeNotifier {
         pageSize: 12,
         forceRefresh: forceRefresh,
       );
-      if (_isDisposed) {
+      if (_isDisposed || generation != _mainListRefreshGeneration) {
         return;
       }
       if (requestKey != _mainListRequestKey) {
-        _state = _state.copyWith(isLoading: false, isLoadingMore: false);
-        notifyListeners();
+        if (showLoader) {
+          _state = _state.copyWith(isLoading: false, isLoadingMore: false);
+          notifyListeners();
+        }
         return;
       }
 
@@ -3006,12 +3116,14 @@ class CheckInController extends ChangeNotifier {
       );
       notifyListeners();
     } catch (error) {
-      if (_isDisposed) {
+      if (_isDisposed || generation != _mainListRefreshGeneration) {
         return;
       }
       if (requestKey != _mainListRequestKey) {
-        _state = _state.copyWith(isLoading: false, isLoadingMore: false);
-        notifyListeners();
+        if (showLoader) {
+          _state = _state.copyWith(isLoading: false, isLoadingMore: false);
+          notifyListeners();
+        }
         return;
       }
 
@@ -3019,7 +3131,8 @@ class CheckInController extends ChangeNotifier {
       notifyListeners();
       _logRecoverableError('refreshMainListSearchResults', error);
     } finally {
-      if (!_isDisposed) {
+      if (!_isDisposed && generation == _mainListRefreshGeneration) {
+        _isMainListRefreshing = false;
         _flushPendingMainListSearchRefresh();
       }
     }
@@ -3028,6 +3141,7 @@ class CheckInController extends ChangeNotifier {
   void _flushPendingMainListSearchRefresh() {
     if (!_hasPendingMainListSearchRefresh ||
         _state.isLoading ||
+        _isMainListRefreshing ||
         _state.isLoadingMore) {
       return;
     }

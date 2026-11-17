@@ -18,12 +18,14 @@ class CheckInDescriptionCardController extends ChangeNotifier {
     required String date,
     required bool isOwner,
     required bool isSelfAudit,
+    bool isGeneralSeatAudit = false,
   }) : _checkInController = checkInController,
        _audit = audit,
        _description = description,
        _date = date,
        _isOwner = isOwner,
-       _isSelfAudit = isSelfAudit {
+       _isSelfAudit = isSelfAudit,
+       _isGeneralSeatAudit = isGeneralSeatAudit {
     _resetRatings();
   }
 
@@ -35,6 +37,8 @@ class CheckInDescriptionCardController extends ChangeNotifier {
   String _date;
   bool _isOwner;
   bool _isSelfAudit;
+  bool _isGeneralSeatAudit;
+  bool _resolvedIsMirror = false;
   late Map<String, int> _counts;
   late Map<String, int> _lastSyncedCounts;
   bool _hasLocalChanges = false;
@@ -49,7 +53,15 @@ class CheckInDescriptionCardController extends ChangeNotifier {
 
   bool get isOpeningDetails => _isOpeningDetails;
   bool get showDecrementControl => _isOwner && !_isSelfAudit;
-  bool get canEditRatings => canCreateComments && _isOwner && !_isSelfAudit;
+  bool get showGeneralSeatRatingLock => AuditRating.isLockedByGeneralSeat(
+    isMirror: _description.isMirror || _resolvedIsMirror,
+    isGeneralSeatAudit: _isGeneralSeatAudit,
+  );
+  bool get canEditRatings =>
+      canCreateComments &&
+      _isOwner &&
+      !_isSelfAudit &&
+      !showGeneralSeatRatingLock;
   bool get canCreateComments =>
       !_audit.isMismatch && CustomFunctions.isAuditWithinContinueWindow(_date);
 
@@ -87,16 +99,20 @@ class CheckInDescriptionCardController extends ChangeNotifier {
     required String date,
     required bool isOwner,
     required bool isSelfAudit,
+    bool? isGeneralSeatAudit,
   }) {
     final identityChanged =
         _audit.uuid != audit.uuid ||
         _description.uuid != description.uuid ||
         _date != date;
+    final mirrorChanged = _description.isMirror != description.isMirror;
     _audit = audit;
     _description = description;
     _date = date;
     _isOwner = isOwner;
     _isSelfAudit = isSelfAudit;
+    _isGeneralSeatAudit = isGeneralSeatAudit ?? _isGeneralSeatAudit;
+    if (identityChanged || mirrorChanged) _resolvedIsMirror = false;
 
     if (identityChanged) {
       _generation += 1;
@@ -107,7 +123,8 @@ class CheckInDescriptionCardController extends ChangeNotifier {
       _errorMessage = null;
       _editRevision = 0;
       _resetRatings();
-    } else if (!_hasLocalChanges) {
+    } else if (!_hasLocalChanges || showGeneralSeatRatingLock) {
+      if (showGeneralSeatRatingLock) _submitDebounceTimer?.cancel();
       _resetRatings();
     }
     notifyListeners();
@@ -176,6 +193,7 @@ class CheckInDescriptionCardController extends ChangeNotifier {
     final seatDescriptionId = _description.uuid;
     try {
       final auditUuid = await resolveAuditUuid();
+      if (!_isCurrent(generation) || !canEditRatings) return;
       final response = await _checkInController.submitAuditDescriptionSelection(
         quarterlyAuditId: quarterlyAuditId,
         seatDescriptionId: seatDescriptionId,
@@ -231,6 +249,20 @@ class CheckInDescriptionCardController extends ChangeNotifier {
       final response = await request;
       if (_isCurrent(generation)) {
         _auditDescriptionFuture = Future.value(response);
+        _resolvedIsMirror = response.isMirror;
+        if (showGeneralSeatRatingLock) {
+          _submitDebounceTimer?.cancel();
+          _counts = Map.of(_lastSyncedCounts);
+          _hasLocalChanges = false;
+        }
+        if (response.isMirror) {
+          _checkInController.markDescriptionAsMirror(
+            quarterlyAuditId: quarterlyAuditId,
+            descriptionId: descriptionId,
+            date: date,
+          );
+        }
+        notifyListeners();
       }
       return response;
     } catch (_) {

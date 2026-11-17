@@ -82,6 +82,26 @@ void main() {
 
     expect(updated, same(original));
   });
+
+  test('mirror updates preserve counts and unrelated description metadata', () {
+    final updated = original.withDescriptionRatingCounts(
+      descriptionId: 'first',
+      auditId: 'first-audit',
+      counts: const {},
+      hasAudit: false,
+      isMirror: true,
+    );
+    expect(updated.descriptions.first.isMirror, isTrue);
+    expect(updated.descriptions.first.great, original.descriptions.first.great);
+    expect(updated.descriptions.first.hasAudit, isFalse);
+    expect(updated.descriptions.last, same(original.descriptions.last));
+    final saved = updated.withDescriptionRatingCounts(
+      descriptionId: 'first',
+      auditId: 'first-audit',
+      counts: {'great': 5},
+    );
+    expect(saved.descriptions.first.isMirror, isTrue);
+  });
 }
 
 QuarterlyAuditDescription _description(String id) {

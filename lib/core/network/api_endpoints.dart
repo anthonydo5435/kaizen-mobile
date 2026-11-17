@@ -275,6 +275,10 @@ class ApiEndPoints {
     return 'audit/$descriptionId/';
   }
 
+  static String assignAuditDescription(String descriptionId) {
+    return '${auditDescription(descriptionId)}assign/';
+  }
+
   static String createAuditDescriptionMedia(String descriptionId) {
     return 'audit/$descriptionId/create_media/';
   }

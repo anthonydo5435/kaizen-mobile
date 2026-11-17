@@ -1318,6 +1318,34 @@ class AppStrings {
 
   static const String auditDescriptionDetails = 'Description Details';
   static const String auditSelectRatings = 'Select Ratings';
+  static const String auditGeneralSeatRatingLabel = '(General Seat)';
+  static const String auditAssignTo = 'Assign To';
+  static const String auditAssignToTeamMember = 'Assign to Team Member';
+  static const String auditAssignTeamMembers = 'Assign Team Members';
+  static const String auditAssignToTeamMemberHint =
+      'Select someone from your team';
+  static const String auditAssignedToPrefix = 'Assigned To: ';
+  static String auditAssignedTeamMemberCount(int count) =>
+      '$count Team Member${count == 1 ? '' : 's'}';
+  static String auditAssignedToTeamMembers(int count) =>
+      '$auditAssignedToPrefix${auditAssignedTeamMemberCount(count)}';
+  static const String auditAddToGeneralCheckIn = 'Add to General Check-in';
+  static const String auditAddToGeneralCheckInHint =
+      'Apply to general seat profile';
+  static const String auditAssignmentClose = 'Close';
+  static const String auditAssignmentRetry = 'Retry';
+  static const String auditAssignmentSaveFailed =
+      'Unable to assign this check-in. Please try again.';
+  static const String auditGeneralAssignmentConfirmTitle =
+      'Are you sure you want to make it a General Check-In';
+  static const String auditGeneralAssignmentConfirmMessage =
+      "This will remove it from the assigned team member's list.";
+  static const String auditMemberAssignmentConfirmTitle =
+      'Are you sure you want to assign this check-in?';
+  static const String auditMemberAssignmentConfirmMessage =
+      'Assigning this check-in to the selected team members will replace their team member check-ins.';
+  static const String auditAssignmentConfirmNo = 'No';
+  static const String auditAssignmentConfirmYes = 'Yes';
   static const String auditRatingGreat = 'Great';
   static const String auditRatingAlmostThere = 'Almost There';
   static const String auditRatingNeedsImprovement = 'Needs Improvement';

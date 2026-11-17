@@ -14,6 +14,7 @@ import '../providers/check_in_controller.dart';
 import '../providers/check_in_description_card_controller.dart';
 import 'description_media_comment_bottom_sheet.dart';
 import 'description_text_comment_dialog.dart';
+import 'check_in_general_seat_rating_lock.dart';
 
 class CheckInDescriptionCard extends StatefulWidget {
   const CheckInDescriptionCard({
@@ -24,6 +25,7 @@ class CheckInDescriptionCard extends StatefulWidget {
     required this.isOwner,
     required this.onOpenDetails,
     required this.isSelfAudit,
+    this.isGeneralSeatAudit = false,
   });
 
   final QuarterlyAudit audit;
@@ -32,6 +34,7 @@ class CheckInDescriptionCard extends StatefulWidget {
   final bool isOwner;
   final ValueChanged<Map<String, int>> onOpenDetails;
   final bool isSelfAudit;
+  final bool isGeneralSeatAudit;
 
   @override
   State<CheckInDescriptionCard> createState() => _CheckInDescriptionCardState();
@@ -52,6 +55,7 @@ class _CheckInDescriptionCardState extends State<CheckInDescriptionCard> {
       date: widget.date,
       isOwner: widget.isOwner,
       isSelfAudit: widget.isSelfAudit,
+      isGeneralSeatAudit: widget.isGeneralSeatAudit,
     )..addListener(_handleControllerChanged);
   }
 
@@ -64,6 +68,7 @@ class _CheckInDescriptionCardState extends State<CheckInDescriptionCard> {
       date: widget.date,
       isOwner: widget.isOwner,
       isSelfAudit: widget.isSelfAudit,
+      isGeneralSeatAudit: widget.isGeneralSeatAudit,
     );
   }
 
@@ -214,6 +219,10 @@ class _DescriptionCardContent extends StatelessWidget {
           crossAxisAlignment: CrossAxisAlignment.start,
           children: [
             _DescriptionCardHeading(controller: controller),
+            if (controller.showGeneralSeatRatingLock) ...[
+              const SizedBox(height: 8),
+              const CheckInGeneralSeatRatingLock(),
+            ],
             const SizedBox(height: 18),
             _DescriptionCardRatingSection(
               controller: controller,
@@ -286,7 +295,13 @@ class _DescriptionCardRatingSection extends StatelessWidget {
           Row(
             children: [
               const Expanded(child: SizedBox.shrink()),
-              _DescriptionRatingCounters(controller: controller),
+              GestureDetector(
+                behavior: HitTestBehavior.opaque,
+                excludeFromSemantics: true,
+                // Locked counters consume taps instead of opening the card.
+                onTap: controller.showGeneralSeatRatingLock ? () {} : null,
+                child: _DescriptionRatingCounters(controller: controller),
+              ),
               const Expanded(child: SizedBox.shrink()),
             ],
           ),

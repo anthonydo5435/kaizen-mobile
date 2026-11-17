@@ -148,7 +148,7 @@ class _ViewButton extends StatelessWidget {
   @override
   Widget build(BuildContext context) {
     return Material(
-      color: AppColors.purple1,
+      color: AppColors.secondaryColor,
       borderRadius: BorderRadius.circular(12),
       clipBehavior: Clip.antiAlias,
       child: InkWell(

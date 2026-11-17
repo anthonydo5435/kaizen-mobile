@@ -91,12 +91,14 @@ class CheckInQuarterSelector extends StatelessWidget {
     required this.quarter,
     required this.yearOptions,
     required this.onChanged,
+    this.allowWrapping = false,
   });
 
   final int year;
   final int quarter;
   final List<int> yearOptions;
   final ValueChanged<String?> onChanged;
+  final bool allowWrapping;
 
   @override
   Widget build(BuildContext context) {
@@ -109,6 +111,7 @@ class CheckInQuarterSelector extends StatelessWidget {
         label: AppStrings.auditSelectYearQuarter,
         value: AppStrings.auditQuarterPeriodLabel(year, quarter),
         icon: Icons.arrow_drop_down,
+        allowWrapping: allowWrapping,
       ),
     );
   }
@@ -119,14 +122,60 @@ class _PeriodSelectorField extends StatelessWidget {
     required this.label,
     required this.value,
     required this.icon,
+    this.allowWrapping = false,
   });
 
   final String label;
   final String value;
   final IconData icon;
+  final bool allowWrapping;
+
+  static const _labelStyle = TextStyle(
+    color: AppColors.textSecondary,
+    fontSize: 11,
+  );
 
   @override
   Widget build(BuildContext context) {
+    if (!allowWrapping) return _buildField(context);
+    return LayoutBuilder(
+      builder: (context, constraints) {
+        final painter = TextPainter(
+          text: TextSpan(
+            text: label,
+            style: DefaultTextStyle.of(context).style.merge(_labelStyle),
+          ),
+          textScaler: MediaQuery.textScalerOf(context),
+          textDirection: Directionality.of(context),
+          maxLines: 1,
+        )..layout();
+        // Outlined inputs scale floating labels to 75% of their text size.
+        final labelNeedsOwnLine =
+            painter.width * 0.75 > constraints.maxWidth - 20;
+        painter.dispose();
+        final field = _buildField(
+          context,
+          showFloatingLabel: !labelNeedsOwnLine,
+        );
+        if (!labelNeedsOwnLine) return field;
+        return Column(
+          crossAxisAlignment: CrossAxisAlignment.stretch,
+          children: [
+            AppTextView.body2(
+              label,
+              color: AppColors.textSecondary,
+              fontSize: 11,
+              height: 1.4,
+            ),
+            const SizedBox(height: 6),
+            field,
+          ],
+        );
+      },
+    );
+  }
+
+  Widget _buildField(BuildContext context, {bool showFloatingLabel = true}) {
     final contentHeight = math.max(
       24.0,
       MediaQuery.textScalerOf(context).scale(12) * 1.4 + 6,
@@ -136,8 +185,8 @@ class _PeriodSelectorField extends StatelessWidget {
       borderSide: const BorderSide(color: AppColors.textPrimary),
     );
     final decoration = InputDecoration(
-      labelText: label,
-      labelStyle: const TextStyle(color: AppColors.textSecondary, fontSize: 11),
+      labelText: showFloatingLabel ? label : null,
+      labelStyle: _labelStyle,
       floatingLabelBehavior: FloatingLabelBehavior.always,
       isDense: true,
       contentPadding: const EdgeInsets.symmetric(horizontal: 10, vertical: 8),
@@ -152,8 +201,10 @@ class _PeriodSelectorField extends StatelessWidget {
             fontSize: 12,
             height: 1.4,
             color: AppColors.textPrimary,
-            maxLines: 1,
-            overflow: TextOverflow.ellipsis,
+            maxLines: allowWrapping ? null : 1,
+            overflow: allowWrapping
+                ? TextOverflow.visible
+                : TextOverflow.ellipsis,
           ),
         ),
         const SizedBox(width: 8),
@@ -163,7 +214,12 @@ class _PeriodSelectorField extends StatelessWidget {
     return InputDecorator(
       key: const ValueKey('check-in-details-period-selector'),
       decoration: decoration,
-      child: SizedBox(height: contentHeight, child: content),
+      child: allowWrapping
+          ? ConstrainedBox(
+              constraints: BoxConstraints(minHeight: contentHeight),
+              child: content,
+            )
+          : SizedBox(height: contentHeight, child: content),
     );
   }
 }

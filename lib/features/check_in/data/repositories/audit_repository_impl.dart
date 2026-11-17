@@ -398,6 +398,15 @@ class AuditRepositoryImpl implements AuditRepository {
   }
 
   @override
+  Future<void> assignDescriptionAudit({
+    required String descriptionId,
+    required List<String> profileJobIds,
+  }) => _remoteDataSource.assignDescriptionAudit(
+    descriptionId: descriptionId,
+    profileJobIds: profileJobIds,
+  );
+
+  @override
   Future<String> generateAuditDescriptionMediaUploadUrl({
     required String fileName,
   }) {
