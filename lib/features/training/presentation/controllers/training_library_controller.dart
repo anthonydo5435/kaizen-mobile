@@ -4,6 +4,7 @@ import 'package:flutter/material.dart';
 import 'package:flutter/rendering.dart' show ScrollDirection;
 
 import '../../../../core/constants/app_strings.dart';
+import '../../../../core/preference/app_preference.dart';
 import '../../../../core/utils/custom_functions.dart';
 import '../../../seat_profile/domain/entities/seat_profile_detail.dart';
 import '../../../seat_profile/domain/usecases/get_seat_profiles_usecase.dart';
@@ -54,6 +55,7 @@ class TrainingLibraryController extends ChangeNotifier {
   static const double _navigationScrollThreshold = 12;
 
   bool get navigationBarsVisible => _navigationBarsVisible;
+  bool _isOpeningLesson = false;
   bool _isShowingModuleActions = false;
   final ScrollController scrollController = ScrollController();
   bool _isDisposed = false;
@@ -132,20 +134,69 @@ class TrainingLibraryController extends ChangeNotifier {
   }) async {
     final lessonId = module.id.trim();
     final descriptionId = module.trainingDescriptionId.trim();
-    if (_isDisposed || !module.isLessonListing || lessonId.isEmpty || descriptionId.isEmpty) {
+    if (_isDisposed ||
+        _isOpeningLesson ||
+        !module.isLessonListing ||
+        lessonId.isEmpty ||
+        descriptionId.isEmpty) {
       return;
     }
-    final canManageTraining = _canManageSeatTraining?.call(module.seat.id) ?? false;
-    await openDetails(
-      SeatDescriptionTrainingRoute(
-        job: module.seat.id,
+    _isOpeningLesson = true;
+    try {
+      final seat = module.seat;
+      final knownActualSeatId = _knownActualSeatId(seat);
+      var actualSeatId = knownActualSeatId;
+      final actualSeatIdLookup =
+          knownActualSeatId == null &&
+          seat.id.isNotEmpty &&
+          _canManageSeatTraining?.call(seat.id) == false
+          ? _fetchActualSeatId(seat.id).then((id) => actualSeatId = id)
+          : null;
+
+      final route = SeatDescriptionTrainingRoute(
+        job: seat.id,
         category: module.category.id,
         description: descriptionId,
+        actualSeatProfileId: knownActualSeatId,
+        actualSeatProfileIdLookup: actualSeatIdLookup,
         initialModuleId: lessonId,
-      ),
-    );
-    if (!_isDisposed && canManageTraining) {
-      await refresh(preservePosition: true);
+      );
+      await openDetails(route);
+      final resolvedActualSeatId = actualSeatId;
+      if (!_isDisposed &&
+          (_canManageSeatTraining?.call(route.job) == true ||
+              (resolvedActualSeatId != null &&
+                  _canManageSeatTraining?.call(resolvedActualSeatId) == true))) {
+        await refresh(preservePosition: true);
+      }
+    } finally {
+      _isOpeningLesson = false;
+    }
+  }
+
+  String? _knownActualSeatId(TrainingLibrarySeat seat) =>
+      seat.actualId ??
+      _seatProfiles
+          .where(
+            (profile) => profile.id == seat.id && profile.actualId.isNotEmpty,
+          )
+          .firstOrNull
+          ?.actualId;
+
+  Future<String?> _fetchActualSeatId(String seatId) async {
+    final sessionVersion = AppPreference.sessionVersion;
+    final organizationId = AppPreference.getSelectedOrganizationId();
+    try {
+      final profile = await _getSeatProfilesUseCase.getSeatProfileDetail(seatId);
+      if (_isDisposed ||
+          sessionVersion != AppPreference.sessionVersion ||
+          organizationId != AppPreference.getSelectedOrganizationId()) {
+        return null;
+      }
+      return profile.resolvedSeatId;
+    } catch (_) {
+      // A missing seat detail still allows access through the listing seat ID.
+      return null;
     }
   }
 
@@ -156,7 +207,9 @@ class TrainingLibraryController extends ChangeNotifier {
       module.id.trim().isNotEmpty &&
       module.lessons.length == 1 &&
       module.lessons.single.id == module.id &&
-      (_canManageSeatTraining?.call(module.seat.id) ?? false);
+      module.seat.profileIds.any(
+        (id) => _canManageSeatTraining?.call(id) == true,
+      );
 
   Future<void> openModuleActions(
     TrainingLibraryModule module, {

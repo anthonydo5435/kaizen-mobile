@@ -15,6 +15,7 @@ import '../../../../core/widgets/app_dialog_style.dart';
 import '../../../../core/widgets/app_text_view.dart';
 import '../../../../core/widgets/fast_circular_progress.dart';
 import '../../../../core/widgets/share_dialogue.dart';
+import '../../../../core/widgets/paid_features_unavailable_dialog.dart';
 import '../../domain/entities/seat_description_training.dart';
 import '../controllers/training_share_controller.dart';
 
@@ -136,9 +137,10 @@ class TrainingShareDialogue extends StatelessWidget {
                     AppGradientActionButton(
                       label: AppStrings.shareCreateLinkAction,
                       icon: Icons.link_rounded,
-                      onTap: controller.canCreate
-                          ? controller.createLink
-                          : null,
+                      onTap: guardPaidAction(
+                        context,
+                        controller.canCreate ? controller.createLink : null,
+                      ),
                       isLoading: controller.isWorking,
                       borderRadius: 12,
                       minHeight: 44,

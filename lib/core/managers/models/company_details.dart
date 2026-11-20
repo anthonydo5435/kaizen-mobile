@@ -16,15 +16,19 @@ class CompanyDetails {
   final CompanyBillingDetails? billing;
 
   factory CompanyDetails.fromApiJson(Map<String, dynamic> json) {
+    final billingJson = json['billing'];
+    final isInTrial =
+        _readBool(json['is_in_trial']) ?? _readBool(json['isInTrial']);
     return CompanyDetails(
       uuid: _readString(json['uuid']) ?? '',
       name: _readString(json['name']) ?? '',
       type: _readString(json['type']) ?? '',
       isDlc: _readBool(json['is_dlc']) ?? false,
-      billing: json['billing'] is Map<String, dynamic>
-          ? CompanyBillingDetails.fromApiJson(
-              json['billing'] as Map<String, dynamic>,
-            )
+      billing: billingJson is Map<String, dynamic> || isInTrial != null
+          ? CompanyBillingDetails.fromApiJson({
+              if (billingJson is Map<String, dynamic>) ...billingJson,
+              if (isInTrial != null) 'is_in_trial': isInTrial,
+            })
           : null,
     );
   }

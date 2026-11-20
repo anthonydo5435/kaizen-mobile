@@ -22,7 +22,6 @@ class _GenerateQuizDialog extends StatelessWidget {
       child: Container(
         width: double.infinity,
         constraints: BoxConstraints(
-          maxWidth: 620,
           maxHeight: availableHeight.clamp(0.0, mediaQuery.size.height * 0.92),
         ),
         decoration: const BoxDecoration(
@@ -370,7 +369,10 @@ class _GenerateQuizFooter extends StatelessWidget {
           const AppDotDivider(dotSize: 5),
           const SizedBox(height: 18),
           TextButton.icon(
-            onPressed: isEnabled && !isGenerating ? onGenerate : null,
+            onPressed: guardPaidAction(
+              context,
+              isEnabled && !isGenerating ? onGenerate : null,
+            ),
             style: TextButton.styleFrom(
               backgroundColor: AppColors.secondaryColor,
               disabledBackgroundColor: AppColors.secondaryColor.withValues(alpha: 0.55),

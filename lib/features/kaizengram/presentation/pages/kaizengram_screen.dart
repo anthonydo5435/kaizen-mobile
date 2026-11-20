@@ -15,6 +15,7 @@ import '../../../../core/utils/custom_functions.dart';
 import '../../../../core/widgets/app_text_view.dart';
 import '../../../../core/widgets/app_keyboard_bottom_sheet_surface.dart';
 import '../../../../core/widgets/drawer_main_screen.dart';
+import '../../../../core/widgets/paid_features_unavailable_dialog.dart';
 import '../../../../routes/app_router.dart';
 import '../../../compliance/presentation/widgets/compliance_video_player.dart';
 import '../../data/datasources/kaizengram_remote_data_source.dart';

@@ -89,7 +89,7 @@ class _QuizGenerationStepper extends StatelessWidget {
           _StepperActionButton(
             icon: Icons.add_circle_outline_rounded,
             tooltip: AppStrings.trainingQuizIncreaseSetting(label),
-            onTap: canIncrement ? onIncrement : null,
+            onTap: guardPaidAction(context, canIncrement ? onIncrement : null),
           ),
         ],
       ),

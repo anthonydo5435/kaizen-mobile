@@ -11,6 +11,7 @@ import '../../../../core/widgets/app_keyboard_bottom_sheet_surface.dart';
 import '../../../../core/widgets/app_overlay_close_button.dart';
 import '../../../../core/widgets/app_swipe_reveal_action.dart';
 import '../../../../core/widgets/app_text_view.dart';
+import '../../../../core/widgets/paid_features_unavailable_dialog.dart';
 import '../../domain/entities/seat_profile_category_draft.dart';
 import '../providers/seat_profile_category_form_controller.dart';
 
@@ -136,10 +137,10 @@ class _SeatProfileManageCategoriesSheetState
               alignment: Alignment.bottomCenter,
               child: ConstrainedBox(
                 constraints: BoxConstraints(
-                  maxWidth: 720,
                   maxHeight: MediaQuery.sizeOf(context).height * 0.88,
                 ),
                 child: AppKeyboardBottomSheetSurface(
+                  width: double.infinity,
                   color: AppColors.surfaceDark,
                   borderRadius: const BorderRadius.vertical(
                     top: Radius.circular(28),
@@ -224,9 +225,12 @@ class _SeatProfileManageCategoriesSheetState
                               isCompact: isCompact,
                               totalImportanceLabel:
                                   _formController.totalImportanceLabel,
-                              onAddTap: _formController.isSaving
-                                  ? null
-                                  : _formController.addRow,
+                              onAddTap: guardPaidAction(
+                                context,
+                                _formController.isSaving
+                                    ? null
+                                    : _formController.addRow,
+                              ),
                             ),
                             SizedBox(height: isCompact ? 14 : 18),
                             AppTextView.body2(

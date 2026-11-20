@@ -1,5 +1,6 @@
 import 'dart:async';
 
+import 'package:flutter/rendering.dart';
 import 'package:flutter/widgets.dart';
 
 import '../controllers/training_tab_navigation_controller.dart';
@@ -148,8 +149,9 @@ class _TrainingTabViewState extends State<TrainingTabView> {
             ? const PageScrollPhysics(parent: ClampingScrollPhysics())
             : const NeverScrollableScrollPhysics(),
         childrenDelegate: SliverChildBuilderDelegate(
-          (context, index) => Padding(
+          (context, index) => _TrainingTabPage(
             key: ValueKey<int>(index),
+            maxTabIndex: widget.maxTabIndex,
             padding:
                 widget.pagePaddingBuilder?.call(index) ??
                 const EdgeInsets.symmetric(horizontal: 8),
@@ -170,4 +172,37 @@ class _TrainingTabViewState extends State<TrainingTabView> {
             ),
     );
   }
+}
+
+class _TrainingTabPage extends StatefulWidget {
+  const _TrainingTabPage({
+    super.key,
+    required this.maxTabIndex,
+    required this.padding,
+    required this.child,
+  });
+
+  final int maxTabIndex;
+  final EdgeInsetsGeometry padding;
+  final Widget child;
+
+  @override
+  State<_TrainingTabPage> createState() => _TrainingTabPageState();
+}
+
+class _TrainingTabPageState extends State<_TrainingTabPage> {
+  @override
+  void didUpdateWidget(covariant _TrainingTabPage oldWidget) {
+    super.didUpdateWidget(oldWidget);
+    if (widget.maxTabIndex != oldWidget.maxTabIndex) {
+      // Invalidate the sliver's scroll range when permissions add offscreen tabs.
+      context
+          .findAncestorRenderObjectOfType<RenderSliverFillViewport>()
+          ?.markNeedsLayout();
+    }
+  }
+
+  @override
+  Widget build(BuildContext context) =>
+      Padding(padding: widget.padding, child: widget.child);
 }

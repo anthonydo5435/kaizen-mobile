@@ -2,6 +2,7 @@ import 'user_hierarchy_membership.dart';
 import 'user_role_utils.dart';
 
 class User {
+  /// Organisation profile UUID, used by Check-in and hierarchy matching.
   final String? uuid;
   final String? status;
   final String? driveId;
@@ -10,8 +11,11 @@ class User {
   final String? name;
   final String? email;
   final String? image;
+  final String? imageUuid;
   final String? gender;
   final Signature? signature;
+
+  /// Account UUID, used by account/profile update endpoints.
   final String? userUuid;
   final String? imageUrl;
   final String? lastName;
@@ -32,6 +36,8 @@ class User {
   final String? sandboxUuid;
   final String? feVersion;
   final bool? isPasswordReset;
+  final bool? introPending;
+  final bool? isOrgRenamed;
   final String? companyUuid;
   final bool? hasPaymentDetailsProvided;
   final String? personalityType;
@@ -49,6 +55,7 @@ class User {
     this.name,
     this.email,
     this.image,
+    this.imageUuid,
     this.gender,
     this.signature,
     this.userUuid,
@@ -71,6 +78,8 @@ class User {
     this.sandboxUuid,
     this.feVersion,
     this.isPasswordReset,
+    this.introPending,
+    this.isOrgRenamed,
     this.companyUuid,
     this.hasPaymentDetailsProvided,
     this.personalityType,
@@ -87,6 +96,7 @@ class User {
     String? name,
     String? email,
     String? image,
+    String? imageUuid,
     String? gender,
     Signature? signature,
     String? userUuid,
@@ -109,6 +119,8 @@ class User {
     String? sandboxUuid,
     String? feVersion,
     bool? isPasswordReset,
+    bool? introPending,
+    bool? isOrgRenamed,
     String? companyUuid,
     bool? hasPaymentDetailsProvided,
     String? personalityType,
@@ -124,6 +136,7 @@ class User {
       name: name ?? this.name,
       email: email ?? this.email,
       image: image ?? this.image,
+      imageUuid: imageUuid ?? this.imageUuid,
       gender: gender ?? this.gender,
       signature: signature ?? this.signature,
       userUuid: userUuid ?? this.userUuid,
@@ -147,6 +160,8 @@ class User {
       sandboxUuid: sandboxUuid ?? this.sandboxUuid,
       feVersion: feVersion ?? this.feVersion,
       isPasswordReset: isPasswordReset ?? this.isPasswordReset,
+      introPending: introPending ?? this.introPending,
+      isOrgRenamed: isOrgRenamed ?? this.isOrgRenamed,
       companyUuid: companyUuid ?? this.companyUuid,
       hasPaymentDetailsProvided:
           hasPaymentDetailsProvided ?? this.hasPaymentDetailsProvided,
@@ -157,51 +172,61 @@ class User {
   }
 
   factory User.fromJson(Map<String, dynamic> json) {
+    final nestedProfile = _readMap(json['profile']);
+    final profile = nestedProfile ?? json;
+    // Account fields moved outside profile; older saved users remain flat.
+    final account = nestedProfile == null ? json : {...nestedProfile, ...json};
+    final image = _readMap(account['image']);
+    final imagePath = image == null
+        ? _readString(account['image'])
+        : _readString(image['url'] ?? image['image']);
+    final signature = _readMap(account['signature']);
+    final address =
+        _readMap(account['address']) ?? _readMap(account['profile_address']);
+
     return User(
-      uuid: json['uuid'],
-      status: json['status'],
-      driveId: json['drive_id'],
-      onboarded: json['onboarded'],
-      organizationUuid: json['organization_uuid'],
-      name: json['name'],
-      email: json['email'],
-      image: json['image'],
-      gender: json['gender'],
-      signature: json['signature'] != null
-          ? Signature.fromJson(json['signature'])
-          : null,
-      userUuid: json['user_uuid'],
-      imageUrl: json['image_url'],
-      lastName: json['last_name'],
-      firstName: json['first_name'],
-      contactNo: json['contact_no'],
-      dateJoined: json['date_joined'] != null
-          ? DateTime.tryParse(json['date_joined'])
-          : null,
-      userProgress: json['user_progress'],
-      profileAddress: json['profile_address'] != null
-          ? ProfileAddress.fromJson(json['profile_address'])
-          : null,
-      isEmailVerified: json['is_email_verified'],
-      envelope: json['envelope'],
-      isOwner: json['is_owner'],
-      lastLogin: json['last_login'] != null
-          ? DateTime.tryParse(json['last_login'])
-          : null,
-      isIntegrator: json['is_integrator'],
-      isTopOperator: json['is_top_operator'],
-      roles: _parseRoles(json['roles']),
-      isInActiveOrganization: json['is_in_active_organization'],
-      hasSandboxAccess: json['has_sandbox_access'] ?? json['hasSandboxAccess'],
-      sandboxUuid: json['sandbox_uuid'],
-      feVersion: json['fe_version'],
-      isPasswordReset: json['is_password_reset'],
-      companyUuid: json['company_uuid'],
-      hasPaymentDetailsProvided: json['has_payment_details_provided'],
-      personalityType: _readPersonalityType(json),
-      dateOfBirth: _readDateOfBirth(json),
+      uuid: _readString(profile['uuid']) ?? _readString(json['uuid']),
+      status: _readString(profile['status']),
+      driveId: _readString(profile['drive_id']),
+      onboarded: profile['onboarded'],
+      organizationUuid: _readString(profile['organization_uuid']),
+      name: _readString(account['name']),
+      email: _readString(account['email']),
+      image: imagePath,
+      imageUuid: _readString(image?['uuid'] ?? account['image_uuid']),
+      gender: _readString(account['gender']),
+      signature: signature == null ? null : Signature.fromJson(signature),
+      userUuid: nestedProfile == null
+          ? _readString(json['user_uuid'])
+          : _readString(json['uuid']) ?? _readString(account['user_uuid']),
+      imageUrl: _readString(account['image_url']) ?? imagePath,
+      lastName: _readString(account['last_name']),
+      firstName: _readString(account['first_name']),
+      contactNo: _readString(account['contact_no']),
+      dateJoined: _parseDate(profile['date_joined']),
+      userProgress: account['user_progress'],
+      profileAddress: address == null ? null : ProfileAddress.fromJson(address),
+      isEmailVerified: account['is_email_verified'],
+      envelope: profile['envelope'],
+      isOwner: account['is_owner'],
+      lastLogin: _parseDate(account['last_login']),
+      isIntegrator: profile['is_integrator'],
+      isTopOperator: profile['is_top_operator'],
+      roles: _parseRoles(profile['roles']),
+      isInActiveOrganization: profile['is_in_active_organization'],
+      hasSandboxAccess:
+          account['has_sandbox_access'] ?? account['hasSandboxAccess'],
+      sandboxUuid: _readString(account['sandbox_uuid']),
+      feVersion: _readString(account['fe_version']),
+      isPasswordReset: account['is_password_reset'],
+      introPending: account['intro_pending'],
+      isOrgRenamed: account['is_org_renamed'],
+      companyUuid: _readString(account['company_uuid']),
+      hasPaymentDetailsProvided: account['has_payment_details_provided'],
+      personalityType: _readPersonalityType(account),
+      dateOfBirth: _readDateOfBirth(account),
       hierarchyMemberships: _parseHierarchyMemberships(
-        json['hierarchy_memberships'] ?? json['hierarchyMemberships'],
+        account['hierarchy_memberships'] ?? account['hierarchyMemberships'],
       ),
     );
   }
@@ -216,6 +241,7 @@ class User {
       'name': name,
       'email': email,
       'image': image,
+      'image_uuid': imageUuid,
       'gender': gender,
       'signature': signature?.toJson(),
       'user_uuid': userUuid,
@@ -238,6 +264,8 @@ class User {
       'sandbox_uuid': sandboxUuid,
       'fe_version': feVersion,
       'is_password_reset': isPasswordReset,
+      'intro_pending': introPending,
+      'is_org_renamed': isOrgRenamed,
       'company_uuid': companyUuid,
       'has_payment_details_provided': hasPaymentDetailsProvided,
       'personality_type': personalityType,
@@ -246,6 +274,27 @@ class User {
           ?.map((membership) => membership.toJson())
           .toList(growable: false),
     };
+  }
+
+  static String? _readString(Object? value) {
+    if (value is! String && value is! num) return null;
+    final text = value.toString().trim();
+    return text.isEmpty || text == 'null' ? null : text;
+  }
+
+  static DateTime? _parseDate(Object? value) {
+    final text = _readString(value);
+    if (text == null) return null;
+    final timestamp = int.tryParse(text);
+    if (timestamp == null) return DateTime.tryParse(text);
+    final milliseconds = text.replaceFirst('-', '').length <= 10
+        ? timestamp * 1000
+        : timestamp;
+    try {
+      return DateTime.fromMillisecondsSinceEpoch(milliseconds, isUtc: true);
+    } on RangeError {
+      return null;
+    }
   }
 
   static String? _readPersonalityType(Map<String, dynamic> json) {
@@ -374,8 +423,10 @@ class Signature {
   Signature({this.uuid, this.image});
 
   factory Signature.fromJson(Map<String, dynamic> json) {
-    return Signature(uuid: json['uuid'], image: json['image']);
+    return Signature(uuid: json['uuid'], image: json['url'] ?? json['image']);
   }
+
+  String? get url => image;
 
   Map<String, dynamic> toJson() => {'uuid': uuid, 'image': image};
 }

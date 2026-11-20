@@ -903,14 +903,15 @@ class TrainingModuleController extends ChangeNotifier {
     FileUploader? fileUploader,
     bool canManageTraining = false,
     bool canViewQuizAndAssignment = false,
+    bool canGenerateForAssignedSeat = false,
     TrainingSopEditorFactory? sopEditorFactory,
     Future<SharedLessonContent> Function(String publicId)?
     sharedLessonDetailLoader,
   }) : _sopEditorFactory = sopEditorFactory,
        _fileUploader = fileUploader ?? const FileUploader(),
        _canManageTraining = canManageTraining,
-       _canViewQuizAndAssignment =
-           canManageTraining || canViewQuizAndAssignment,
+       _canViewQuizAndAssignment = canViewQuizAndAssignment,
+       _canGenerateForAssignedSeat = canGenerateForAssignedSeat,
        _sharedLessonDetailLoader = sharedLessonDetailLoader {
     newLessonTitleController.addListener(_handleNewLessonTitleChanged);
     moduleTitleController.addListener(_handleModuleTitleChanged);
@@ -935,8 +936,9 @@ class TrainingModuleController extends ChangeNotifier {
   final Future<SharedLessonContent> Function(String publicId)?
   _sharedLessonDetailLoader;
   final FileUploader _fileUploader;
-  final bool _canManageTraining;
-  final bool _canViewQuizAndAssignment;
+  bool _canManageTraining;
+  bool _canViewQuizAndAssignment;
+  bool _canGenerateForAssignedSeat;
   bool _isDisposed = false;
   final TextEditingController newLessonTitleController =
       TextEditingController();
@@ -950,6 +952,14 @@ class TrainingModuleController extends ChangeNotifier {
       TrainingRichTextEditingController(quoteColor: AppColors.grey2);
   bool _lastAssignmentDraftHasTitle = false;
   final Map<String, String> _moduleLocalVideoPaths = <String, String>{};
+  static const Duration _videoProcessingInterval = Duration(seconds: 3);
+  final _videoProcessingChecks =
+      <String, ({TrainingVideoProcessingJob? job, bool resolved})>{};
+  final _retryingVideoIds = <String>{};
+  String _videoProcessingId = '';
+  int _videoProcessingVersion = 0;
+  int _moduleDetailRequestVersion = 0;
+  Timer? _videoProcessingTimer;
 
   bool _isLoading = false;
   bool _isDocumentLoading = false;
@@ -1132,6 +1142,8 @@ class TrainingModuleController extends ChangeNotifier {
   String? get deletingModuleId => _deletingModuleId;
   String? get updatingModuleVisibilityId => _updatingModuleVisibilityId;
   bool get canManageTraining => _canManageTraining;
+  bool get canManageTrainingGeneration =>
+      _canManageTraining || _canGenerateForAssignedSeat;
   bool get canSubmitNewLessonTitle =>
       _canManageTraining &&
       !_isCreatingModule &&
@@ -1140,8 +1152,26 @@ class TrainingModuleController extends ChangeNotifier {
       !_isCreatingNewLessonDraft && hasSelectedModule;
   int get maxAccessibleTabIndex => maxTrainingTabIndex(
     hasSelectedModule: canAccessSelectedModuleExtras,
-    canViewQuizAndAssignment: _canViewQuizAndAssignment,
+    canViewQuizAndAssignment: _canManageTraining || _canViewQuizAndAssignment,
   );
+
+  void updateTrainingAccess({
+    required bool canManage,
+    required bool canViewQuizAndAssignment,
+    required bool canGenerateForAssignedSeat,
+  }) {
+    if (_isDisposed ||
+        (_canManageTraining == canManage &&
+            _canViewQuizAndAssignment == canViewQuizAndAssignment &&
+            _canGenerateForAssignedSeat == canGenerateForAssignedSeat)) {
+      return;
+    }
+    _canManageTraining = canManage;
+    _canViewQuizAndAssignment = canViewQuizAndAssignment;
+    _canGenerateForAssignedSeat = canGenerateForAssignedSeat;
+    notifyListeners();
+  }
+
   bool get hasSelectedModuleVideo {
     final video = _selectedModuleDetail?.trainingVideo;
     if (video == null) {
@@ -1156,6 +1186,51 @@ class TrainingModuleController extends ChangeNotifier {
   bool get hasSelectedModuleVideoTranscript =>
       _selectedModuleDetail?.trainingVideo?.transcript?.trim().isNotEmpty ??
       false;
+  bool get isCheckingSelectedVideoProcessing =>
+      _videoProcessingId.isNotEmpty &&
+      _videoProcessingChecks[_videoProcessingId]?.resolved != true;
+  TrainingVideoProcessingJob? get _selectedVideoProcessingJob =>
+      _videoProcessingChecks[_videoProcessingId]?.job;
+  bool get isLoadingSelectedVideoSummary =>
+      isCheckingSelectedVideoProcessing &&
+      (!_videoProcessingChecks.containsKey(_videoProcessingId) ||
+          _selectedVideoProcessingJob?.isCompleted == true);
+  bool get canRetrySelectedVideoProcessing {
+    final job = _selectedVideoProcessingJob;
+    return !isCheckingSelectedVideoProcessing &&
+        job != null &&
+        job.canRetry &&
+        job.uuid.isNotEmpty;
+  }
+  bool get isRetryingSelectedVideoProcessing =>
+      _retryingVideoIds.contains(_videoProcessingId);
+  bool get _hasSelectedModuleSummaryEditAccess =>
+      canManageTrainingGeneration && canAccessSelectedModuleExtras;
+  bool get showSelectedModuleSummary =>
+      !isCheckingSelectedVideoProcessing &&
+      !isRetryingSelectedVideoProcessing &&
+      ((_selectedVideoProcessingJob?.isCompleted ?? true) ||
+          canRetrySelectedVideoProcessing ||
+          _hasSelectedModuleSummaryEditAccess);
+  String? get selectedSummaryProcessingError {
+    final job = _selectedVideoProcessingJob;
+    if (job == null || job.isCompleted || !showSelectedModuleSummary) return null;
+    final message = job.errorMessage;
+    return message == null || message.isEmpty
+        ? AppStrings.trainingSummaryRetryError
+        : message;
+  }
+  bool get showSelectedModuleSummaryAction =>
+      canManageTrainingGeneration &&
+      !isCheckingSelectedVideoProcessing &&
+      !isRetryingSelectedVideoProcessing &&
+      (_canGenerateSummaryManually || canRetrySelectedVideoProcessing);
+
+  bool get _canGenerateSummaryManually {
+    final job = _selectedVideoProcessingJob;
+    return job == null || (job.isCompleted && !hasSelectedModuleSummary);
+  }
+
   // A generated summary can arrive before the cached video transcript updates.
   bool get hasSelectedModuleSummary => CustomFunctions.stripHtmlTags(
     _selectedModuleDetail?.description,
@@ -1171,16 +1246,18 @@ class TrainingModuleController extends ChangeNotifier {
       !_isUploadingThumbnail &&
       !_isLoading;
   bool get canGenerateSopForSelectedModule =>
-      _canManageTraining &&
+      canManageTrainingGeneration &&
       hasSelectedModule &&
       hasSelectedModuleVideo &&
       (hasSelectedModuleVideoTranscript || hasSelectedModuleSummary) &&
       !_isGeneratingSop;
   bool get canGenerateSummaryForSelectedModule =>
-      canEditSelectedModuleSummary &&
+      canManageTrainingGeneration &&
+      !isCheckingSelectedVideoProcessing &&
+      _canGenerateSummaryManually &&
+      hasSelectedModule &&
+      !_isCreatingNewLessonDraft &&
       hasSelectedModuleVideo &&
-      hasSelectedModuleSummary &&
-      summaryController.text.trim().isNotEmpty &&
       !_isDisposed &&
       !_isLoading &&
       !_isUploadingVideo &&
@@ -1189,26 +1266,26 @@ class TrainingModuleController extends ChangeNotifier {
       !_isSavingSummary &&
       !_isGeneratingSummary;
   bool get canGenerateQuizForSelectedModule =>
-      _canManageTraining &&
+      canManageTrainingGeneration &&
       hasSelectedModule &&
       hasSelectedModuleVideo &&
       (hasSelectedModuleVideoTranscript || hasSelectedModuleSummary) &&
       !_isGeneratingQuiz;
+  bool get _canEditSelectedLessonContent =>
+      _canManageTraining && canAccessSelectedModuleExtras;
   bool get canAddQuestionToSelectedModule =>
-      _canManageTraining &&
-      hasSelectedModule &&
+      _canEditSelectedLessonContent &&
       hasSelectedModuleVideo &&
       !_isAddingQuestion;
   bool get canEditSelectedModuleTitle =>
       _canManageTraining && hasSelectedModule && !_isCreatingNewLessonDraft;
   bool get canEditSelectedModuleSummary =>
-      _canManageTraining && hasSelectedModule && !_isCreatingNewLessonDraft;
-  bool get canEditSelectedModuleDocument =>
-      _canManageTraining && hasSelectedModule && !_isCreatingNewLessonDraft;
+      _hasSelectedModuleSummaryEditAccess && showSelectedModuleSummary;
+  bool get canEditSelectedModuleDocument => _canEditSelectedLessonContent;
   bool get canEditSelectedModuleAssignment =>
       _canManageTraining && hasSelectedModule && !_isCreatingNewLessonDraft;
   bool get canGenerateAssignmentForSelectedModule =>
-      _canManageTraining &&
+      canManageTrainingGeneration &&
       hasSelectedModule &&
       !_isGeneratingAssignment &&
       !_isAssignmentLoading;
@@ -2177,7 +2254,6 @@ class TrainingModuleController extends ChangeNotifier {
     _isEditingSummary = true;
     _editingSummaryVisibility =
         _selectedModuleDetail?.isPubliclyAvailable ?? false;
-    _summaryTextToController();
     notifyListeners();
   }
 
@@ -2193,7 +2269,8 @@ class TrainingModuleController extends ChangeNotifier {
   }
 
   void setEditingSummaryVisibility(bool value) {
-    if (!canEditSelectedModuleSummary ||
+    if (!_canEditSelectedLessonContent ||
+        !canEditSelectedModuleSummary ||
         !_isEditingSummary ||
         _editingSummaryVisibility == value) {
       return;
@@ -2204,6 +2281,10 @@ class TrainingModuleController extends ChangeNotifier {
   }
 
   Future<bool> saveSummaryForSelectedModule() async {
+    if (!_canEditSelectedLessonContent) {
+      return _saveSelectedModuleSummaryTextForSelectedModule();
+    }
+
     final resolvedModuleId = _selectedModuleId.trim();
     if (!canEditSelectedModuleSummary ||
         resolvedModuleId.isEmpty ||
@@ -2544,18 +2625,19 @@ class TrainingModuleController extends ChangeNotifier {
             videoUrl: videoUrl,
             duration: videoDurationInSeconds,
           );
-      _moduleLocalVideoPaths[resolvedModuleId] = videoFile.path;
-      _applySelectedModuleVideo(uploadedVideo);
-      _applySelectedModuleDescription(null);
-      unawaited(_refreshUploadedVideoTranscript(resolvedModuleId));
-      _generateSelectedModuleSummaryInBackground(resolvedModuleId);
+      if (!_isDisposed) {
+        _moduleLocalVideoPaths[resolvedModuleId] = videoFile.path;
+        _recordUploadedVideo(resolvedModuleId, uploadedVideo);
+      }
       return true;
     } catch (error) {
-      _errorMessage = _resolveVideoUploadErrorMessage(error);
+      if (!_isDisposed) {
+        _errorMessage = _resolveVideoUploadErrorMessage(error);
+      }
       return false;
     } finally {
       _isUploadingVideo = false;
-      notifyListeners();
+      if (!_isDisposed) notifyListeners();
     }
   }
 
@@ -2564,6 +2646,7 @@ class TrainingModuleController extends ChangeNotifier {
     required SeatDescriptionTrainingVideo video,
     required String localVideoPath,
   }) {
+    if (_isDisposed) return;
     final resolvedModuleId = moduleId.trim();
     final resolvedLocalVideoPath = localVideoPath.trim();
     if (resolvedModuleId.isEmpty) {
@@ -2574,20 +2657,185 @@ class TrainingModuleController extends ChangeNotifier {
       _moduleLocalVideoPaths[resolvedModuleId] = resolvedLocalVideoPath;
     }
 
-    if (_selectedModuleId != resolvedModuleId) {
+    // Attaching the local file to the current video preserves its job status.
+    if (_selectedModuleId == resolvedModuleId &&
+        identical(_selectedModuleDetail?.trainingVideo, video)) {
+      notifyListeners();
+      return;
+    }
+    _recordUploadedVideo(resolvedModuleId, video);
+  }
+
+  void _recordUploadedVideo(
+    String moduleId,
+    SeatDescriptionTrainingVideo video,
+  ) {
+    final videoId = video.uuid.trim();
+    if (videoId.isNotEmpty) {
+      _retryingVideoIds.remove(videoId);
+      _videoProcessingChecks[videoId] = (job: null, resolved: false);
+    }
+    if (_selectedModuleId != moduleId) {
       return;
     }
 
     _errorMessage = null;
     if (_selectedModuleDetail != null) {
-      _applySelectedModuleVideo(video);
-      _applySelectedModuleDescription(null);
-      unawaited(_refreshUploadedVideoTranscript(resolvedModuleId));
+      _stopSelectedVideoProcessing();
+      _resetSummaryEditor();
+      _applySelectedModuleVideo(video, notifyListenersAfterUpdate: false);
+      _applySelectedModuleDescription(null, notifyListenersAfterUpdate: false);
+      _startSelectedVideoProcessing();
+      notifyListeners();
       return;
     }
 
     notifyListeners();
     unawaited(_loadSelectedModuleDetail());
+  }
+
+  void _startSelectedVideoProcessing() {
+    final videoId = _selectedModuleDetail?.trainingVideo?.uuid.trim() ?? '';
+    if (_sharedLessonDetailLoader != null || videoId == _videoProcessingId) {
+      return;
+    }
+
+    _stopSelectedVideoProcessing();
+    _videoProcessingId = videoId;
+    if (isCheckingSelectedVideoProcessing) {
+      unawaited(_checkSelectedVideoProcessing(_videoProcessingVersion));
+    }
+  }
+
+  void _stopSelectedVideoProcessing() {
+    _videoProcessingTimer?.cancel();
+    _videoProcessingTimer = null;
+    _videoProcessingId = '';
+    _videoProcessingVersion++;
+  }
+
+  bool _isCurrentVideoProcessing(int version) =>
+      !_isDisposed && version == _videoProcessingVersion;
+
+  void _scheduleVideoProcessingCheck(int version) {
+    _videoProcessingTimer?.cancel();
+    _videoProcessingTimer = Timer(_videoProcessingInterval, () {
+      _videoProcessingTimer = null;
+      unawaited(_checkSelectedVideoProcessing(version));
+    });
+  }
+
+  Future<void> _checkSelectedVideoProcessing(int version) async {
+    if (!_isCurrentVideoProcessing(version)) return;
+    final moduleId = _selectedModuleId;
+    final videoId = _videoProcessingId;
+    final check = _videoProcessingChecks[videoId];
+    var job = check?.job;
+    try {
+      if (job?.isCompleted != true) {
+        job = await _trainingRepository.getLatestVideoProcessingJob(
+          videoId: videoId,
+        );
+        if (!_isCurrentVideoProcessing(version)) return;
+      }
+
+      if (job?.isProcessing == true || (job == null && check != null)) {
+        _videoProcessingChecks[videoId] = (job: job, resolved: false);
+        _scheduleVideoProcessingCheck(version);
+        if (check == null) notifyListeners();
+        return;
+      }
+
+      if (job?.isCompleted == true) {
+        // Remember completion before refreshing the lesson so that only the
+        // lesson request is repeated if its data has not caught up with the job.
+        _videoProcessingChecks[videoId] = (job: job, resolved: false);
+        if (check != null && check.job?.isCompleted != true) {
+          notifyListeners();
+        }
+        final detail = await _trainingRepository
+            .getSeatDescriptionTrainingModuleDetail(
+              moduleId: moduleId,
+              forceRefresh: true,
+            );
+        if (!_isCurrentVideoProcessing(version)) return;
+        final video = detail.trainingVideo;
+        if (video == null || video.uuid.trim() != videoId) {
+          _scheduleVideoProcessingCheck(version);
+          return;
+        }
+        if (_retryingVideoIds.remove(videoId)) _resetSummaryEditor();
+        _applySelectedModuleDescription(
+          detail.description,
+          notifyListenersAfterUpdate: false,
+        );
+        _videoProcessingChecks[videoId] = (job: job, resolved: true);
+        final currentVideo = _selectedModuleDetail?.trainingVideo;
+        final transcript = video.transcript;
+        if (currentVideo != null &&
+            transcript != null &&
+            transcript.trim().isNotEmpty &&
+            currentVideo.transcript != transcript) {
+          _applySelectedModuleVideo(currentVideo.withTranscript(transcript));
+        } else {
+          notifyListeners();
+        }
+        return;
+      }
+    } catch (error) {
+      if (!_isCurrentVideoProcessing(version)) return;
+      debugPrint('Unable to check training video processing: $error');
+      if (_videoProcessingChecks.containsKey(videoId)) {
+        _scheduleVideoProcessingCheck(version);
+        return;
+      }
+    }
+
+    _videoProcessingChecks[videoId] = (job: job, resolved: true);
+    final wasRetrying = _retryingVideoIds.remove(videoId);
+    notifyListeners();
+    if (wasRetrying) _scheduleSummaryAutoSaveIfNeeded();
+  }
+
+  Future<void> retrySelectedVideoProcessing() async {
+    if (!canManageTrainingGeneration ||
+        !canRetrySelectedVideoProcessing ||
+        isRetryingSelectedVideoProcessing ||
+        _isSavingSummary ||
+        _isUploadingVideo ||
+        _isDeletingVideo) {
+      return;
+    }
+
+    final videoId = _videoProcessingId;
+    final jobId = _selectedVideoProcessingJob!.uuid;
+    _summaryAutoSaveDebounce?.cancel();
+    _retryingVideoIds.add(videoId);
+    notifyListeners();
+    var retryAccepted = false;
+    try {
+      final job = await _trainingRepository.retryVideoProcessingJob(
+        jobId: jobId,
+      );
+      if (_isDisposed || _videoProcessingChecks[videoId]?.job?.uuid != jobId) {
+        return;
+      }
+      _videoProcessingChecks[videoId] = (job: job, resolved: false);
+      retryAccepted = true;
+      if (_videoProcessingId == videoId) {
+        _scheduleVideoProcessingCheck(_videoProcessingVersion);
+      }
+    } catch (error) {
+      if (!_isDisposed && _videoProcessingId == videoId) {
+        _emitSummarySnackBar(error.toString());
+      }
+    } finally {
+      if (!retryAccepted) _retryingVideoIds.remove(videoId);
+      if (!_isDisposed && _videoProcessingId == videoId) {
+        notifyListeners();
+        if (!retryAccepted) _scheduleSummaryAutoSaveIfNeeded();
+      }
+    }
   }
 
   Future<bool> deleteVideoForSelectedModule() async {
@@ -2916,14 +3164,20 @@ class TrainingModuleController extends ChangeNotifier {
       return;
     }
 
+    final moduleId = _selectedModuleId;
+    final requestVersion = ++_moduleDetailRequestVersion;
+    bool isCurrentRequest() =>
+        !_isDisposed &&
+        _selectedModuleId == moduleId &&
+        requestVersion == _moduleDetailRequestVersion;
     _isLoading = true;
     _errorMessage = null;
     notifyListeners();
 
     try {
       if (_sharedLessonDetailLoader != null) {
-        final sharedLesson = await _sharedLessonDetailLoader(_selectedModuleId);
-        if (_isDisposed) return;
+        final sharedLesson = await _sharedLessonDetailLoader(moduleId);
+        if (!isCurrentRequest()) return;
         _selectedModuleDetail = sharedLesson.module;
         _selectedModuleDocument = sharedLesson.document;
         _selectedModuleAssignment = sharedLesson.assignment;
@@ -2932,9 +3186,9 @@ class TrainingModuleController extends ChangeNotifier {
       } else {
         final detail = await _trainingRepository
             .getSeatDescriptionTrainingModuleDetail(
-              moduleId: _selectedModuleId,
+              moduleId: moduleId,
             );
-        if (_isDisposed) return;
+        if (!isCurrentRequest()) return;
         _selectedModuleDetail = detail;
       }
       if (_selectedModuleDetail?.trainingVideo == null) {
@@ -2951,8 +3205,9 @@ class TrainingModuleController extends ChangeNotifier {
         _hasResolvedQuestions = true;
       }
       _syncSelectedModuleSummaryFromDetail();
+      _startSelectedVideoProcessing();
     } catch (error) {
-      if (_isDisposed) return;
+      if (!isCurrentRequest()) return;
       _errorMessage = error.toString();
     }
 
@@ -3295,15 +3550,7 @@ class TrainingModuleController extends ChangeNotifier {
       }
 
       // Only merge the transcript; preserve local video previews and editor drafts.
-      _applySelectedModuleVideo(
-        SeatDescriptionTrainingVideo(
-          uuid: video.uuid,
-          title: video.title,
-          url: video.url,
-          duration: video.duration,
-          transcript: refreshedVideo!.transcript,
-        ),
-      );
+      _applySelectedModuleVideo(video.withTranscript(refreshedVideo!.transcript!));
     } catch (error) {
       if (!_isDisposed) {
         debugPrint(
@@ -3313,7 +3560,10 @@ class TrainingModuleController extends ChangeNotifier {
     }
   }
 
-  void _applySelectedModuleVideo(SeatDescriptionTrainingVideo video) {
+  void _applySelectedModuleVideo(
+    SeatDescriptionTrainingVideo video, {
+    bool notifyListenersAfterUpdate = true,
+  }) {
     final detail = _selectedModuleDetail;
     if (detail == null) {
       return;
@@ -3336,7 +3586,7 @@ class TrainingModuleController extends ChangeNotifier {
       isPubliclyAvailable: detail.isPubliclyAvailable,
       learningTrackCount: detail.learningTrackCount,
     );
-    notifyListeners();
+    if (notifyListenersAfterUpdate) notifyListeners();
   }
 
   void _removeSelectedModuleVideo() {
@@ -3344,6 +3594,8 @@ class TrainingModuleController extends ChangeNotifier {
     if (detail == null) {
       return;
     }
+
+    _stopSelectedVideoProcessing();
 
     _selectedModuleDetail = SeatDescriptionTrainingModuleDetail(
       uuid: detail.uuid,
@@ -3530,22 +3782,15 @@ class TrainingModuleController extends ChangeNotifier {
   void _resetEditors() {
     _disposeSopEditor();
     _documentEditorVersion += 1;
-    _summaryEditorVersion += 1;
-    _cancelSummaryWriting();
+    _resetSummaryEditor();
     _assignmentEditorVersion += 1;
     _moduleTitleAutoSaveDebounce?.cancel();
-    _summaryAutoSaveDebounce?.cancel();
     _documentAutoSaveDebounce?.cancel();
     _assignmentAutoSaveDebounce?.cancel();
-    _isEditingSummary = false;
     _isSavingModuleTitle = false;
-    _isSavingSummary = false;
-    _isGeneratingSummary = false;
-    _editingSummaryVisibility = null;
     _isSavingDocument = false;
     _isSavingAssignment = false;
     _lastSavedModuleTitle = '';
-    _lastSavedSummaryText = '';
     _lastSavedDocumentHtml = '';
     _documentDraftHtml = '';
     _lastSavedAssignmentTitle = '';
@@ -3553,10 +3798,6 @@ class TrainingModuleController extends ChangeNotifier {
     _isSyncingModuleTitleController = true;
     moduleTitleController.clear();
     _isSyncingModuleTitleController = false;
-    _isSyncingSummaryController = true;
-    summaryController.clear();
-    _lastSummaryDraftHasContent = false;
-    _isSyncingSummaryController = false;
     _isSyncingAssignmentController = true;
     assignmentTitleController.clear();
     _isSyncingDocumentController = true;
@@ -3566,7 +3807,20 @@ class TrainingModuleController extends ChangeNotifier {
     _isSyncingAssignmentController = false;
   }
 
+  void _resetSummaryEditor() {
+    _summaryEditorVersion++;
+    _cancelSummaryWriting();
+    _summaryAutoSaveDebounce?.cancel();
+    _isEditingSummary = false;
+    _isSavingSummary = false;
+    _isGeneratingSummary = false;
+    _editingSummaryVisibility = null;
+    _lastSavedSummaryText = '';
+    _setSummaryEditorText('');
+  }
+
   void _resetSelectedModuleExtras() {
+    _stopSelectedVideoProcessing();
     _documentRequestVersion += 1;
     _documentPdfRequestVersion += 1;
     _isDocumentLoading = false;
@@ -3763,6 +4017,7 @@ class TrainingModuleController extends ChangeNotifier {
   @override
   void dispose() {
     _isDisposed = true;
+    _stopSelectedVideoProcessing();
     _disposeSopEditor();
     _cancelSummaryWriting();
     _documentRequestVersion += 1;
@@ -3787,36 +4042,6 @@ class TrainingModuleController extends ChangeNotifier {
     documentController.dispose();
     assignmentDescriptionController.dispose();
     super.dispose();
-  }
-
-  void _generateSelectedModuleSummaryInBackground(String moduleId) {
-    unawaited(
-      _trainingRepository
-          .generateSeatDescriptionTrainingModuleSummary(moduleId: moduleId)
-          .then((generatedDescription) {
-            if (_isDisposed || _selectedModuleId != moduleId) {
-              return;
-            }
-
-            _applySelectedModuleDescription(generatedDescription);
-            unawaited(_refreshUploadedVideoTranscript(moduleId));
-          })
-          .catchError((Object error) {
-            if (_isDisposed) return;
-            if (error is ApiError && error.statusCode == 404) {
-              if (_selectedModuleId == moduleId) {
-                _applySelectedModuleDescription(null);
-                unawaited(_refreshUploadedVideoTranscript(moduleId));
-              }
-              _emitSummarySnackBar(
-                AppStrings.trainingNoSummaryAvailableSnackBar,
-              );
-              return;
-            }
-
-            debugPrint('Unable to generate training summary: $error');
-          }),
-    );
   }
 
   void _emitSummarySnackBar(String message) {

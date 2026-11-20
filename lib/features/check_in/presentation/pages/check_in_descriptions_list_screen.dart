@@ -35,6 +35,7 @@ class CheckInDescriptionsListScreen extends StatelessWidget {
     this.requireDescriptionSelection = false,
     this.isSelfAudit = false,
     this.isGeneralSeatAudit = false,
+    this.isReadOnly = false,
   });
 
   final String quarterlyAuditId;
@@ -45,6 +46,7 @@ class CheckInDescriptionsListScreen extends StatelessWidget {
   final bool requireDescriptionSelection;
   final bool isSelfAudit;
   final bool isGeneralSeatAudit;
+  final bool isReadOnly;
 
   @override
   Widget build(BuildContext context) {
@@ -83,6 +85,7 @@ class CheckInDescriptionsListScreen extends StatelessWidget {
                 quarter: quarter,
                 isSelfAudit: isSelfAudit,
                 isGeneralSeatAudit: isGeneralSeatAudit,
+                isReadOnly: isReadOnly,
               ),
         ),
         if (isGeneralSeatAudit)
@@ -106,6 +109,7 @@ class CheckInDescriptionsListScreen extends StatelessWidget {
         requireDescriptionSelection: requireDescriptionSelection,
         isSelfAudit: isSelfAudit,
         isGeneralSeatAudit: isGeneralSeatAudit,
+        isReadOnly: isReadOnly,
       ),
     );
   }
@@ -122,6 +126,7 @@ class _CheckInDescriptionsListView extends StatefulWidget {
     required this.requireDescriptionSelection,
     required this.isSelfAudit,
     required this.isGeneralSeatAudit,
+    required this.isReadOnly,
   });
 
   final String date;
@@ -132,6 +137,7 @@ class _CheckInDescriptionsListView extends StatefulWidget {
   final bool requireDescriptionSelection;
   final bool isSelfAudit;
   final bool isGeneralSeatAudit;
+  final bool isReadOnly;
 
   @override
   State<_CheckInDescriptionsListView> createState() =>
@@ -152,6 +158,7 @@ class _CheckInDescriptionsListViewState
         oldWidget.requireDescriptionSelection !=
             widget.requireDescriptionSelection ||
         oldWidget.isSelfAudit != widget.isSelfAudit ||
+        oldWidget.isReadOnly != widget.isReadOnly ||
         oldWidget.isGeneralSeatAudit != widget.isGeneralSeatAudit;
     if (!didIdentityChange) {
       return;
@@ -169,6 +176,7 @@ class _CheckInDescriptionsListViewState
         quarter: widget.quarter,
         isSelfAudit: widget.isSelfAudit,
         isGeneralSeatAudit: widget.isGeneralSeatAudit,
+        isReadOnly: widget.isReadOnly,
       );
     });
   }
@@ -218,7 +226,9 @@ class _CheckInDescriptionsListViewState
                         CheckInSeatProfileSwitcher(
                           onSelected: _openSelectedSeat,
                         ),
-                      ] else if (state.isOwner && members.isNotEmpty) ...[
+                      ] else if (state.isOwner &&
+                          !state.isCheckInReadOnly &&
+                          members.isNotEmpty) ...[
                         const SizedBox(height: 18),
                         _buildTeamMembersSection(context, audit, members),
                       ],
@@ -425,7 +435,8 @@ class _CheckInDescriptionsListViewState
             initialDescriptionIndex: initialDescriptionIndex,
             date: date,
             isOwner: auditController.state.isOwner,
-            isViewOnly: audit.isMismatch,
+            isViewOnly:
+                audit.isMismatch || auditController.state.isCheckInReadOnly,
             isSelfAudit: auditController.state.isSelfAudit,
             isGeneralSeatAudit: auditController.isGeneralSeatAudit,
             initialRatingCounts: initialRatingCounts,

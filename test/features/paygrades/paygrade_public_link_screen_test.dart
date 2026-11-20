@@ -6,6 +6,7 @@ import 'package:flutter_test/flutter_test.dart';
 import 'package:shared_preferences/shared_preferences.dart';
 import 'package:sparrowkaizen/core/constants/app_strings.dart';
 import 'package:sparrowkaizen/core/managers/app_manager.dart';
+import 'package:sparrowkaizen/core/managers/models/company_billing_details.dart';
 import 'package:sparrowkaizen/core/preference/app_preference.dart';
 import 'package:sparrowkaizen/core/widgets/fast_circular_progress.dart';
 import 'package:sparrowkaizen/features/login/domain/entities/user.dart';
@@ -18,6 +19,9 @@ void main() {
     SharedPreferences.setMockInitialValues({});
     await AppPreference.init();
     AppManager.instance.resetSessionState();
+    AppManager.instance.saveBillingDetails(
+      CompanyBillingDetails.fromApiJson({'status': 'paid'}),
+    );
     AppManager.instance.updateCurrentUser(
       User(uuid: 'owner', isOwner: true, organizationUuid: 'org'),
     );

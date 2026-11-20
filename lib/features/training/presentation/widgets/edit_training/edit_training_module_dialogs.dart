@@ -136,9 +136,10 @@ class _TrainingThumbnailPickerDialog extends StatelessWidget {
           Material(
             color: Colors.transparent,
             child: InkWell(
-              onTap: controller.isUploadingThumbnail
-                  ? null
-                  : onSelectThumbnailTap,
+              onTap: guardPaidAction(
+                context,
+                controller.isUploadingThumbnail ? null : onSelectThumbnailTap,
+              ),
               borderRadius: BorderRadius.circular(14),
               child: Ink(
                 width: double.infinity,

@@ -3,11 +3,13 @@ import 'package:flutter_test/flutter_test.dart';
 import 'package:shared_preferences/shared_preferences.dart';
 import 'package:sparrowkaizen/core/constants/app_strings.dart';
 import 'package:sparrowkaizen/core/managers/app_manager.dart';
+import 'package:sparrowkaizen/core/managers/app_manager_remote_data_source.dart';
 import 'package:sparrowkaizen/core/network/api_error.dart';
 import 'package:sparrowkaizen/core/preference/app_preference.dart';
 import 'package:sparrowkaizen/core/services/deep_link_service.dart';
 import 'package:sparrowkaizen/features/login/data/datasources/auth_remote_data_source.dart';
 import 'package:sparrowkaizen/features/login/domain/entities/user.dart';
+import 'package:sparrowkaizen/features/organizations/domain/entities/organization.dart';
 import 'package:sparrowkaizen/features/splash/presentation/providers/splash_controller.dart';
 
 void main() {
@@ -44,7 +46,10 @@ void main() {
       tester,
     ) async {
       final datasource = _FailingAuthRemoteDataSource(failure.value);
-      final controller = SplashController(authRemoteDataSource: datasource);
+      final controller = SplashController(
+        authRemoteDataSource: datasource,
+        appManagerRemoteDataSource: _OrganizationsDataSource(),
+      );
       addTearDown(controller.dispose);
       final context = await _pumpContext(tester);
 
@@ -68,6 +73,7 @@ void main() {
       tester,
     ) async {
       final controller = SplashController(
+        appManagerRemoteDataSource: _OrganizationsDataSource(),
         authRemoteDataSource: _FailingAuthRemoteDataSource(
           ApiError.requestFailed(0, message: message),
         ),
@@ -89,7 +95,10 @@ void main() {
     final datasource = _FailingAuthRemoteDataSource(
       ApiError.requestFailed(502, message: '<html>Bad Gateway</html>'),
     );
-    final controller = SplashController(authRemoteDataSource: datasource);
+    final controller = SplashController(
+      authRemoteDataSource: datasource,
+      appManagerRemoteDataSource: _OrganizationsDataSource(),
+    );
     addTearDown(controller.dispose);
     final context = await _pumpContext(tester);
     final operation = controller.initialize(context);
@@ -112,6 +121,41 @@ void main() {
     expect(AppPreference.getAuthToken(), 'test-token');
     expect(tester.takeException(), isNull);
   });
+
+  testWidgets(
+    'startup persists the first organisation before requesting user details',
+    (tester) async {
+      final events = <String>[];
+      final datasource =
+          _FailingAuthRemoteDataSource(StateError('profile failed'))
+            ..onFetch = () {
+              events.add('user');
+              expect(AppPreference.getSelectedOrganization()?.id, 'first');
+              expect(AppManager.instance.currentOrganizationId, 'first');
+            };
+      final organizations = _OrganizationsDataSource()
+        ..organizations = [
+          Organization.fromJson({
+            'uuid': 'first',
+            'name': 'First',
+            'type': 'child',
+          }),
+        ]
+        ..onFetch = () => events.add('organisations');
+      final controller = SplashController(
+        authRemoteDataSource: datasource,
+        appManagerRemoteDataSource: organizations,
+      );
+      addTearDown(controller.dispose);
+      final context = await _pumpContext(tester);
+      final operation = controller.initialize(context);
+      await tester.pump(const Duration(seconds: 2));
+      await operation;
+      expect(events, ['organisations', 'user']);
+      expect(AppPreference.getSelectedOrganization()?.type, 'child');
+      expect(tester.takeException(), isNull);
+    },
+  );
 }
 
 Future<BuildContext> _pumpContext(WidgetTester tester) async {
@@ -135,10 +179,30 @@ class _FailingAuthRemoteDataSource extends Fake
 
   Object error;
   int calls = 0;
+  void Function()? onFetch;
 
   @override
-  Future<User> fetchUserDetail({required String accessToken}) async {
+  Future<User> fetchUserDetail({
+    required String accessToken,
+    bool allowConflictRetry = true,
+    bool includeHierarchy = true,
+  }) async {
     calls++;
+    onFetch?.call();
     throw error;
+  }
+}
+
+class _OrganizationsDataSource extends Fake
+    implements AppManagerRemoteDataSource {
+  List<Organization> organizations = [];
+  void Function()? onFetch;
+
+  @override
+  Future<List<Organization>> fetchOrganizations({
+    required String accessToken,
+  }) async {
+    onFetch?.call();
+    return organizations;
   }
 }

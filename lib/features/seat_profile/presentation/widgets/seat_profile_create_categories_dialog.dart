@@ -182,9 +182,12 @@ class _ManageSeatCategoriesDialogState
                           isCompact: isCompact,
                           totalImportanceLabel:
                               _formController.totalImportanceLabel,
-                          onAddTap: _formController.isSaving
-                              ? null
-                              : _formController.addRow,
+                          onAddTap: guardPaidAction(
+                            context,
+                            _formController.isSaving
+                                ? null
+                                : _formController.addRow,
+                          ),
                         ),
                         SizedBox(height: isCompact ? 14 : 18),
                         AppTextView.body2(
@@ -210,6 +213,7 @@ class _ManageSeatCategoriesDialogState
                               textSize: 15,
                               fontWeight: FontWeight.w700,
                               label: AppStrings.seatProfileSaveAction,
+                              requiresPaidAccess: false,
                               isLoading: _formController.isSaving,
                               onTap: _formController.isSaving ? null : _submit,
                             ),

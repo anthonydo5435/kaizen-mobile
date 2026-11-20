@@ -90,7 +90,6 @@ class _AddQuestionDialogState extends State<_AddQuestionDialog> {
           borderRadius: const BorderRadius.vertical(top: Radius.circular(24)),
           child: ConstrainedBox(
             constraints: BoxConstraints(
-              maxWidth: 620,
               maxHeight: availableHeight.clamp(
                 0.0,
                 mediaQuery.size.height * 0.92,

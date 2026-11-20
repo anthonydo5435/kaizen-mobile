@@ -92,14 +92,25 @@ class _TrainingLibraryScreenView extends StatelessWidget {
                 lesson: lesson,
               ),
         ),
-        onOpenLesson: (route) => Navigator.of(context).push<void>(
-          MaterialPageRoute<void>(
-            builder: (_) => EditTrainingScreen(
-              trainingRoute: route,
-              useNonBlockingVideoUpload: true,
+        onOpenLesson: (route) async {
+          if (!context.mounted) return;
+          await Navigator.of(context).push<void>(
+            MaterialPageRoute<void>(
+              builder: (_) => FutureBuilder<String?>(
+                future: route.actualSeatProfileIdLookup,
+                builder: (_, snapshot) {
+                  final actualSeatId = snapshot.data;
+                  return EditTrainingScreen(
+                    trainingRoute: actualSeatId == null
+                        ? route
+                        : route.withActualSeatProfileId(actualSeatId),
+                    useNonBlockingVideoUpload: true,
+                  );
+                },
+              ),
             ),
-          ),
-        ),
+          );
+        },
         onSelectSeat: () => showTrainingLibrarySeatSelectionSheet(
           context,
           controller: controller,

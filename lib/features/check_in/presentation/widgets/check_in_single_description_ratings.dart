@@ -133,7 +133,7 @@ class _SelectionCounter extends StatelessWidget {
       children: [
         InkWell(
           borderRadius: BorderRadius.circular(12),
-          onTap: hasReachedLimit ? null : onTapCount,
+          onTap: guardPaidAction(context, hasReachedLimit ? null : onTapCount),
           child: Container(
             width: 48,
             height: 48,
@@ -154,7 +154,7 @@ class _SelectionCounter extends StatelessWidget {
           const SizedBox(height: 8),
           InkWell(
             borderRadius: BorderRadius.circular(12),
-            onTap: onTapArrow,
+            onTap: guardPaidAction(context, onTapArrow),
             child: Container(
               width: 48,
               height: 28,

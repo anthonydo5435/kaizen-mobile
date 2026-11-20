@@ -197,10 +197,18 @@ void main() {
       await tester.pumpAndSettle();
 
       final message = find.text(AppStrings.trainingNoQuizQuestionsAvailable);
-      final panel = find.ancestor(of: message, matching: find.byType(Container)).first;
+      final quiz = find.byType(TrainingReadOnlyQuizTab);
+      final centeredMessage = find.descendant(
+        of: quiz,
+        matching: find.byType(Center),
+      );
       final viewport = tester.getRect(find.byType(TrainingTabView));
-      expect(tester.getRect(panel), viewport);
+      expect(tester.getRect(centeredMessage), viewport);
       expect(tester.getCenter(message), viewport.center);
+      expect(
+        find.descendant(of: quiz, matching: find.byType(DecoratedBox)),
+        findsNothing,
+      );
       expect(find.text(AppStrings.trainingCreateWithAi), findsNothing);
       expect(tester.takeException(), isNull);
     });

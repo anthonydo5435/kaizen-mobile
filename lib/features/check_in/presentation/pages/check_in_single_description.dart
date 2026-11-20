@@ -14,6 +14,7 @@ import 'package:sparrowkaizen/core/widgets/app_listing_search_bar.dart';
 import 'package:sparrowkaizen/core/widgets/app_overlay_close_button.dart';
 import 'package:sparrowkaizen/core/widgets/app_text_view.dart';
 import 'package:sparrowkaizen/core/widgets/fast_circular_progress.dart';
+import 'package:sparrowkaizen/core/widgets/paid_features_unavailable_dialog.dart';
 import 'package:sparrowkaizen/features/check_in/domain/entities/audit_description_audit.dart';
 import 'package:sparrowkaizen/features/check_in/domain/entities/quarterly_audit.dart';
 import 'package:sparrowkaizen/features/check_in/presentation/providers/check_in_controller.dart';

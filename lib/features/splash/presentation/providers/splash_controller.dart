@@ -8,6 +8,9 @@ import 'package:sparrowkaizen/core/preference/app_preference.dart';
 import '../../../../routes/app_router.dart';
 import '../../../../core/services/deep_link_service.dart';
 import '../../../login/data/datasources/auth_remote_data_source.dart';
+import '../../../login/data/repositories/auth_repository_impl.dart';
+import '../../../login/domain/entities/app_user.dart';
+import '../../../login/domain/usecases/login_session_usecase.dart';
 
 class SplashController extends ChangeNotifier {
   SplashController({
@@ -50,8 +53,9 @@ class SplashController extends ChangeNotifier {
     }
 
     if (authToken.isNotEmpty) {
+      late final AppUser user;
       try {
-        await _runAuthenticatedStartup(authToken);
+        user = await _runAuthenticatedStartup();
       } catch (error) {
         if (!context.mounted) {
           return;
@@ -60,6 +64,30 @@ class SplashController extends ChangeNotifier {
         _isLoading = false;
         _errorMessage = _resolveStartupErrorMessage(error);
         notifyListeners();
+        return;
+      }
+
+      if (!context.mounted) return;
+      final workspacePending = user.setupStep == LoginSetupStep.workspaceImport;
+      if (workspacePending ||
+          (user.setupStep == LoginSetupStep.emailVerification &&
+              (pendingDeepLinkTarget?.requiresAuthentication ?? true))) {
+        if (pendingDeepLinkTarget != null &&
+            pendingDeepLinkTarget.requiresAuthentication) {
+          DeepLinkService.instance.deferAuthenticatedTarget(
+            pendingDeepLinkTarget,
+          );
+        }
+        _pendingStartupTarget = null;
+        _isLoading = false;
+        notifyListeners();
+        AppRouter.pushReplacementNamed<void, void>(
+          context,
+          workspacePending ? AppRouter.login : AppRouter.verifyEmail,
+          arguments: workspacePending
+              ? user.setupStep
+              : VerifyEmailRouteArgs(user: user),
+        );
         return;
       }
 
@@ -125,34 +153,29 @@ class SplashController extends ChangeNotifier {
     return initialize(context);
   }
 
-  Future<void> _runAuthenticatedStartup(String authToken) async {
-    final user = await _authRemoteDataSource.fetchUserDetail(
-      accessToken: authToken,
-    );
-    await AppPreference.saveUser(user);
-    AppManager.instance.updateCurrentUser(user);
-    await _loadCompanyDetails(authToken, requireSuccess: true);
+  Future<AppUser> _runAuthenticatedStartup() async {
+    final sessionVersion = AppPreference.sessionVersion;
     await AppManager.instance.initialize(
       forceRefresh: true,
       requireSuccess: true,
+      remoteDataSource: _appManagerRemoteDataSource,
     );
-  }
-
-  Future<void> _loadCompanyDetails(
-    String authToken, {
-    bool requireSuccess = false,
-  }) async {
-    try {
-      final companyDetails = await _appManagerRemoteDataSource
-          .fetchCompanyDetails(accessToken: authToken);
-      await AppPreference.saveActiveCompany(companyDetails);
-      AppManager.instance.saveActiveCompany(companyDetails);
-    } catch (_) {
-      if (requireSuccess) {
-        rethrow;
-      }
-      // Keep startup resilient if company details cannot be fetched.
+    if (sessionVersion != AppPreference.sessionVersion) {
+      throw ApiError.requestFailed(401);
     }
+
+    return LoginSessionUseCase(
+      AuthRepositoryImpl(_authRemoteDataSource),
+      initializeWorkspace: (token) async {
+        final company = await _appManagerRemoteDataSource.fetchCompanyDetails(
+          accessToken: token,
+        );
+        if (sessionVersion != AppPreference.sessionVersion) return;
+        await AppPreference.saveActiveCompany(company);
+        if (sessionVersion != AppPreference.sessionVersion) return;
+        AppManager.instance.saveActiveCompany(company);
+      },
+    ).continueAuthenticatedSession();
   }
 
   String _resolveStartupErrorMessage(Object error) {

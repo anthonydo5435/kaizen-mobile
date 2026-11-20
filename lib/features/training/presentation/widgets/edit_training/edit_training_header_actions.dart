@@ -31,7 +31,12 @@ class _TrainingHeaderActions extends StatelessWidget {
             icon: Icons.add_rounded,
             endPadding: actionSpacing,
             compact: true,
-            onTap: isBusy || controller.isCreatingNewLessonDraft ? null : onAddLesson,
+            onTap: guardPaidAction(
+              context,
+              isBusy || controller.isCreatingNewLessonDraft
+                  ? null
+                  : onAddLesson,
+            ),
           ),
         const TrainingShareAction(iconOnly: true),
       ],

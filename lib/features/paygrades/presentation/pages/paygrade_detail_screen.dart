@@ -15,6 +15,7 @@ import '../../../../core/widgets/app_share_button.dart';
 import '../../../../core/widgets/app_swipe_reveal_action.dart';
 import '../../../../core/widgets/app_text_view.dart';
 import '../../../../core/widgets/fast_circular_progress.dart';
+import '../../../../core/widgets/paid_features_unavailable_dialog.dart';
 import '../../../../routes/app_router.dart';
 import '../../data/datasources/paygrade_remote_data_source.dart';
 import '../../data/repositories/paygrade_repository_impl.dart';
@@ -803,7 +804,7 @@ class _AddPaygradeLevelButton extends StatelessWidget {
           color: Colors.transparent,
           child: InkWell(
             borderRadius: BorderRadius.circular(_borderRadius),
-            onTap: onTap,
+            onTap: guardPaidAction(context, onTap),
             child: Padding(
               padding: const EdgeInsets.symmetric(horizontal: 14, vertical: 12),
               child: Row(

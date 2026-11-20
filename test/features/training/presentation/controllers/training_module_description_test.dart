@@ -3,6 +3,7 @@ import 'dart:async';
 import 'package:flutter/services.dart';
 import 'package:flutter_test/flutter_test.dart';
 import 'package:shared_preferences/shared_preferences.dart';
+import 'package:sparrowkaizen/core/network/api_endpoints.dart';
 import 'package:sparrowkaizen/core/network/api_processor.dart';
 import 'package:sparrowkaizen/core/preference/app_preference.dart';
 import 'package:sparrowkaizen/features/training/data/datasources/training_library_remote_data_source.dart';
@@ -23,6 +24,7 @@ void main() {
       canManageTraining: true,
     );
     await controller.initialize(jobId: 'seat', descriptionId: 'description');
+    await Future<void>.delayed(Duration.zero);
   });
   tearDown(() => controller.dispose());
 
@@ -78,6 +80,7 @@ void main() {
   ) async {
     final firstGeneration = controller.generateSummaryForSelectedModule();
     await controller.selectModule('second');
+    await tester.pump();
     expect(controller.isGeneratingSummary, isFalse);
     final secondGeneration = controller.generateSummaryForSelectedModule();
 
@@ -136,15 +139,45 @@ void main() {
     expect(controller.isGeneratingSummary, isFalse);
   });
 
-  test('an empty generation response disables Generate again', () async {
+  test('an empty generation response leaves Generate available', () async {
     final generation = controller.generateSummaryForSelectedModule();
     api.generations.single.complete({'description': ''});
     expect(await generation, isTrue);
     expect(controller.summaryController.text, isEmpty);
-    expect(controller.canGenerateSummaryForSelectedModule, isFalse);
-    expect(await controller.generateSummaryForSelectedModule(), isFalse);
+    expect(controller.canGenerateSummaryForSelectedModule, isTrue);
     expect(api.generations, hasLength(1));
   });
+
+  test(
+    'a completed video job with a blank summary allows manual generation',
+    () async {
+      api.descriptions['second'] = null;
+      api.processingJob = {
+        'uuid': 'video-job',
+        'status': 'completed',
+        'can_retry': false,
+      };
+      await controller.selectModule('second');
+      await Future<void>.delayed(Duration.zero);
+
+      expect(controller.hasSelectedModuleVideoTranscript, isFalse);
+      expect(controller.hasSelectedModuleSummary, isFalse);
+      expect(controller.canGenerateSopForSelectedModule, isFalse);
+      expect(controller.showSelectedModuleSummaryAction, isTrue);
+      expect(controller.canGenerateSummaryForSelectedModule, isTrue);
+
+      final generation = controller.generateSummaryForSelectedModule(
+        animate: false,
+      );
+      expect(
+        api.generations.single.endpoint,
+        'training_modules/second/generate_summary/',
+      );
+      api.generations.single.complete({'description': 'Generated summary'});
+      expect(await generation, isTrue);
+      expect(controller.showSelectedModuleSummaryAction, isFalse);
+    },
+  );
 
   testWidgets('generation waits for an in-flight summary save', (tester) async {
     controller.summaryController.text = 'Updated summary';
@@ -178,8 +211,7 @@ void main() {
       await controller.initialize(jobId: 'seat', descriptionId: 'description');
 
       expect(controller.summaryController.text, isEmpty);
-      expect(controller.canGenerateSummaryForSelectedModule, isFalse);
-      expect(await controller.generateSummaryForSelectedModule(), isFalse);
+      expect(controller.canGenerateSummaryForSelectedModule, isTrue);
       expect(api.generations, isEmpty);
       expect(controller.isEditingSummary, isFalse);
       controller.startEditingSummary();
@@ -248,7 +280,7 @@ void main() {
 
   testWidgets('clearing the description sends an empty description', (tester) async {
     controller.summaryController.clear();
-    expect(controller.canGenerateSummaryForSelectedModule, isFalse);
+    expect(controller.canGenerateSummaryForSelectedModule, isTrue);
     await tester.pump(const Duration(milliseconds: 700));
     expect(api.patches.single.parameters, {'description': ''});
     api.patches.single.complete();
@@ -263,6 +295,7 @@ void main() {
     controller.summaryController.text = 'First lesson edit';
     await tester.pump(const Duration(milliseconds: 700));
     await controller.selectModule('second');
+    await tester.pump();
     controller.summaryController.text = 'Second lesson edit';
     await tester.pump(const Duration(milliseconds: 700));
     expect(api.patches, hasLength(2));
@@ -317,6 +350,7 @@ class _DescriptionApi extends ApiCallExecutor {
   final patches = <_DescriptionPatch>[];
   final generations = <_SummaryGeneration>[];
   final descriptions = <String, String?>{};
+  Map<String, dynamic>? processingJob;
 
   @override
   Future<Response> processApi<Response>({
@@ -342,6 +376,9 @@ class _DescriptionApi extends ApiCallExecutor {
       return decoder(null);
     }
     expect(apiCallType, ApiCallType.get);
+    if (endpoint == ApiEndPoints.latestBackgroundJob) {
+      return decoder({'job': processingJob});
+    }
     if (endpoint == 'job_category_description/description/training_modules/') {
       return decoder([_module('first'), _module('second')]);
     }

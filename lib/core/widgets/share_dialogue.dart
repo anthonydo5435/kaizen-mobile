@@ -7,6 +7,7 @@ import 'app_overlay_close_button.dart';
 import 'app_dialog_style.dart';
 import 'app_text_view.dart';
 import 'fast_circular_progress.dart';
+import 'paid_features_unavailable_dialog.dart';
 
 /// Presents public-link state supplied by the owning feature. Link operations
 /// stay in that feature's controller and are exposed through the callbacks.
@@ -96,7 +97,10 @@ class ShareDialogue extends StatelessWidget {
                   const SizedBox(height: 20),
                   SharePublicLinkRow(
                     link: publicLink,
-                    onCopy: isWorking ? null : onCopyLink,
+                    onCopy: guardPaidAction(
+                      context,
+                      isWorking ? null : onCopyLink,
+                    ),
                   ),
                 ],
                 if (errorMessage != null && errorMessage!.isNotEmpty) ...[
@@ -117,7 +121,7 @@ class ShareDialogue extends StatelessWidget {
                           )
                         : onRetry != null
                         ? TextButton(
-                            onPressed: onRetry,
+                            onPressed: guardPaidAction(context, onRetry),
                             child: const AppTextView.body(
                               AppStrings.actionRetry,
                               color: AppColors.secondaryColor,
@@ -131,7 +135,7 @@ class ShareDialogue extends StatelessWidget {
                         : AppGradientActionButton(
                             label: AppStrings.shareCreateLinkAction,
                             icon: Icons.link_rounded,
-                            onTap: onCreateLink,
+                            onTap: guardPaidAction(context, onCreateLink),
                             isLoading: isWorking,
                             borderRadius: 12,
                             minHeight: 44,

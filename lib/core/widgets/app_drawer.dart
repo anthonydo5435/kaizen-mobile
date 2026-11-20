@@ -64,7 +64,7 @@ class AppDrawer extends StatelessWidget {
                     children: [
                       ..._buildModuleItems(context),
                       const SizedBox(height: 8),
-                      _buildOrganizationRow(context),
+                      // _buildOrganizationRow(context),
                     ],
                   ),
                 ),

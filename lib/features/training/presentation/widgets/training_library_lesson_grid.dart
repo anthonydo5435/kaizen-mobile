@@ -26,7 +26,7 @@ class TrainingLibraryLessonGrid extends StatelessWidget {
     return LayoutBuilder(
       builder: (context, constraints) {
         const gap = 8.0;
-        final cardWidth = (constraints.maxWidth - gap) / 2;
+        final sizingWidth = ((constraints.maxWidth - gap) / 2).clamp(0.0, 220.0);
         final textScaler = MediaQuery.textScalerOf(context);
         final extraTextHeight =
             (textScaler.scale(16) - 16).clamp(0.0, double.infinity) * 2.4 +
@@ -53,7 +53,7 @@ class TrainingLibraryLessonGrid extends StatelessWidget {
                             _TrainingLibraryLessonCard(
                               key: ValueKey(lessons[group * 4 + row * 2 + column].id),
                               lesson: lessons[group * 4 + row * 2 + column],
-                              height: cardWidth * (row == column ? 1.85 : 1.27) + extraTextHeight,
+                              height: sizingWidth * (row == column ? 1.85 : 1.27) + extraTextHeight,
                               summaryLines: row == column ? 3 : 2,
                               sortOrder: (group * 4 + row * 2 + column).toDouble(),
                               onTap: onLessonTap,

@@ -8,6 +8,7 @@ import 'package:provider/provider.dart';
 import 'package:shared_preferences/shared_preferences.dart';
 import 'package:sparrowkaizen/core/constants/app_strings.dart';
 import 'package:sparrowkaizen/core/managers/app_manager.dart';
+import 'package:sparrowkaizen/core/managers/models/company_billing_details.dart';
 import 'package:sparrowkaizen/core/network/api_endpoints.dart';
 import 'package:sparrowkaizen/core/network/api_processor.dart';
 import 'package:sparrowkaizen/core/preference/app_preference.dart';
@@ -112,8 +113,7 @@ void main() {
           await tester.pumpWidget(_screen(daysAgo: scenario.daysAgo));
           await tester.pumpAndSettle();
           expect(AppManager.instance.isCurrentOrganizationChild, isTrue);
-          // Other modules keep the general child-organisation restriction.
-          expect(AppManager.instance.canCurrentOrganizationModifyContent, isFalse);
+          expect(AppManager.instance.canCurrentOrganizationModifyContent, isTrue);
           expect(find.byIcon(Icons.lock_rounded), findsNothing);
           await _changeRating(tester);
           expect(ratings['great'], 2);
@@ -221,6 +221,9 @@ Future<void> _saveUser({required bool isOwner, bool reviewer = true}) async {
   );
   await AppPreference.saveUser(user);
   AppManager.instance.updateCurrentUser(user);
+  AppManager.instance.saveBillingDetails(
+    CompanyBillingDetails.fromApiJson({'status': 'paid'}),
+  );
 }
 
 void _setViewport(WidgetTester tester) {

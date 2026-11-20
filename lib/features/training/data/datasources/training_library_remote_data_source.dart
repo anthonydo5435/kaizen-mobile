@@ -428,6 +428,54 @@ class TrainingLibraryRemoteDataSource {
     );
   }
 
+  Future<TrainingVideoProcessingJob?> getLatestVideoProcessingJob({
+    required String videoId,
+  }) async {
+    try {
+      return await _apiCallExecutor.processApi<TrainingVideoProcessingJob?>(
+        apiCallType: ApiCallType.get,
+        endpoint: ApiEndPoints.latestBackgroundJob,
+        parameters: {
+          'resource_type': 'training_video',
+          'resource_uuid': videoId,
+          'operation': 'lms.video_processing',
+        },
+        invalidateCacheBeforeRequest: true,
+        decoder: (json) {
+          if (json is! Map) throw const ApiError.invalidResponse();
+          final job = json['job'];
+          return job == null ? null : _decodeVideoProcessingJob(job);
+        },
+      );
+    } on ApiError catch (error) {
+      if (error.statusCode == 404) return null;
+      rethrow;
+    }
+  }
+
+  Future<TrainingVideoProcessingJob> retryVideoProcessingJob({
+    required String jobId,
+  }) {
+    return _apiCallExecutor.processApi<TrainingVideoProcessingJob>(
+      apiCallType: ApiCallType.post,
+      endpoint: ApiEndPoints.retryBackgroundJob(jobId),
+      decoder: _decodeVideoProcessingJob,
+    );
+  }
+
+  TrainingVideoProcessingJob _decodeVideoProcessingJob(dynamic json) {
+    if (json is! Map || json['uuid'] is! String || json['status'] is! String) {
+      throw const ApiError.invalidResponse();
+    }
+    final errorMessage = json['error_message'];
+    return TrainingVideoProcessingJob(
+      uuid: (json['uuid'] as String).trim(),
+      status: (json['status'] as String).trim(),
+      canRetry: json['can_retry'] == true,
+      errorMessage: errorMessage is String ? errorMessage.trim() : null,
+    );
+  }
+
   Future<void> updateSeatDescriptionTrainingModule({
     required String moduleId,
     String? title,

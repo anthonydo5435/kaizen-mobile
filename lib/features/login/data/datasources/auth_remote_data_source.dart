@@ -14,12 +14,16 @@ class AuthRemoteDataSource {
   AuthRemoteDataSource({ApiCallExecutor? apiCallExecutor})
     : _apiCallExecutor = apiCallExecutor ?? const ApiCallExecutor(),
       _googleApiCallExecutor =
-          apiCallExecutor ?? const ApiCallExecutor(onResponse: _logGoogleHttpResponse);
+          apiCallExecutor ??
+          const ApiCallExecutor(onResponse: _logGoogleHttpResponse);
 
   final ApiCallExecutor _apiCallExecutor;
   final ApiCallExecutor _googleApiCallExecutor;
 
-  Future<LoginResponse> login({required String email, required String password}) {
+  Future<LoginResponse> login({
+    required String email,
+    required String password,
+  }) {
     return _apiCallExecutor.processApi<LoginResponse>(
       apiCallType: ApiCallType.post,
       endpoint: ApiEndPoints.login,
@@ -29,12 +33,16 @@ class AuthRemoteDataSource {
     );
   }
 
-  Future<LoginResponse> loginWithGoogle({required String code, required String redirectUri}) async {
+  Future<LoginResponse> loginWithGoogle({
+    required String code,
+    required String redirectUri,
+  }) async {
     GoogleSignInDiagnostics.log(
       'backend.request',
       data: {
         'method': 'POST',
-        'url': '${ApiEndPoints.baseUrl}${ApiEndPoints.version}${ApiEndPoints.googleLogin}',
+        'url':
+            '${ApiEndPoints.baseUrl}${ApiEndPoints.version}${ApiEndPoints.googleLogin}',
         'body': {'code': code, 'redirect_uri': redirectUri},
         'has_code': code.trim().isNotEmpty,
       },
@@ -81,9 +89,16 @@ class AuthRemoteDataSource {
 
   static LoginResponse _decodeLoginResponse(dynamic json) {
     if (json is! Map<String, dynamic>) throw const ApiError.invalidResponse();
-    final access = json['access'] is String ? (json['access'] as String).trim() : null;
-    final refresh = json['refresh'] is String ? (json['refresh'] as String).trim() : null;
-    if (access == null || access.isEmpty || refresh == null || refresh.isEmpty) {
+    final access = json['access'] is String
+        ? (json['access'] as String).trim()
+        : null;
+    final refresh = json['refresh'] is String
+        ? (json['refresh'] as String).trim()
+        : null;
+    if (access == null ||
+        access.isEmpty ||
+        refresh == null ||
+        refresh.isEmpty) {
       throw const ApiError.invalidResponse();
     }
     final userJson = _readMap(json['user']) ?? _readMap(json['data']) ?? json;
@@ -91,23 +106,86 @@ class AuthRemoteDataSource {
       refresh: refresh,
       access: access,
       userId: _readUserId(userJson),
-      email: userJson['email'] is String ? (userJson['email'] as String).trim() : null,
+      email: userJson['email'] is String
+          ? (userJson['email'] as String).trim()
+          : null,
       displayName: _readDisplayName(userJson),
     );
   }
 
-  Future<User> fetchUserDetail({required String accessToken}) async {
+  Future<User> fetchUserDetail({
+    required String accessToken,
+    bool allowConflictRetry = true,
+    bool includeHierarchy = true,
+  }) async {
     final user = await _apiCallExecutor.processApi<User>(
       apiCallType: ApiCallType.get,
       endpoint: ApiEndPoints.userDetail,
       authToken: accessToken,
+      allowConflictRetry: allowConflictRetry,
       invalidateCacheBeforeRequest: true,
       decoder: (json) {
         return _decodeUserProfile(json);
       },
     );
 
-    return _enrichUserWithHierarchy(accessToken: accessToken, user: user);
+    if (!includeHierarchy) return user;
+    return enrichUserWithHierarchy(
+      accessToken: accessToken,
+      user: user,
+      allowConflictRetry: allowConflictRetry,
+    );
+  }
+
+  Future<bool> isCompanyImportReady(String accessToken) {
+    return _apiCallExecutor.processApi<bool>(
+      apiCallType: ApiCallType.get,
+      endpoint: ApiEndPoints.companyImportStatus,
+      authToken: accessToken,
+      invalidateCacheBeforeRequest: true,
+      decoder: (json) {
+        if (json is! Map<String, dynamic> || json['ready'] is! bool) {
+          throw const ApiError.invalidResponse();
+        }
+        return json['ready'] as bool;
+      },
+    );
+  }
+
+  Future<String?> sendVerificationEmail(String userId) {
+    return _apiCallExecutor.processApi<String?>(
+      apiCallType: ApiCallType.post,
+      endpoint: ApiEndPoints.resendVerificationLink,
+      parameters: {'user_uuid': userId},
+      authToken: '',
+      allowAutoRefresh: false,
+      allowConflictRetry: false,
+      decoder: (json) {
+        if (json case {'message': final String message}) {
+          final text = message.trim();
+          return text.isEmpty ? null : text;
+        }
+        return null;
+      },
+    );
+  }
+
+  Future<void> verifyEmailLink(String token) {
+    return _apiCallExecutor.processApi<void>(
+      apiCallType: ApiCallType.get,
+      endpoint: ApiEndPoints.verifyToken(Uri.encodeComponent(token)),
+      authToken: '',
+      allowAutoRefresh: false,
+      allowConflictRetry: false,
+      invalidateCacheBeforeRequest: true,
+      decoder: (json) {
+        if (json is! Map<String, dynamic> ||
+            json['success'] != true ||
+            json['type'] != 'email_verification') {
+          throw const ApiError.invalidResponse();
+        }
+      },
+    );
   }
 
   static Map<String, dynamic>? _readMap(dynamic value) {
@@ -152,21 +230,28 @@ class AuthRemoteDataSource {
     return null;
   }
 
-  Future<User> _enrichUserWithHierarchy({required String accessToken, required User user}) async {
+  Future<User> enrichUserWithHierarchy({
+    required String accessToken,
+    required User user,
+    bool allowConflictRetry = true,
+  }) async {
     final normalizedAccessToken = accessToken.trim();
     if (normalizedAccessToken.isEmpty) {
       return user;
     }
 
     try {
-      final hierarchyMemberships = await _apiCallExecutor.processApi<List<UserHierarchyMembership>>(
-        apiCallType: ApiCallType.get,
-        endpoint: ApiEndPoints.organizationHierarchy,
-        authToken: normalizedAccessToken,
-        invalidateCacheBeforeRequest: true,
-        parameters: const <String, dynamic>{'all_employees': 'True'},
-        decoder: (json) => _decodeHierarchyMemberships(json: json, user: user),
-      );
+      final hierarchyMemberships = await _apiCallExecutor
+          .processApi<List<UserHierarchyMembership>>(
+            apiCallType: ApiCallType.get,
+            endpoint: ApiEndPoints.organizationHierarchy,
+            authToken: normalizedAccessToken,
+            allowConflictRetry: allowConflictRetry,
+            invalidateCacheBeforeRequest: true,
+            parameters: const <String, dynamic>{'all_employees': 'True'},
+            decoder: (json) =>
+                _decodeHierarchyMemberships(json: json, user: user),
+          );
 
       return user.copyWith(hierarchyMemberships: hierarchyMemberships);
     } catch (_) {
@@ -176,7 +261,9 @@ class AuthRemoteDataSource {
       }
 
       return user.copyWith(
-        hierarchyMemberships: cachedUser?.hierarchyMemberships ?? const <UserHierarchyMembership>[],
+        hierarchyMemberships:
+            cachedUser?.hierarchyMemberships ??
+            const <UserHierarchyMembership>[],
       );
     }
   }
@@ -195,7 +282,9 @@ class AuthRemoteDataSource {
     final seenMembershipKeys = <String>{};
 
     for (final rootNode in rootNodes) {
-      for (final membership in rootNode.collectMembershipsForUser(userIdentifiers)) {
+      for (final membership in rootNode.collectMembershipsForUser(
+        userIdentifiers,
+      )) {
         final membershipKey = _membershipKey(membership);
         if (seenMembershipKeys.add(membershipKey)) {
           memberships.add(membership);
@@ -259,8 +348,10 @@ class AuthRemoteDataSource {
     }
 
     try {
-      return User.fromJson(profile);
+      return User.fromJson(json);
     } on FormatException {
+      throw const ApiError.invalidResponse();
+    } on TypeError {
       throw const ApiError.invalidResponse();
     }
   }

@@ -3,12 +3,10 @@ import 'dart:io';
 import 'package:flutter/material.dart';
 import 'package:flutter/services.dart';
 import 'package:flutter_svg/flutter_svg.dart';
-import 'package:provider/provider.dart';
 import 'package:sparrowkaizen/core/widgets/app_dot_divider.dart';
 
 import '../../../../../core/constants/app_colors.dart';
 import '../../../../../core/constants/app_strings.dart';
-import '../../../../../core/managers/app_manager.dart';
 import '../../../../../core/utils/custom_functions.dart';
 import '../../../../../core/widgets/app_button.dart';
 import '../../../../../core/widgets/app_dialog_style.dart';
@@ -16,7 +14,7 @@ import '../../../../../core/widgets/app_keyboard_bottom_sheet_surface.dart';
 import '../../../../../core/widgets/app_overlay_close_button.dart';
 import '../../../../../core/widgets/app_text_view.dart';
 import '../../../../../core/widgets/fast_circular_progress.dart';
-import '../../../../check_in/presentation/widgets/upgrade_plan_dialog.dart';
+import '../../../../../core/widgets/paid_features_unavailable_dialog.dart';
 import '../../../domain/entities/compliance_document.dart';
 import '../../../domain/repositories/compliance_document_media_repository.dart';
 import '../../../domain/usecases/pick_compliance_document_file_usecase.dart';
@@ -171,14 +169,7 @@ class _ComplianceDocumentUploadSheetState
 
   Future<void> _submitUpload() async {
     if (_selectedFile == null || _isUploading || !_canUploadDocument) return;
-    if (context.read<AppManager>().showBillingBanner) {
-      await showDialog<void>(
-        context: context,
-        builder: (_) => const UpgradePlanDialog(),
-        barrierDismissible: false,
-      );
-      return;
-    }
+    if (showBillingRestrictionIfNeeded(context)) return;
     FocusManager.instance.primaryFocus?.unfocus();
     final didUpload = await _uploadController.submit();
     if (!mounted) return;

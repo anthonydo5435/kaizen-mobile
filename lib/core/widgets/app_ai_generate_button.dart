@@ -3,12 +3,14 @@ import 'package:flutter/material.dart';
 import '../constants/app_colors.dart';
 import 'app_text_view.dart';
 import 'fast_circular_progress.dart';
+import 'paid_features_unavailable_dialog.dart';
 
 class AppAiGenerateButton extends StatelessWidget {
   const AppAiGenerateButton({
     super.key,
     required this.label,
     required this.onTap,
+    this.requiresPaidAccess = true,
     this.isEnabled = true,
     this.isLoading = false,
     this.expand = false,
@@ -23,6 +25,7 @@ class AppAiGenerateButton extends StatelessWidget {
 
   final String label;
   final VoidCallback? onTap;
+  final bool requiresPaidAccess;
   final bool isEnabled;
   final bool isLoading;
   final bool expand;
@@ -36,7 +39,8 @@ class AppAiGenerateButton extends StatelessWidget {
 
   @override
   Widget build(BuildContext context) {
-    final isInteractive = isEnabled && !isLoading && onTap != null;
+    final action = isEnabled && !isLoading ? onTap : null;
+    final isInteractive = action != null;
 
     return Padding(
       // Keep the glow inside the surrounding scroll view or page clip.
@@ -85,7 +89,9 @@ class AppAiGenerateButton extends StatelessWidget {
         child: SizedBox(
           width: expand ? double.infinity : null,
           child: TextButton.icon(
-            onPressed: isInteractive ? onTap : null,
+            onPressed: requiresPaidAccess
+                ? guardPaidAction(context, action)
+                : action,
             clipBehavior: Clip.antiAlias,
             style: TextButton.styleFrom(
               backgroundColor: Colors.transparent,

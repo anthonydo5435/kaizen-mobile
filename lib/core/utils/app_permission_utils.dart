@@ -15,17 +15,30 @@ class AppPermissionUtils {
     return user?.isOwner == true || availableRoles.contains('owner');
   }
 
-  static bool canAccessSandbox(User? user) {
-    return hasOwnerOverrideAccess(user) || user?.hasSandboxAccess == true;
+  static bool hasOwnerManagementAccess(User? user) {
+    return hasOwnerOverrideAccess(user) || _isTopOperatorOrIntegrator(user);
+  }
+
+  static bool hasReadOnlyPersonalCheckIns(User? user) {
+    return user?.isOwner != true && _isTopOperatorOrIntegrator(user);
+  }
+
+  static bool _isTopOperatorOrIntegrator(User? user) {
+    return user?.isTopOperator == true || user?.isIntegrator == true;
   }
 
   static bool canAccessAuditTeamMembers(User? user) {
     final availableRoles = user?.normalizedRoles.toSet() ?? const <String>{};
-    return hasOwnerOverrideAccess(user) ||
+    return hasOwnerManagementAccess(user) ||
         availableRoles.contains('csuite') ||
         availableRoles.contains('dept_lead') ||
         availableRoles.contains('supervisor') ||
         availableRoles.contains('team_lead');
+  }
+
+  static bool shouldShowAuditTeamMembersTab(User? user) {
+    return hasReadOnlyPersonalCheckIns(user) ||
+        (!hasOwnerOverrideAccess(user) && canAccessAuditTeamMembers(user));
   }
 
   static bool isChildOrganization(Organization? organization) {
@@ -35,41 +48,29 @@ class AppPermissionUtils {
   static bool canModifyCurrentOrganizationContent({
     required Organization? currentOrganization,
   }) {
-    return !isChildOrganization(currentOrganization);
+    // Organisation type is metadata; feature permissions determine access.
+    return true;
   }
 
   static bool canEditDepartments({
     required User? user,
     required Organization? currentOrganization,
   }) {
-    // Department editing allows explicit owners in child organisations too.
-    return user?.isOwner == true ||
-        canModifyCurrentOrganizationContent(
-          currentOrganization: currentOrganization,
-        );
+    return true;
   }
 
   static bool canManagePublicLinks({
     required User? user,
     required Organization? currentOrganization,
   }) {
-    return canModifyCurrentOrganizationContent(
-          currentOrganization: currentOrganization,
-        ) &&
-        user?.isOwner == true;
+    return user?.isOwner == true;
   }
 
   static bool canAccessScopedCreateEntry(
     User? user, {
     required Organization? currentOrganization,
   }) {
-    if (!canModifyCurrentOrganizationContent(
-      currentOrganization: currentOrganization,
-    )) {
-      return false;
-    }
-
-    if (hasOwnerOverrideAccess(user)) {
+    if (hasOwnerManagementAccess(user)) {
       return true;
     }
 
@@ -91,13 +92,7 @@ class AppPermissionUtils {
     required User? user,
     required Organization? currentOrganization,
   }) {
-    if (!canModifyCurrentOrganizationContent(
-      currentOrganization: currentOrganization,
-    )) {
-      return false;
-    }
-
-    if (hasOwnerOverrideAccess(user)) {
+    if (hasOwnerManagementAccess(user)) {
       return true;
     }
 
@@ -126,13 +121,7 @@ class AppPermissionUtils {
     required Organization? currentOrganization,
     required String departmentId,
   }) {
-    if (!canModifyCurrentOrganizationContent(
-      currentOrganization: currentOrganization,
-    )) {
-      return false;
-    }
-
-    if (hasOwnerOverrideAccess(user)) {
+    if (hasOwnerManagementAccess(user)) {
       return true;
     }
 
@@ -165,13 +154,7 @@ class AppPermissionUtils {
     required User? user,
     required Organization? currentOrganization,
   }) {
-    if (!canModifyCurrentOrganizationContent(
-      currentOrganization: currentOrganization,
-    )) {
-      return false;
-    }
-
-    if (hasOwnerOverrideAccess(user)) {
+    if (hasOwnerManagementAccess(user)) {
       return true;
     }
 
@@ -202,13 +185,7 @@ class AppPermissionUtils {
     required String seatProfileId,
     Iterable<String> additionalSeatProfileIds = const <String>[],
   }) {
-    if (!canModifyCurrentOrganizationContent(
-      currentOrganization: currentOrganization,
-    )) {
-      return false;
-    }
-
-    if (hasOwnerOverrideAccess(user)) {
+    if (hasOwnerManagementAccess(user)) {
       return true;
     }
 
@@ -249,25 +226,46 @@ class AppPermissionUtils {
     return false;
   }
 
+  static bool isAssignedToTrainingSeatProfile({
+    required User? user,
+    required String seatProfileId,
+    Iterable<String> additionalSeatProfileIds = const <String>[],
+  }) {
+    final seatIds = _normalizeIdentifierSet([
+      seatProfileId,
+      ...additionalSeatProfileIds,
+    ]);
+    return user?.hierarchyMemberships?.any(
+          (membership) =>
+              seatIds.contains(_normalizeIdentifier(membership.job?.uuid)),
+        ) ==
+        true;
+  }
+
   static bool canViewTrainingQuizAndAssignment({
     required User? user,
     required Organization? currentOrganization,
     required String seatProfileId,
+    Iterable<String> additionalSeatProfileIds = const <String>[],
   }) {
-    // Sandbox adds managed-seat viewing even in child organisations. Owners
-    // keep their existing access, and editing permissions remain separate.
-    final canViewWithSandbox =
-        user?.hasSandboxAccess == true &&
-        (user?.isOwner == true ||
-            user?.hierarchyMemberships?.any(
-                  (membership) => membership.managesSeatProfile(seatProfileId),
-                ) ==
-                true);
-    return canViewWithSandbox ||
+    final managesSeat =
+        user?.hierarchyMemberships?.any(
+          (membership) =>
+              membership.managesSeatProfile(seatProfileId) ||
+              additionalSeatProfileIds.any(membership.managesSeatProfile),
+        ) ==
+        true;
+    return managesSeat ||
+        isAssignedToTrainingSeatProfile(
+          user: user,
+          seatProfileId: seatProfileId,
+          additionalSeatProfileIds: additionalSeatProfileIds,
+        ) ||
         canManageTrainingForSeatProfile(
           user: user,
           currentOrganization: currentOrganization,
           seatProfileId: seatProfileId,
+          additionalSeatProfileIds: additionalSeatProfileIds,
         );
   }
 
@@ -275,13 +273,7 @@ class AppPermissionUtils {
     required User? user,
     required Organization? currentOrganization,
   }) {
-    if (!canModifyCurrentOrganizationContent(
-      currentOrganization: currentOrganization,
-    )) {
-      return false;
-    }
-
-    if (hasOwnerOverrideAccess(user)) {
+    if (hasOwnerManagementAccess(user)) {
       return true;
     }
 

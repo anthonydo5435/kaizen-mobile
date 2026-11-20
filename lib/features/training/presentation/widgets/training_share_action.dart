@@ -5,6 +5,7 @@ import '../../../../core/constants/app_strings.dart';
 import '../../../../core/managers/app_manager.dart';
 import '../../../../core/widgets/app_bar_gradient_action.dart';
 import '../../../../core/widgets/app_share_button.dart';
+import '../../../../core/widgets/paid_features_unavailable_dialog.dart';
 import '../controllers/training_module_controller.dart';
 import '../controllers/training_share_controller.dart';
 import 'training_share_dialogue.dart';
@@ -37,7 +38,7 @@ class TrainingShareAction extends StatelessWidget {
                 icon: Icons.share_outlined,
                 endPadding: 0,
                 compact: true,
-                onTap: onShare,
+                onTap: guardPaidAction(context, onShare),
               )
             : AppShareButton(onTap: onShare);
       },

@@ -1,4 +1,6 @@
 import '../../../seat_profile/domain/entities/department.dart';
+import '../entities/department_audit_stats.dart';
+import '../entities/department_directory.dart';
 import '../repositories/departments_repository.dart';
 
 class ManageDepartmentsUseCase {
@@ -6,8 +8,12 @@ class ManageDepartmentsUseCase {
 
   final DepartmentsRepository _repository;
 
-  Future<List<Department>> getDepartments() {
+  Future<DepartmentDirectory> getDepartments() {
     return _repository.getDepartments();
+  }
+
+  Future<DepartmentAuditStats> getAuditStats(String departmentId) {
+    return _repository.getAuditStats(departmentId);
   }
 
   Future<void> updateDepartment({

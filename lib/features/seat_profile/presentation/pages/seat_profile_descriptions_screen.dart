@@ -10,6 +10,7 @@ import '../../../../core/widgets/app_dot_divider.dart';
 import '../../../../core/widgets/app_overlay_close_button.dart';
 import '../../../../core/widgets/app_swipe_reveal_action.dart';
 import '../../../../core/widgets/app_text_view.dart';
+import '../../../../core/widgets/paid_features_unavailable_dialog.dart';
 import '../../../training/domain/entities/seat_description_training_route.dart';
 import '../../../training/presentation/pages/edit_training_screen.dart';
 import '../../domain/entities/seat_profile_detail.dart';
@@ -228,7 +229,7 @@ class _DescriptionsList extends StatelessWidget {
               padding: const EdgeInsets.only(top: 16),
               child: SeatProfileDottedActionButton(
                 label: AppStrings.seatProfileAddSeatDescriptionAction,
-                onTap: onAddDescription,
+                onTap: guardPaidAction(context, onAddDescription),
               ),
             ),
           ),
@@ -624,6 +625,7 @@ class _DescriptionDetails extends StatelessWidget {
             job: seatProfileId,
             category: categoryId,
             description: description.id,
+            actualSeatProfileId: seatProfileResolvedId,
           ),
           canManageTraining: AppManager.instance
               .canCurrentUserManageTrainingForSeatProfile(

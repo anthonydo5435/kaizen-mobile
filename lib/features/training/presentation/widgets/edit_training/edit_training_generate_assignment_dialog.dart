@@ -57,7 +57,6 @@ class _GenerateAssignmentDialogState extends State<_GenerateAssignmentDialog> {
             borderRadius: const BorderRadius.vertical(top: Radius.circular(28)),
             child: ConstrainedBox(
               constraints: BoxConstraints(
-                maxWidth: 620,
                 maxHeight: availableHeight.clamp(
                   0.0,
                   mediaQuery.size.height * 0.92,

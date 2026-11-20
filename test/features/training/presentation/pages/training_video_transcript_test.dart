@@ -125,6 +125,8 @@ void main() {
             };
           } else if (endpoint == ApiEndPoints.lmsPublicLink('description')) {
             response = {'active': false};
+          } else if (endpoint == ApiEndPoints.latestBackgroundJob) {
+            response = {'job': null};
           } else {
             throw StateError('Unexpected API request: $endpoint');
           }

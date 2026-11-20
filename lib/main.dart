@@ -6,6 +6,7 @@ import 'package:provider/provider.dart';
 import 'package:sparrowkaizen/core/managers/app_manager.dart';
 import 'package:sparrowkaizen/core/preference/app_preference.dart';
 import 'package:sparrowkaizen/core/services/deep_link_service.dart';
+import 'package:sparrowkaizen/core/widgets/app_bottom_sheet_keyboard_dismissal.dart';
 import 'package:sparrowkaizen/core/widgets/billing_banner.dart';
 import 'package:sparrowkaizen/core/widgets/organization_conflict_dialog.dart';
 import 'package:sparrowkaizen/features/training/presentation/widgets/training_video_upload_banner.dart';
@@ -88,14 +89,22 @@ class _MyAppState extends State<MyApp> with WidgetsBindingObserver {
       }
 
       _wasBackgrounded = false;
+      final routeName = AppManager.instance.currentRouteName;
+      if (routeName == AppRouter.verifyEmail ||
+          routeName == AppRouter.login ||
+          routeName == AppRouter.splash) {
+        return;
+      }
       if (AppManager.instance.consumeResumeSessionRefreshSkip()) {
+        unawaited(AppManager.instance.initialize(forceRefresh: true));
         return;
       }
       unawaited(AppManager.instance.refreshSessionContext());
       return;
     }
 
-    if (state == AppLifecycleState.hidden ||
+    if (state == AppLifecycleState.inactive ||
+        state == AppLifecycleState.hidden ||
         state == AppLifecycleState.paused ||
         state == AppLifecycleState.detached) {
       _wasBackgrounded = true;
@@ -107,6 +116,10 @@ class _MyAppState extends State<MyApp> with WidgetsBindingObserver {
     final baseTheme = ThemeData(
       colorScheme: ColorScheme.fromSeed(seedColor: Colors.indigo),
       fontFamily: AppFonts.inter,
+      // Let bottom sheets fill the available width, including on tablets.
+      bottomSheetTheme: const BottomSheetThemeData(
+        constraints: BoxConstraints(),
+      ),
     );
 
     return ChangeNotifierProvider<AppManager>.value(
@@ -123,15 +136,20 @@ class _MyAppState extends State<MyApp> with WidgetsBindingObserver {
               ),
             ),
             builder: (context, child) {
-              return Stack(
-                children: [
-                  child ?? const SizedBox.shrink(),
-                  if (appManager.showBillingBanner) const BillingBanner(),
-                  if (_showTrainingVideoUploadBanner)
-                    const TrainingVideoUploadBanner(),
-                  if (appManager.showOrganizationBanner)
-                    const OrganizationConflictDialog(),
-                ],
+              return AppBottomSheetKeyboardDismissal(
+                child: Stack(
+                  children: [
+                    child ?? const SizedBox.shrink(),
+                    if (appManager.showTrialBanner)
+                      const BillingBanner(message: AppStrings.trialBannerText)
+                    else if (appManager.showBillingBanner)
+                      const BillingBanner(),
+                    if (_showTrainingVideoUploadBanner)
+                      const TrainingVideoUploadBanner(),
+                    if (appManager.showOrganizationBanner)
+                      const OrganizationConflictDialog(),
+                  ],
+                ),
               );
             },
             debugShowCheckedModeBanner: false,

@@ -7,7 +7,9 @@ import '../managers/app_manager.dart';
 import 'app_text_view.dart';
 
 class BillingBanner extends StatelessWidget {
-  const BillingBanner({super.key});
+  const BillingBanner({super.key, this.message = AppStrings.billingBannerText});
+
+  final String message;
 
   @override
   Widget build(BuildContext context) {
@@ -38,7 +40,7 @@ class BillingBanner extends StatelessWidget {
               children: [
                 Expanded(
                   child: AppTextView.body(
-                    AppStrings.billingBannerText,
+                    message,
                     color: AppColors.blue,
                     textAlign: TextAlign.center,
                     fontWeight: FontWeight.w500,
@@ -47,7 +49,8 @@ class BillingBanner extends StatelessWidget {
                 ),
                 const SizedBox(width: 8),
                 InkWell(
-                  onTap: () => context.read<AppManager>().dismissBillingBanner(),
+                  onTap: () =>
+                      context.read<AppManager>().dismissBillingBanner(),
                   borderRadius: BorderRadius.circular(16),
                   child: const Padding(
                     padding: EdgeInsets.all(2),

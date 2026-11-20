@@ -37,6 +37,45 @@ void main() {
 
   tearDown(() => controller.dispose());
 
+  testWidgets('LMS cards keep their phone height and cap iPad growth', (
+    tester,
+  ) async {
+    tester.view.physicalSize = const Size(390, 844);
+    tester.view.devicePixelRatio = 1;
+    addTearDown(tester.view.resetPhysicalSize);
+    addTearDown(tester.view.resetDevicePixelRatio);
+    await tester.pumpWidget(
+      MaterialApp(
+        home: Scaffold(
+          body: Padding(
+            padding: const EdgeInsets.symmetric(horizontal: 8),
+            child: ListenableBuilder(
+              listenable: controller,
+              builder: (context, _) => TrainingLibraryResultArea(
+                controller: controller,
+                items: controller.visibleItems,
+                scrollController: controller.scrollController,
+                onModuleTap: (_) {},
+              ),
+            ),
+          ),
+        ),
+      ),
+    );
+
+    final card = find.byType(TrainingLibraryModuleCard);
+    expect(tester.getSize(card).height, closeTo(374 / 1.9 + 24, 0.01));
+
+    tester.view.physicalSize = const Size(1024, 1366);
+    await tester.pumpAndSettle();
+    expect(tester.getSize(card), const Size(1008, 254));
+
+    await controller.changeViewMode(TrainingLibraryViewMode.grid);
+    await tester.pumpAndSettle();
+    expect(tester.getSize(card), const Size(496, 230));
+    expect(tester.takeException(), isNull);
+  });
+
   testWidgets('failed removal restores the last tag and reports the failure', (
     tester,
   ) async {

@@ -17,6 +17,7 @@ class DepartmentsController extends ChangeNotifier {
   String _searchQuery = '';
   List<Department> _allDepartments = const <Department>[];
   List<Department> _visibleDepartments = const <Department>[];
+  Set<String>? _auditStatsDepartmentIds;
 
   bool get isInitialLoading => _isInitialLoading;
   bool get isRefreshing => _isRefreshing;
@@ -24,6 +25,9 @@ class DepartmentsController extends ChangeNotifier {
   bool get hasSearchQuery => _searchQuery.trim().isNotEmpty;
   List<Department> get departments =>
       List<Department>.unmodifiable(_visibleDepartments);
+
+  bool canViewAuditStats(String departmentId) =>
+      _auditStatsDepartmentIds?.contains(departmentId) ?? true;
 
   Future<void> initialize() async {
     if (_isInitialLoading) {
@@ -100,8 +104,9 @@ class DepartmentsController extends ChangeNotifier {
   }
 
   Future<void> _loadDepartments({bool notify = false}) async {
-    final departments = await _manageDepartmentsUseCase.getDepartments();
-    _allDepartments = List<Department>.unmodifiable(departments);
+    final directory = await _manageDepartmentsUseCase.getDepartments();
+    _allDepartments = directory.departments;
+    _auditStatsDepartmentIds = directory.auditStatsDepartmentIds;
     _applySearch(notify: notify);
   }
 

@@ -5,6 +5,7 @@ import '../../../../core/constants/app_colors.dart';
 import '../../../../core/constants/app_strings.dart';
 import '../../../../core/utils/custom_functions.dart';
 import '../../../../core/widgets/app_text_view.dart';
+import '../../../../core/widgets/paid_features_unavailable_dialog.dart';
 import '../../data/datasources/audit_remote_data_source.dart';
 import '../../data/repositories/audit_repository_impl.dart';
 import '../../domain/entities/audit_profile.dart';
@@ -183,6 +184,7 @@ class PerformanceReportView extends StatelessWidget {
     BuildContext context,
     PerformanceReportController controller,
   ) async {
+    if (showBillingRestrictionIfNeeded(context)) return;
     final message = await controller.checkInController
         .certifyPerformanceReport();
     if (!context.mounted) return;

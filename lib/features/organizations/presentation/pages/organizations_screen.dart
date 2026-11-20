@@ -17,7 +17,7 @@ class OrganizationsScreen extends StatelessWidget {
   @override
   Widget build(BuildContext context) {
     final appManager = context.watch<AppManager>();
-    final organizations = appManager.visibleOrganizations;
+    final organizations = appManager.organizations;
     final sandboxOrganizations = organizations
         .where(_isSandboxOrganization)
         .toList(growable: false);

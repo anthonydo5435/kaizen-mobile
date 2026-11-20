@@ -71,6 +71,8 @@ void main() {
       response = {'uuid': 'document', 'text': '<p>Procedure</p>'};
     } else if (path.endsWith(ApiEndPoints.trainingModuleQuestions('lesson'))) {
       response = <Object>[];
+    } else if (path.endsWith(ApiEndPoints.latestBackgroundJob)) {
+      response = {'job': null};
     } else if (path.endsWith(ApiEndPoints.lmsPublicLink('description'))) {
       response = {'active': false};
     } else {
@@ -105,6 +107,8 @@ void main() {
     messenger.setMockMethodCallHandler(SystemChannels.platform, (call) async {
       if (call.method == 'SystemChrome.setPreferredOrientations') {
         orientations.add(call.arguments as List<dynamic>);
+      } else if (call.method == 'SystemChrome.setEnabledSystemUIMode') {
+        fullscreen.add(call.arguments == 'SystemUiMode.immersiveSticky');
       }
       return null;
     });
@@ -287,7 +291,8 @@ void main() {
       await tester.pumpAndSettle();
       expect(orientations.last, ['DeviceOrientation.portraitUp']);
       expect(navigationObserver.pushes, initialPushes);
-      expect(fullscreen, [true]);
+      expect(find.byType(ComplianceFullScreenVideoView), findsNothing);
+      expect(fullscreen, [true, false]);
       await rotate(tester, portrait);
       expect(find.byType(ComplianceFullScreenVideoView), findsNothing);
       expect(fullscreen, [true, false]);
@@ -395,6 +400,48 @@ void main() {
       },
     );
   }
+
+  testWidgets(
+    'Edit Training exits fullscreen in an iPad window that stays landscape',
+    (tester) async {
+      await http.runWithClient(() async {
+        await openTraining(tester);
+        const tabletLandscape = Size(1376, 1032);
+        const tabletPortrait = Size(1032, 1376);
+        const statusBarHeight = 24.0;
+        final videoState = tester.state(find.byType(VideoPlayer));
+        await rotate(tester, tabletLandscape);
+        expect(find.byType(ComplianceFullScreenVideoView), findsOneWidget);
+
+        await tester.tap(
+          find.byKey(const ValueKey('video-exit-fullscreen-button')),
+        );
+        tester.view.padding = const FakeViewPadding(top: statusBarHeight);
+        await tester.pumpAndSettle();
+
+        expect(tester.view.physicalSize, tabletLandscape);
+        expect(find.byType(ComplianceFullScreenVideoView), findsNothing);
+        expect(tester.state(find.byType(VideoPlayer)), same(videoState));
+        expect(
+          tester.getTopLeft(find.byType(NavigationToolbar)).dy,
+          greaterThanOrEqualTo(statusBarHeight),
+        );
+        expect(fullscreen, [true, false]);
+
+        portraitWait!.complete(true);
+        await tester.pumpAndSettle();
+        expect(orientations.last, rotationAllowed);
+        expect(find.byType(ComplianceFullScreenVideoView), findsNothing);
+
+        await rotate(tester, tabletPortrait);
+        await rotate(tester, tabletLandscape);
+        expect(find.byType(ComplianceFullScreenVideoView), findsOneWidget);
+        expect(tester.state(find.byType(VideoPlayer)), same(videoState));
+        await closeTraining(tester);
+      }, () => client);
+    },
+    variant: const TargetPlatformVariant({TargetPlatform.iOS}),
+  );
 
   testWidgets('leaving Training cancels a pending physical portrait wait', (tester) async {
     await http.runWithClient(() async {

@@ -58,7 +58,8 @@ class TrainingLibraryDetailController extends ChangeNotifier {
   String get searchQuery => _searchQuery;
   bool get isBusy => _isRefreshing || _isDeletingLesson;
   bool get canManageTraining =>
-      _module.id.trim().isNotEmpty && _canManageSeatTraining(_module.seat.id);
+      _module.id.trim().isNotEmpty &&
+      _module.seat.profileIds.any(_canManageSeatTraining);
   bool? get navigationResult => _shouldRefreshOnExit ? true : null;
   String get emptyMessage => _module.lessons.isEmpty
       ? AppStrings.trainingLibraryNoLessonsFound
@@ -88,6 +89,7 @@ class TrainingLibraryDetailController extends ChangeNotifier {
       job: _module.seat.id,
       category: _module.category.id,
       description: _module.trainingDescriptionId,
+      actualSeatProfileId: _module.seat.actualId,
       initialModuleId: lessonId,
     );
   }
@@ -192,6 +194,7 @@ class TrainingLibraryDetailController extends ChangeNotifier {
         job: _module.seat.id,
         category: _module.category.id,
         description: _module.trainingDescriptionId,
+        actualSeatProfileId: _module.seat.actualId,
       ),
       lessonId,
       canManageTraining,

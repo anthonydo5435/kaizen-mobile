@@ -52,6 +52,29 @@ void main() {
   tearDown(AppManager.instance.resetSessionState);
   tearDownAll(client.close);
 
+  testWidgets('expanded Paygrades cards align the department to the row end', (
+    tester,
+  ) async {
+    await http.runWithClient(() async {
+      await _pumpScreen(tester, paygrades: true);
+      await tester.tap(find.text('Before'));
+      await tester.pumpAndSettle();
+
+      final label = find.text(AppStrings.paygradesDepartment);
+      final departmentRow = find
+          .ancestor(of: label, matching: find.byType(Row))
+          .first;
+      final department = find.descendant(
+        of: departmentRow,
+        matching: find.text('Operations'),
+      );
+      expect(
+        tester.getTopRight(department).dx,
+        closeTo(tester.getTopRight(departmentRow).dx, 0.01),
+      );
+    }, () => client);
+  });
+
   for (final paygrades in [false, true]) {
     final name = paygrades ? 'Paygrades' : 'Seat Profile';
 

@@ -4,6 +4,8 @@ import 'package:flutter/material.dart';
 import 'package:flutter_test/flutter_test.dart';
 import 'package:provider/provider.dart';
 import 'package:sparrowkaizen/core/constants/app_strings.dart';
+import 'package:sparrowkaizen/core/managers/app_manager.dart';
+import 'package:sparrowkaizen/core/managers/models/company_billing_details.dart';
 import 'package:sparrowkaizen/core/constants/app_colors.dart';
 import 'package:sparrowkaizen/core/widgets/app_button.dart';
 import 'package:sparrowkaizen/core/widgets/app_gradient_action_button.dart';
@@ -14,6 +16,13 @@ import 'package:sparrowkaizen/features/check_in/domain/entities/audit_descriptio
 import '../../support/single_description_fixtures.dart';
 
 void main() {
+  setUp(() {
+    AppManager.instance.saveBillingDetails(
+      CompanyBillingDetails.fromApiJson({'status': 'paid'}),
+    );
+  });
+  tearDown(() => AppManager.instance.saveBillingDetails(null));
+
   late SingleDescriptionRepository repository;
   late CheckInController checkIn;
 

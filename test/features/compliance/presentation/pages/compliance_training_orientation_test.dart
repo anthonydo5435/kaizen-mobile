@@ -14,6 +14,7 @@ import 'package:provider/provider.dart';
 import 'package:shared_preferences/shared_preferences.dart';
 import 'package:sparrowkaizen/core/constants/app_strings.dart';
 import 'package:sparrowkaizen/core/managers/app_manager.dart';
+import 'package:sparrowkaizen/core/managers/models/company_billing_details.dart';
 import 'package:sparrowkaizen/core/network/api_endpoints.dart';
 import 'package:sparrowkaizen/core/network/api_processor.dart';
 import 'package:sparrowkaizen/core/preference/app_preference.dart';
@@ -122,6 +123,9 @@ void main() {
     await AppPreference.setAuthToken('test-token');
     ApiCallExecutor.clearGetCache();
     AppManager.instance.resetSessionState();
+    AppManager.instance.saveBillingDetails(
+      CompanyBillingDetails.fromApiJson({'status': 'paid'}),
+    );
     AppManager.instance.updateCurrentUser(User(uuid: 'learner'));
     final messenger =
         TestDefaultBinaryMessengerBinding.instance.defaultBinaryMessenger;
@@ -407,6 +411,45 @@ void main() {
       }),
     );
   }
+
+  testWidgets('LTC exits fullscreen in an iPad window that stays landscape', (
+    tester,
+  ) async {
+    await mount(tester);
+    const tabletLandscape = Size(1376, 1032);
+    const tabletPortrait = Size(1032, 1376);
+    const statusBarHeight = 24.0;
+    final videoState = tester.state(find.byType(VideoPlayer));
+    await rotate(tester, tabletLandscape);
+    expect(find.byType(ComplianceFullScreenVideoView), findsOneWidget);
+
+    await tester.tap(
+      find.byKey(const ValueKey('video-exit-fullscreen-button')),
+    );
+    tester.view.padding = const FakeViewPadding(top: statusBarHeight);
+    await tester.pumpAndSettle();
+
+    expect(tester.view.physicalSize, tabletLandscape);
+    expect(find.byType(ComplianceFullScreenVideoView), findsNothing);
+    expect(tester.state(find.byType(VideoPlayer)), same(videoState));
+    expect(
+      tester.getTopLeft(find.byType(AppBackButton)).dy,
+      greaterThanOrEqualTo(statusBarHeight),
+    );
+    expect(fullscreen, [true, false]);
+
+    // The sensor can report portrait before the iPad window changes size.
+    portraitWait!.complete(true);
+    await tester.pumpAndSettle();
+    expect(orientations.last, rotationAllowed);
+    expect(find.byType(ComplianceFullScreenVideoView), findsNothing);
+
+    await rotate(tester, tabletPortrait);
+    await rotate(tester, tabletLandscape);
+    expect(find.byType(ComplianceFullScreenVideoView), findsOneWidget);
+    expect(tester.state(find.byType(VideoPlayer)), same(videoState));
+    await close(tester);
+  }, variant: const TargetPlatformVariant({TargetPlatform.iOS}));
 
   testWidgets(
     'LTC leaving Video cancels the pending physical orientation wait',

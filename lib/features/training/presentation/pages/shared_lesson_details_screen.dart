@@ -167,7 +167,7 @@ class _LessonViewerScope extends StatelessWidget {
         ),
       ],
       child: _LessonViewerView(
-        seatProfileId: trainingRoute?.job ?? '',
+        trainingRoute: trainingRoute,
         isSharedLesson: sharedLessonId != null,
       ),
     );
@@ -176,11 +176,11 @@ class _LessonViewerScope extends StatelessWidget {
 
 class _LessonViewerView extends StatefulWidget {
   const _LessonViewerView({
-    required this.seatProfileId,
+    required this.trainingRoute,
     required this.isSharedLesson,
   });
 
-  final String seatProfileId;
+  final SeatDescriptionTrainingRoute? trainingRoute;
   final bool isSharedLesson;
 
   @override
@@ -214,7 +214,9 @@ class _LessonViewerViewState extends State<_LessonViewerView> {
   bool get _canViewQuizAndAssignment =>
       widget.isSharedLesson ||
       AppManager.instance.canCurrentUserViewTrainingQuizAndAssignment(
-        seatProfileId: widget.seatProfileId,
+        seatProfileId: widget.trainingRoute?.job ?? '',
+        additionalSeatProfileIds:
+            widget.trainingRoute?.additionalSeatProfileIds ?? const [],
       );
 
   int get _maxTabIndex => maxTrainingTabIndex(

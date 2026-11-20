@@ -10,6 +10,7 @@ class ApiEndPoints {
 
   static const String baseUrl = 'https://api.kaizenteams.ai';
   static const String version = '/api/v1/';
+  static const bool _parentApiRoutesEnabled = false;
   static const String parentPrefix = 'parent_';
   static const String login = 'accounts/login/';
   static const String googleLogin = 'accounts/google/login/';
@@ -18,6 +19,8 @@ class ApiEndPoints {
   static const String setActiveOrganization = 'accounts/set_active_organization/';
   static const String refreshToken = 'accounts/token/refresh/';
   static const String userDetail = 'accounts/user_detail/';
+  static const String resendVerificationLink = 'accounts/resend_link/';
+  static const String companyImportStatus = 'company/import-status/';
   static const String companyDetail = 'company_detail/';
   static const String myLearningTracks = 'learning_compliance/track_assignments/my_tracks/';
   static const String complianceDocumentTypes = 'compliance/document_type/';
@@ -160,10 +163,6 @@ class ApiEndPoints {
     return 'training_modules/$moduleId/';
   }
 
-  static String parentTrainingModuleDetail(String moduleId) {
-    return 'parent_training_modules/$moduleId/';
-  }
-
   static String trainingModuleDocument(String moduleId) {
     return 'training_modules/$moduleId/document/';
   }
@@ -220,6 +219,12 @@ class ApiEndPoints {
     return 'training_modules/$moduleId/generate_summary/';
   }
 
+  static const String latestBackgroundJob = 'background_jobs/latest/';
+
+  static String retryBackgroundJob(String jobId) {
+    return 'background_jobs/$jobId/retry/';
+  }
+
   static String updateQuestion(String questionId) {
     return 'question/$questionId/';
   }
@@ -258,6 +263,10 @@ class ApiEndPoints {
 
   static String departmentDetail(String departmentId) {
     return 'department/$departmentId/';
+  }
+
+  static String departmentAuditStats(String departmentId) {
+    return '${departmentDetail(departmentId)}audit_stats/';
   }
 
   static String quarterlyAuditDetail(String quarterlyAuditId) {
@@ -344,7 +353,7 @@ class ApiEndPoints {
   }
 
   static String departments() {
-    if (AppPreference.getUseParentApiEndpoints()) {
+    if (_useParentApiRoutes) {
       return parentDepartments;
     }
 
@@ -363,7 +372,7 @@ class ApiEndPoints {
       return normalizedEndpoint;
     }
 
-    if (!AppPreference.getUseParentApiEndpoints() ||
+    if (!_useParentApiRoutes ||
         _shouldBypassParentPrefix(normalizedEndpoint) ||
         normalizedEndpoint.startsWith(parentPrefix)) {
       return normalizedEndpoint;
@@ -372,16 +381,22 @@ class ApiEndPoints {
     return '$parentPrefix$normalizedEndpoint';
   }
 
+  static bool get _useParentApiRoutes =>
+      _parentApiRoutesEnabled && AppPreference.getUseParentApiEndpoints();
+
   static bool _shouldBypassParentPrefix(String endpoint) {
     return endpoint == login ||
         endpoint == googleLogin ||
         endpoint == setActiveOrganization ||
         endpoint == refreshToken ||
         endpoint == userDetail ||
+        endpoint == resendVerificationLink ||
+        endpoint == companyImportStatus ||
         endpoint == companyDetail ||
         endpoint == images ||
         endpoint == generatePreSignedUrl ||
         endpoint == organizations ||
+        (endpoint.startsWith('department/') && endpoint.endsWith('/audit_stats/')) ||
         endpoint.startsWith('shared/content/') ||
         endpoint.startsWith('accounts/verify_token/');
   }

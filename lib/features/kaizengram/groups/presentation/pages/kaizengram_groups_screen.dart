@@ -10,6 +10,7 @@ import '../../../../../core/utils/custom_functions.dart';
 import '../../../../../core/widgets/app_confirmation_dialog.dart';
 import '../../../../../core/widgets/app_keyboard_bottom_sheet_surface.dart';
 import '../../../../../core/widgets/app_text_view.dart';
+import '../../../../../core/widgets/paid_features_unavailable_dialog.dart';
 import '../../../../login/domain/entities/user.dart';
 import '../../../presentation/chat/widgets/chat_video_preview.dart';
 import '../../../presentation/kaizengram_message_attachment.dart';
@@ -898,6 +899,7 @@ class _KaizengramGroupsScreenState extends State<KaizengramGroupsScreen>
   }
 
   Future<void> _openCreateGroupSheet() async {
+    if (showBillingRestrictionIfNeeded(context)) return;
     final draft = await showModalBottomSheet<_CreateGroupDraft>(
       context: context,
       isScrollControlled: true,
@@ -3317,9 +3319,10 @@ class _GroupManageBottomSheet extends StatelessWidget {
                 _GroupManageActionTile(
                   icon: Icons.person_add_alt_1_rounded,
                   label: AppStrings.groupManageInviteAction,
-                  onTap: () => Navigator.of(
-                    context,
-                  ).pop(_GroupManageAction.invitePeople),
+                  onTap: () {
+                    if (showBillingRestrictionIfNeeded(context)) return;
+                    Navigator.of(context).pop(_GroupManageAction.invitePeople);
+                  },
                 ),
                 const SizedBox(height: 10),
                 _GroupManageActionTile(
@@ -5465,7 +5468,11 @@ class _GroupImagePickerTile extends StatelessWidget {
         Material(
           color: Colors.transparent,
           child: InkWell(
-            onTap: isPickingImage ? null : onTap,
+            onTap: isPickingImage
+                ? null
+                : hasSelectedImage
+                ? onTap
+                : guardPaidAction(context, onTap),
             borderRadius: BorderRadius.circular(14),
             child: Container(
               padding: const EdgeInsets.all(12),

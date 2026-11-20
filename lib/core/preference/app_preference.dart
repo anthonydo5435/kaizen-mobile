@@ -4,6 +4,7 @@ import 'package:shared_preferences/shared_preferences.dart';
 
 import '../managers/models/company_details.dart';
 import '../../features/login/domain/entities/user.dart';
+import '../../features/organizations/domain/entities/organization.dart';
 
 class AppPreference {
   static late SharedPreferences _sharedPrefs;
@@ -15,6 +16,7 @@ class AppPreference {
   static const String _activeCompanyKey = 'activeCompany';
   static const String _useParentApiEndpointsKey = 'useParentApiEndpoints';
   static const String _selectedOrganizationIdKey = 'selectedOrganizationId';
+  static const String _selectedOrganizationKey = 'selectedOrganization';
   static bool _useParentApiEndpoints = false;
   static String? _selectedOrganizationId;
   static int _sessionVersion = 0;
@@ -158,7 +160,34 @@ class AppPreference {
 
   static Future<void> clearSelectedOrganizationId() async {
     _selectedOrganizationId = null;
-    await _sharedPrefs.remove(_selectedOrganizationIdKey);
+    await Future.wait([
+      _sharedPrefs.remove(_selectedOrganizationIdKey),
+      clearSelectedOrganization(),
+    ]);
+  }
+
+  static Organization? getSelectedOrganization() {
+    final stored = _sharedPrefs.getString(_selectedOrganizationKey);
+    if (stored == null) return null;
+    try {
+      final json = jsonDecode(stored);
+      return json is Map<String, dynamic> ? Organization.fromJson(json) : null;
+    } on FormatException {
+      return null;
+    }
+  }
+
+  static Future<void> saveSelectedOrganization(
+    Organization organization,
+  ) async {
+    await _sharedPrefs.setString(
+      _selectedOrganizationKey,
+      jsonEncode(organization.toJson()),
+    );
+  }
+
+  static Future<void> clearSelectedOrganization() async {
+    await _sharedPrefs.remove(_selectedOrganizationKey);
   }
 
   static String getPreferredApiToken({bool includeOnboardingToken = false}) {

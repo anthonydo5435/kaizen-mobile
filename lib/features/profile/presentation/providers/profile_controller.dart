@@ -111,6 +111,7 @@ class ProfileController extends ChangeNotifier {
 
       final updatedUser = _user!.copyWith(
         image: uploadedImage.image,
+        imageUuid: uploadedImage.uuid,
         imageUrl: uploadedImage.image,
       );
       await AppPreference.saveUser(updatedUser);

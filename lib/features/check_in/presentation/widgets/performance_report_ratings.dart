@@ -177,7 +177,6 @@ class _PerformanceReportCategorySheet extends StatelessWidget {
         alignment: Alignment.bottomCenter,
         child: Container(
           width: double.infinity,
-          constraints: const BoxConstraints(maxWidth: 620),
           decoration: const BoxDecoration(
             color: AppColors.mainBg,
             borderRadius: BorderRadius.vertical(top: Radius.circular(28)),

@@ -24,7 +24,9 @@ import '../features/compliance/presentation/pages/training/compliance_training_s
 import '../features/departments/presentation/pages/departments_screen.dart';
 import '../features/kaizen_gpt/presentation/pages/kaizen_gpt.dart';
 import '../features/kaizengram/presentation/pages/kaizengram_screen.dart';
+import '../features/login/domain/entities/app_user.dart';
 import '../features/login/presentation/pages/login_screen.dart';
+import '../features/login/presentation/pages/verify_email_screen.dart';
 import '../features/onboarding/presentation/pages/set_password_screen.dart'
     as onboarding_flow;
 import '../features/onboarding/presentation/pages/set_profile_image_screen.dart';
@@ -58,6 +60,7 @@ class AppRouter {
 
   static const String splash = '/';
   static const String login = '/login';
+  static const String verifyEmail = '/login/verify-email';
   static const String forgotPassword = '/login/forgot-password';
   static const String loginSetPassword = '/login/set-password';
   static const String onboarding = '/onboarding';
@@ -181,7 +184,21 @@ class AppRouter {
       case login:
         return _buildRoute(
           settings: settings,
-          builder: (_) => const LoginScreen(),
+          builder: (_) => LoginScreen(
+            showAccountInProgress:
+                settings.arguments == LoginSetupStep.workspaceImport,
+          ),
+        );
+      case verifyEmail:
+        final args = settings.arguments;
+        return _buildRoute(
+          settings: settings,
+          builder: (_) => VerifyEmailScreen(
+            user: args is VerifyEmailRouteArgs ? args.user : null,
+            verificationToken: args is VerifyEmailRouteArgs
+                ? args.verificationToken
+                : null,
+          ),
         );
       case forgotPassword:
         final args = settings.arguments;
@@ -381,6 +398,7 @@ class AppRouter {
                 ? args.selectedProfileUuid
                 : null,
             seatId: args is CheckInDetailsRouteArgs ? args.seatId : null,
+            isMyCheckIn: args is CheckInDetailsRouteArgs && args.isMyCheckIn,
           ),
         );
       case checkInDescriptionsList:
@@ -409,6 +427,8 @@ class AppRouter {
             isGeneralSeatAudit: args is CheckInDescriptionsListRouteArgs
                 ? args.isGeneralSeatAudit
                 : false,
+            isReadOnly:
+                args is CheckInDescriptionsListRouteArgs && args.isReadOnly,
           ),
         );
       case checkInReport:
@@ -566,6 +586,7 @@ class CheckInDetailsRouteArgs {
     this.quarter,
     this.selectedProfileUuid,
     this.seatId,
+    this.isMyCheckIn = false,
   });
 
   final String profileJobId;
@@ -573,6 +594,7 @@ class CheckInDetailsRouteArgs {
   final int? quarter;
   final String? selectedProfileUuid;
   final String? seatId;
+  final bool isMyCheckIn;
 }
 
 class SeatProfileDetailRouteArgs {
@@ -650,6 +672,7 @@ class CheckInDescriptionsListRouteArgs {
     this.requireDescriptionSelection = false,
     this.isSelfAudit = false,
     this.isGeneralSeatAudit = false,
+    this.isReadOnly = false,
   });
 
   final String quarterlyAuditId;
@@ -660,6 +683,7 @@ class CheckInDescriptionsListRouteArgs {
   final bool requireDescriptionSelection;
   final bool isSelfAudit;
   final bool isGeneralSeatAudit;
+  final bool isReadOnly;
 }
 
 class CheckInReportRouteArgs {
@@ -699,6 +723,13 @@ class OnboardingPasswordRouteArgs {
 
   final String? profileImagePath;
   final String? email;
+}
+
+class VerifyEmailRouteArgs {
+  const VerifyEmailRouteArgs({this.user, this.verificationToken});
+
+  final AppUser? user;
+  final String? verificationToken;
 }
 
 class LoginSetPasswordRouteArgs {

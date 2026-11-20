@@ -43,6 +43,7 @@ extension _KaizenGramViewStateActions on _KaizenGramViewState {
   }
 
   Future<void> _sharePost(BuildContext context, KaizengramFeedItem post) async {
+    if (showBillingRestrictionIfNeeded(context)) return;
     final groupDestinations = KaizengramGroupsScreen.shareDestinations;
     final destination = await showModalBottomSheet<KaizengramShareDestination>(
       context: context,
@@ -57,6 +58,7 @@ extension _KaizenGramViewStateActions on _KaizenGramViewState {
     if (destination == null || !context.mounted) {
       return;
     }
+    if (showBillingRestrictionIfNeeded(context)) return;
 
     if (destination.type == KaizengramShareDestinationType.group) {
       final targetGroup = groupDestinations

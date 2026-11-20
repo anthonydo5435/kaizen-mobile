@@ -1,7 +1,6 @@
 import 'organization_hierarchy_job.dart';
 import 'organization_hierarchy_profile.dart';
 import 'user_hierarchy_membership.dart';
-import 'user_role_utils.dart';
 
 class OrganizationHierarchyNode {
   const OrganizationHierarchyNode({
@@ -174,14 +173,6 @@ class OrganizationHierarchyNode {
   }
 
   List<String> _resolveManageableSeatProfileIds() {
-    final normalizedRole = normalizeUserRole(role);
-    if (normalizedRole != 'owner' &&
-        normalizedRole != 'csuite' &&
-        normalizedRole != 'dept_lead' &&
-        normalizedRole != 'team_lead') {
-      return const <String>[];
-    }
-
     final seatProfileIds = <String>[];
     final seenSeatProfileIds = <String>{};
 

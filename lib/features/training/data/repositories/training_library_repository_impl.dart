@@ -196,6 +196,16 @@ class TrainingLibraryRepositoryImpl implements TrainingLibraryRepository {
   }
 
   @override
+  Future<TrainingVideoProcessingJob?> getLatestVideoProcessingJob({
+    required String videoId,
+  }) => _remoteDataSource.getLatestVideoProcessingJob(videoId: videoId);
+
+  @override
+  Future<TrainingVideoProcessingJob> retryVideoProcessingJob({
+    required String jobId,
+  }) => _remoteDataSource.retryVideoProcessingJob(jobId: jobId);
+
+  @override
   Future<void> updateSeatDescriptionTrainingModule({
     required String moduleId,
     String? title,

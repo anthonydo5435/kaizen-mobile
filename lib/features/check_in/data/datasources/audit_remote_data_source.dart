@@ -6,6 +6,7 @@ import 'package:http/http.dart' as http;
 
 import '../../../../core/network/api_endpoints.dart';
 import '../../../../core/network/api_error.dart';
+import '../../../../core/network/api_http_client.dart';
 import '../../../../core/network/api_processor.dart';
 import '../../../../core/preference/app_preference.dart';
 import '../../../../core/utils/custom_functions.dart';
@@ -914,7 +915,7 @@ class AuditRemoteDataSource {
       onProgress: onProgress,
     );
 
-    final client = http.Client();
+    final client = ApiHttpClient();
     late final http.Response response;
     try {
       final streamedResponse = await client.send(request);
@@ -980,7 +981,7 @@ class AuditRemoteDataSource {
         http.MultipartFile.fromBytes('image', fileBytes, filename: fileName),
       );
 
-    final client = http.Client();
+    final client = ApiHttpClient();
     late final http.Response response;
     try {
       final streamedResponse = await client.send(request);

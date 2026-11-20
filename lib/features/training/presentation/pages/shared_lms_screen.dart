@@ -313,7 +313,8 @@ class _SharedLmsLessonGrid extends StatelessWidget {
             ) *
             6;
         final cardHeight =
-            (cardWidth / 1.9).clamp(176.0, 280.0) + textScaleExtra;
+            TrainingLibraryModuleCard.baseHeightForWidth(cardWidth) +
+            textScaleExtra;
 
         return SliverGrid.builder(
           gridDelegate: SliverGridDelegateWithFixedCrossAxisCount(

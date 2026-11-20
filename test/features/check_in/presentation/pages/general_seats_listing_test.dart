@@ -326,6 +326,63 @@ void main() {
     );
   }
 
+  for (final (label, isTopOperator, isIntegrator, isOwner) in [
+    ('top operator', true, false, false),
+    ('integrator', false, true, false),
+    ('owner with integrator flag', false, true, true),
+    ('ordinary team member', false, false, false),
+  ]) {
+    testWidgets('Check-in team tab visibility for $label', (tester) async {
+      _setViewport(tester);
+      final user = User(
+        uuid: 'reviewer',
+        roles: const ['team_member'],
+        isOwner: isOwner,
+        isTopOperator: isTopOperator,
+        isIntegrator: isIntegrator,
+      );
+      await AppPreference.saveUser(user);
+      AppManager.instance.updateCurrentUser(user);
+
+      await http.runWithClient(() async {
+        await tester.pumpWidget(screen());
+        await tester.pumpAndSettle();
+        final team = find.text(AppStrings.auditTeamMembersTab);
+        final mine = find.text(AppStrings.auditMyCheckInsTab);
+        final switcher = find.byType(CheckInStatusSwitcher);
+        expect(find.text(AppStrings.auditGeneralSeatsTab), findsOneWidget);
+        expect(find.byType(CheckInMemberCard), findsOneWidget);
+
+        if (isOwner) {
+          expect(find.text(AppStrings.auditCheckInsTab), findsOneWidget);
+          expect(team, findsNothing);
+          expect(mine, findsNothing);
+        } else if (isTopOperator || isIntegrator) {
+          expect(team, findsOneWidget);
+          expect(mine, findsOneWidget);
+          expect(
+            tester.widget<CheckInStatusSwitcher>(switcher).selectedStatus,
+            AuditMemberStatus.active,
+          );
+          await _tap(tester, mine);
+          expect(
+            requests.last.url.path,
+            endsWith('quarterly_audit/my_audits/'),
+          );
+          expect(find.byType(CheckInMemberCard), findsOneWidget);
+          await _tap(tester, team);
+          expect(requests.last.url.path, endsWith('quarterly_audit/'));
+        } else {
+          expect(team, findsNothing);
+          expect(mine, findsOneWidget);
+        }
+
+        expect(tester.takeException(), isNull);
+        await tester.pumpWidget(const SizedBox.shrink());
+      }, () => client);
+    });
+  }
+
   for (final textScale in [1.0, 2.0]) {
     testWidgets(
       'General Seats is second in the existing team tab bar ($textScale)',

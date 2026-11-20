@@ -1,6 +1,7 @@
 import 'package:flutter/material.dart';
 
 import 'app_bar_gradient_action.dart';
+import 'paid_features_unavailable_dialog.dart';
 
 class AppBarCreateAction extends StatelessWidget {
   const AppBarCreateAction({
@@ -17,7 +18,7 @@ class AppBarCreateAction extends StatelessWidget {
     return AppBarGradientAction(
       label: label,
       icon: Icons.add_rounded,
-      onTap: onTap,
+      onTap: guardPaidAction(context, onTap),
     );
   }
 }

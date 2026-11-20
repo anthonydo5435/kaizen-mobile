@@ -11,7 +11,21 @@ abstract class AuthRepository {
 
   Future<LoginResponse> loginWithGoogle({required String code, required String redirectUri});
 
-  Future<User> fetchUserDetail({required String accessToken});
+  Future<User> fetchUserDetail({
+    required String accessToken,
+    bool includeHierarchy = true,
+  });
+
+  Future<User> enrichUserWithHierarchy({
+    required String accessToken,
+    required User user,
+  });
+
+  Future<bool> isCompanyImportReady(String accessToken);
+
+  Future<String?> sendVerificationEmail(String userId);
+
+  Future<void> verifyEmailLink(String token);
 
   Future<void> saveUserProfile(User user);
 }

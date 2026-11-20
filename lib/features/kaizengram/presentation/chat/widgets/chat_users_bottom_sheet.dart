@@ -1,4 +1,5 @@
 import 'package:flutter/material.dart';
+import 'package:sparrowkaizen/core/widgets/paid_features_unavailable_dialog.dart';
 
 import '../../../../../core/constants/app_colors.dart';
 import '../../../../../core/widgets/app_text_view.dart';
@@ -183,7 +184,7 @@ class _AddPeopleRow extends StatelessWidget {
       color: Colors.transparent,
       child: InkWell(
         borderRadius: BorderRadius.circular(18),
-        onTap: () => _showAddPeopleDialog(context),
+        onTap: guardPaidAction(context, () => _showAddPeopleDialog(context)),
         child: Container(
           padding: const EdgeInsets.all(14),
           decoration: BoxDecoration(

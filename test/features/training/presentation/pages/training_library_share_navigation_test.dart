@@ -8,6 +8,7 @@ import 'package:provider/provider.dart';
 import 'package:shared_preferences/shared_preferences.dart';
 import 'package:sparrowkaizen/core/constants/app_strings.dart';
 import 'package:sparrowkaizen/core/managers/app_manager.dart';
+import 'package:sparrowkaizen/core/managers/models/company_billing_details.dart';
 import 'package:sparrowkaizen/core/network/api_endpoints.dart';
 import 'package:sparrowkaizen/core/preference/app_preference.dart';
 import 'package:sparrowkaizen/core/widgets/app_overlay_close_button.dart';
@@ -106,7 +107,22 @@ void main() {
     });
     addTearDown(client.close);
 
+    Future<void> expectBillingDialog(Finder action) async {
+      await tester.tap(action);
+      await tester.pumpAndSettle();
+      expect(
+        find.text(AppStrings.paidFeaturesUnavailableMessage),
+        findsOneWidget,
+      );
+      await tester.tap(find.text(AppStrings.paidFeaturesUnavailableOk));
+      await tester.pumpAndSettle();
+    }
+
     await http.runWithClient(() async {
+      AppManager.instance.saveBillingDetails(
+        CompanyBillingDetails.fromApiJson({'status': 'unpaid'}),
+      );
+      AppManager.instance.dismissBillingBanner();
       await tester.pumpWidget(
         ChangeNotifierProvider<AppManager>.value(
           value: AppManager.instance,
@@ -115,6 +131,9 @@ void main() {
       );
       await tester.pumpAndSettle();
       expect(find.text('Listing lesson'), findsOneWidget);
+      await expectBillingDialog(
+        find.byTooltip(AppStrings.trainingLibraryCreate),
+      );
       await tester.tap(
         find.descendant(
           of: find.byType(TrainingLibraryModuleCard),
@@ -139,6 +158,17 @@ void main() {
           .read<TrainingModuleController>();
       final allLessons = find.byTooltip(AppStrings.trainingAllLessons);
       final newLesson = find.byTooltip(AppStrings.trainingNewLesson);
+      await expectBillingDialog(newLesson);
+      await expectBillingDialog(find.byTooltip(AppStrings.shareAction));
+      expect(trainingController.isCreatingNewLessonDraft, isFalse);
+      expect(find.text(AppStrings.sharePublicLinkTitle), findsNothing);
+      AppManager.instance.saveBillingDetails(
+        CompanyBillingDetails.fromApiJson({
+          'status': 'unpaid',
+          'is_in_trial': true,
+        }),
+      );
+      await tester.pumpAndSettle();
       expect(
         tester.getTopLeft(allLessons).dx,
         lessThan(tester.getTopLeft(newLesson).dx),

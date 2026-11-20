@@ -6,6 +6,7 @@ import 'package:flutter_test/flutter_test.dart';
 import 'package:shared_preferences/shared_preferences.dart';
 import 'package:sparrowkaizen/core/constants/app_strings.dart';
 import 'package:sparrowkaizen/core/managers/app_manager.dart';
+import 'package:sparrowkaizen/core/managers/models/company_billing_details.dart';
 import 'package:sparrowkaizen/core/preference/app_preference.dart';
 import 'package:sparrowkaizen/core/widgets/fast_circular_progress.dart';
 import 'package:sparrowkaizen/features/login/domain/entities/user.dart';
@@ -20,6 +21,9 @@ void main() {
     SharedPreferences.setMockInitialValues({});
     await AppPreference.init();
     AppManager.instance.resetSessionState();
+    AppManager.instance.saveBillingDetails(
+      CompanyBillingDetails.fromApiJson({'status': 'paid'}),
+    );
     AppManager.instance.updateCurrentUser(
       User(uuid: 'owner', isOwner: true, organizationUuid: 'org'),
     );
@@ -83,6 +87,27 @@ void main() {
     ]);
     expect(tester.takeException(), isNull);
   });
+
+  testWidgets(
+    'the Share button shows the billing dialog for a canceled company',
+    (tester) async {
+      AppManager.instance.saveBillingDetails(
+        CompanyBillingDetails.fromApiJson({'status': 'canceled'}),
+      );
+      AppManager.instance.dismissBillingBanner();
+      final useCase = _UseCase();
+      await tester.pumpWidget(_app(useCase));
+      await tester.pumpAndSettle();
+      await tester.tap(find.byTooltip(AppStrings.shareAction));
+      await tester.pumpAndSettle();
+      expect(
+        find.text(AppStrings.paidFeaturesUnavailableMessage),
+        findsOneWidget,
+      );
+      expect(find.text(AppStrings.sharePublicLinkTitle), findsNothing);
+      expect(useCase.calls, ['GET actual-job']);
+    },
+  );
 
   testWidgets('failed initial lookup retries before allowing creation', (
     tester,

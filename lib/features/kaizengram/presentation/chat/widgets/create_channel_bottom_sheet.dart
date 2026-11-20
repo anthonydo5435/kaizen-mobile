@@ -1,6 +1,7 @@
 import 'dart:io';
 
 import 'package:flutter/material.dart';
+import 'package:sparrowkaizen/core/widgets/paid_features_unavailable_dialog.dart';
 
 import '../../../../../core/constants/app_colors.dart';
 import '../../../../../core/widgets/app_text_view.dart';
@@ -78,7 +79,11 @@ class _CreateChannelBottomSheetState extends State<CreateChannelBottomSheet>
                   Material(
                     color: Colors.transparent,
                     child: InkWell(
-                      onTap: _isPickingImage ? null : _handlePickImage,
+                      onTap: _isPickingImage
+                          ? null
+                          : _selectedImagePath != null
+                          ? _handlePickImage
+                          : guardPaidAction(context, _handlePickImage),
                       borderRadius: BorderRadius.circular(14),
                       child: KaizengramChatInputShell(
                         child: Padding(

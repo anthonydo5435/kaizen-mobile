@@ -30,9 +30,36 @@ class AuthRepositoryImpl implements AuthRepository {
   }
 
   @override
-  Future<User> fetchUserDetail({required String accessToken}) {
-    return _remoteDataSource.fetchUserDetail(accessToken: accessToken);
+  Future<User> fetchUserDetail({
+    required String accessToken,
+    bool includeHierarchy = true,
+  }) {
+    return _remoteDataSource.fetchUserDetail(
+      accessToken: accessToken,
+      includeHierarchy: includeHierarchy,
+    );
   }
+
+  @override
+  Future<User> enrichUserWithHierarchy({
+    required String accessToken,
+    required User user,
+  }) => _remoteDataSource.enrichUserWithHierarchy(
+    accessToken: accessToken,
+    user: user,
+  );
+
+  @override
+  Future<bool> isCompanyImportReady(String accessToken) =>
+      _remoteDataSource.isCompanyImportReady(accessToken);
+
+  @override
+  Future<String?> sendVerificationEmail(String userId) =>
+      _remoteDataSource.sendVerificationEmail(userId);
+
+  @override
+  Future<void> verifyEmailLink(String token) =>
+      _remoteDataSource.verifyEmailLink(token);
 
   @override
   Future<void> saveUserProfile(User user) {

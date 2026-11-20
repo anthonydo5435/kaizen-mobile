@@ -4,6 +4,7 @@ import '../../../../core/constants/app_colors.dart';
 import '../../../../core/constants/app_strings.dart';
 import '../../../../core/widgets/app_text_view.dart';
 import '../../../../core/widgets/fast_circular_progress.dart';
+import '../../../../core/widgets/paid_features_unavailable_dialog.dart';
 import '../../domain/entities/performance_report.dart';
 
 class PerformanceReportPersonaCard extends StatelessWidget {
@@ -94,7 +95,10 @@ class PerformanceReportPersonaCard extends StatelessWidget {
                   child: SizedBox(
                     height: 32,
                     child: OutlinedButton(
-                      onPressed: isGeneratingRemarks ? null : onGenerateRemarks,
+                      onPressed: guardPaidAction(
+                        context,
+                        isGeneratingRemarks ? null : onGenerateRemarks,
+                      ),
                       style: OutlinedButton.styleFrom(
                         foregroundColor: AppColors.secondaryColor,
                         side: const BorderSide(color: AppColors.secondaryColor),

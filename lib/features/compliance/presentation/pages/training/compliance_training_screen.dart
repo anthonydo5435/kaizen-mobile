@@ -4,7 +4,7 @@ import 'package:flutter/material.dart';
 import 'package:provider/provider.dart';
 import 'package:sparrowkaizen/core/managers/app_manager.dart';
 import 'package:sparrowkaizen/core/widgets/fast_circular_progress.dart';
-import 'package:sparrowkaizen/features/check_in/presentation/widgets/upgrade_plan_dialog.dart';
+import 'package:sparrowkaizen/core/widgets/paid_features_unavailable_dialog.dart';
 import 'package:sparrowkaizen/features/compliance/presentation/pages/training/certificate_screen.dart';
 import 'package:sparrowkaizen/features/compliance/presentation/pages/training/quiz_result_dialogue.dart';
 
@@ -153,7 +153,7 @@ class _ComplianceTrainingScreenViewState
   bool _wasLandscapeVideo = false;
 
   bool get _isLandscapeVideo =>
-      _controller.canRotateVideo &&
+      _controller.canExpandLandscapeVideo &&
       MediaQuery.orientationOf(context) == Orientation.landscape;
   var _isHandlingQuizTabChange = false;
   var _isIgnoringTabSelection = false;
@@ -208,6 +208,14 @@ class _ComplianceTrainingScreenViewState
   }
 
   @override
+  void didChangeDependencies() {
+    super.didChangeDependencies();
+    _controller.updateVideoViewport(
+      isLandscape: MediaQuery.orientationOf(context) == Orientation.landscape,
+    );
+  }
+
+  @override
   void dispose() {
     _tabController.removeListener(_handleTabChanged);
     _tabController.dispose();
@@ -247,14 +255,7 @@ class _ComplianceTrainingScreenViewState
       return;
     }
 
-    if (context.read<AppManager>().showBillingBanner) {
-      await showDialog<void>(
-        context: context,
-        builder: (_) => const UpgradePlanDialog(),
-        barrierDismissible: false,
-      );
-      return;
-    }
+    if (showBillingRestrictionIfNeeded(context)) return;
 
     if (_tabController.index == 2) {
       if (!_quizController.hasAnsweredAllQuestions) {
@@ -560,12 +561,8 @@ class _ComplianceTrainingScreenViewState
       return;
     }
 
-    if (context.read<AppManager>().showBillingBanner) {
-      await showDialog<void>(
-        context: context,
-        builder: (_) => const UpgradePlanDialog(),
-        barrierDismissible: false,
-      );
+    if (AppManager.instance.hasRestrictedBillingStatus) {
+      await PaidFeaturesUnavailableDialog.show(context);
       if (mounted) {
         _selectTab(fallbackTabIndex);
       }
@@ -979,7 +976,8 @@ class _ComplianceTrainingScreenViewState
                               ),
                               child: ComplianceVideoScreen(
                                 detail: detail,
-                                fullscreenInLandscape: true,
+                                fullscreenInLandscape:
+                                    _controller.canExpandLandscapeVideo,
                                 onExitLandscapeFullscreen:
                                     _controller.exitVideoFullscreen,
                               ),

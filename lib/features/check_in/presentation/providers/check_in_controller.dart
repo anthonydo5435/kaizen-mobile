@@ -83,6 +83,7 @@ class CheckInController extends ChangeNotifier {
   int _evaluationChartRequestGeneration = 0;
   String? _detailsProfileJobId;
   String? _detailsSeatId;
+  bool _isMyCheckInDetails = false;
   List<SubordinateProfileJob> _subordinateProfileJobs = const [];
   String? _subordinateProfileJobsSeatId;
   bool _isSubordinateProfileJobsLoading = false;
@@ -820,7 +821,7 @@ class CheckInController extends ChangeNotifier {
     return members
         .where((member) {
           final matchesStatus =
-              _state.isActualOwner ||
+              _state.usesOwnerListing ||
                   _state.selectedStatus == AuditMemberStatus.active
               ? member.status == _state.selectedStatus
               : true;
@@ -900,9 +901,11 @@ class CheckInController extends ChangeNotifier {
     _isDescriptionsList = false;
     try {
       final user = await AppPreference.getUser();
-      final isOwner = _hasTeamMemberTabsAccess(user);
+      final isOwner = AppPermissionUtils.canAccessAuditTeamMembers(user);
       final isActualOwner = _isActualOwner(user);
-      final selectedStatus = isOwner
+      final showTeamMembersTab =
+          AppPermissionUtils.shouldShowAuditTeamMembersTab(user);
+      final selectedStatus = isOwner || showTeamMembersTab
           ? AuditMemberStatus.active
           : AuditMemberStatus.deactivated;
       final currentYearQuarter = CustomFunctions.currentYearQuarter();
@@ -916,6 +919,7 @@ class CheckInController extends ChangeNotifier {
         isLoading: true,
         isOwner: isOwner,
         isActualOwner: isActualOwner,
+        showTeamMembersTab: showTeamMembersTab,
         isSelfAudit: false,
         selectedStatus: selectedStatus,
         searchQuery: '',
@@ -928,10 +932,10 @@ class CheckInController extends ChangeNotifier {
       );
       notifyListeners();
 
-      final mainList = isOwner && isActualOwner
+      final mainList = _state.usesOwnerListing
           ? await _loadTeamMembers(page: 1, pageSize: 12)
-          : await _preloadNonOwnerLists(page: 1, pageSize: 12);
-      if (isOwner && isActualOwner) {
+          : await _preloadTeamAndPersonalLists(page: 1, pageSize: 12);
+      if (_state.usesOwnerListing) {
         _cacheMainList(selectedStatus, mainList, updateDefaultCache: true);
       }
       _state = _state.copyWith(isLoading: false, mainList: mainList);
@@ -1063,10 +1067,14 @@ class CheckInController extends ChangeNotifier {
     String? profileUuid,
     bool preserveDetails = false,
     String? seatId,
+    bool isMyCheckIn = false,
   }) async {
     final generation = ++_detailsRequestGeneration;
     _detailsProfileJobId = profileJobId;
-    if (!preserveDetails) _detailsSeatId = seatId;
+    if (!preserveDetails) {
+      _detailsSeatId = seatId;
+      _isMyCheckInDetails = isMyCheckIn;
+    }
     if (!preserveDetails || _detailsSeatId != _subordinateProfileJobsSeatId) {
       _resetSubordinateProfileJobs();
     }
@@ -1075,8 +1083,10 @@ class CheckInController extends ChangeNotifier {
       final user = await AppPreference.getUser();
       if (_isDisposed || generation != _detailsRequestGeneration) return;
       _hasDetailsLoadError = false;
-      final isOwner = _hasTeamMemberTabsAccess(user);
+      final isOwner = AppPermissionUtils.canAccessAuditTeamMembers(user);
       final isActualOwner = _isActualOwner(user);
+      final personalCheckInsAreReadOnly =
+          AppPermissionUtils.hasReadOnlyPersonalCheckIns(user);
       final currentYearQuarter = CustomFunctions.currentYearQuarter();
       final resolvedYear = year ?? currentYearQuarter.year;
       final resolvedQuarter = quarter ?? currentYearQuarter.quarter;
@@ -1092,6 +1102,9 @@ class CheckInController extends ChangeNotifier {
         isOwner: isOwner,
         isActualOwner: isActualOwner,
         isSelfAudit: preserveDetails ? _state.isSelfAudit : false,
+        isCheckInReadOnly:
+            personalCheckInsAreReadOnly &&
+            (_isMyCheckInDetails || (preserveDetails && _state.isSelfAudit)),
         selectedAuditYear: resolvedYear,
         selectedAuditQuarter: resolvedQuarter,
         selectedYearQuarter: selectedYearQuarterLabel,
@@ -1138,10 +1151,13 @@ class CheckInController extends ChangeNotifier {
                   : null,
             );
       if (_isDisposed || generation != _detailsRequestGeneration) return;
+      final isSelfAudit = _isSelfAudit(details, user);
       _state = _state.copyWith(
         isLoading: false,
         details: details,
-        isSelfAudit: _isSelfAudit(details, user),
+        isSelfAudit: isSelfAudit,
+        isCheckInReadOnly:
+            personalCheckInsAreReadOnly && (_isMyCheckInDetails || isSelfAudit),
       );
       notifyListeners();
       if (showGraph && !isGeneralSeatAudit) {
@@ -1305,6 +1321,7 @@ class CheckInController extends ChangeNotifier {
     int? quarter,
     bool? isSelfAudit,
     bool isGeneralSeatAudit = false,
+    bool isReadOnly = false,
   }) async {
     _isDescriptionsList = true;
     _isGeneralSeatDescriptions = isGeneralSeatAudit;
@@ -1315,7 +1332,7 @@ class CheckInController extends ChangeNotifier {
     try {
       final user = await AppPreference.getUser();
       if (_isDisposed || generation != _singleAuditDetailsGeneration) return;
-      final isOwner = _hasTeamMemberTabsAccess(user);
+      final isOwner = AppPermissionUtils.canAccessAuditTeamMembers(user);
       final isActualOwner = _isActualOwner(user);
       final currentYearQuarter = CustomFunctions.currentYearQuarter();
       final resolvedYear = year ?? currentYearQuarter.year;
@@ -1334,6 +1351,7 @@ class CheckInController extends ChangeNotifier {
         isLoading: true,
         isOwner: isOwner,
         isActualOwner: isActualOwner,
+        isCheckInReadOnly: isReadOnly,
         searchQuery: '',
         selectedAuditYear: resolvedYear,
         selectedAuditQuarter: resolvedQuarter,
@@ -1353,7 +1371,7 @@ class CheckInController extends ChangeNotifier {
         return;
       }
 
-      final teamMembersFuture = isOwner && !isGeneralSeatAudit
+      final teamMembersFuture = isOwner && !isGeneralSeatAudit && !isReadOnly
           ? _loadTeamMembers(page: 1, pageSize: _teamMembersScreenPageSize)
           : null;
       final quarterlyAudit = await getQuarterlyAuditUseCase(
@@ -1384,15 +1402,20 @@ class CheckInController extends ChangeNotifier {
       }
 
       if (_isDisposed || generation != _singleAuditDetailsGeneration) return;
+      final isOwnProfile = _matchesProfileUuid(
+        quarterlyAudit.profileUuid,
+        user,
+      );
       _state = _state.copyWith(
         isLoading: false,
         mainList: teamMembers,
         quarterlyAudit: quarterlyAudit,
         quarterlyAuditDate: date,
-        isSelfAudit:
-            isSelfAudit ??
-            (quarterlyAudit.profileUuid.trim().isNotEmpty &&
-                quarterlyAudit.profileUuid.trim() == user?.uuid?.trim()),
+        isSelfAudit: isSelfAudit ?? isOwnProfile,
+        isCheckInReadOnly:
+            isReadOnly ||
+            (AppPermissionUtils.hasReadOnlyPersonalCheckIns(user) &&
+                (isSelfAudit == true || isOwnProfile)),
         clearSelectedQuarterlyAuditDescription: true,
       );
       notifyListeners();
@@ -1406,7 +1429,9 @@ class CheckInController extends ChangeNotifier {
 
   Future<String?> selectSingleAuditMember(AuditProfile member) async {
     final currentAudit = _state.quarterlyAudit;
-    if (!_state.isOwner || currentAudit == null) return null;
+    if (!_state.isOwner || _state.isCheckInReadOnly || currentAudit == null) {
+      return null;
+    }
     return _selectSingleAudit(
       quarterlyAuditId: member.uuid.trim(),
       isCurrentSelection: isCurrentAuditMember(currentAudit, member),
@@ -1472,13 +1497,14 @@ class CheckInController extends ChangeNotifier {
       if (_isDisposed || generation != _singleAuditDetailsGeneration) {
         return null;
       }
+      final isSelfAudit = _matchesProfileUuid(audit.profileUuid, user);
       _state = _state.copyWith(
         isLoading: false,
         quarterlyAudit: audit,
         quarterlyAuditDate: date,
-        isSelfAudit:
-            audit.profileUuid.trim().isNotEmpty &&
-            audit.profileUuid.trim() == user?.uuid?.trim(),
+        isSelfAudit: isSelfAudit,
+        isCheckInReadOnly:
+            isSelfAudit && AppPermissionUtils.hasReadOnlyPersonalCheckIns(user),
         selectedQuarterlyAuditDescriptionUuid: descriptionId,
         clearSelectedQuarterlyAuditDescription:
             descriptionId == null || descriptionId.isEmpty,
@@ -1654,6 +1680,7 @@ class CheckInController extends ChangeNotifier {
     required String descriptionId,
     required Map<String, int> audit,
   }) async {
+    _requireWritableCheckIn();
     final submitDescriptionAudit = _submitDescriptionAuditUseCase;
     if (submitDescriptionAudit == null) {
       throw StateError('AuditRepository is not configured.');
@@ -1688,6 +1715,7 @@ class CheckInController extends ChangeNotifier {
     required String descriptionId,
     required List<String> profileJobIds,
   }) {
+    _requireWritableCheckIn();
     final submit = _submitDescriptionAuditUseCase;
     if (submit == null) {
       throw StateError('AuditRepository is not configured.');
@@ -1808,6 +1836,7 @@ class CheckInController extends ChangeNotifier {
     required String descriptionId,
     required String comment,
   }) async {
+    _requireWritableCheckIn();
     final auditRepository = _auditRepository;
     if (auditRepository == null) {
       throw StateError('AuditRepository is not configured.');
@@ -1825,6 +1854,7 @@ class CheckInController extends ChangeNotifier {
     File? mediaFile,
     String? mediaType,
   }) async {
+    _requireWritableCheckIn();
     final auditRepository = _auditRepository;
     if (auditRepository == null) {
       throw StateError('AuditRepository is not configured.');
@@ -1970,7 +2000,7 @@ class CheckInController extends ChangeNotifier {
     _cancelPendingMainListSearchRefresh();
 
     if (refresh) {
-      final cachedList = _state.isActualOwner
+      final cachedList = _state.usesOwnerListing
           ? _state.mainList
           : _cachedListFor(status) ??
                 (!_hasMainListSearchQuery()
@@ -1990,13 +2020,13 @@ class CheckInController extends ChangeNotifier {
 
     _state = _state.copyWith(
       selectedStatus: status,
-      isLoading: !_state.isActualOwner,
+      isLoading: !_state.usesOwnerListing,
       isLoadingMore: false,
-      clearMainList: !_state.isActualOwner,
+      clearMainList: !_state.usesOwnerListing,
     );
     notifyListeners();
 
-    if (_state.isActualOwner) {
+    if (_state.usesOwnerListing) {
       return;
     }
 
@@ -3351,8 +3381,7 @@ class CheckInController extends ChangeNotifier {
     bool forceRefresh = false,
   }) {
     final resolvedSearch = search ?? _state.searchQuery;
-    if (!_state.isActualOwner &&
-        _state.selectedStatus == AuditMemberStatus.deactivated) {
+    if (_state.isMyCheckInsSelected) {
       return _loadMyCheckIns(
         page: page,
         pageSize: pageSize,
@@ -3369,7 +3398,7 @@ class CheckInController extends ChangeNotifier {
     );
   }
 
-  Future<AuditMainList> _preloadNonOwnerLists({
+  Future<AuditMainList> _preloadTeamAndPersonalLists({
     required int page,
     required int pageSize,
   }) async {
@@ -3592,23 +3621,25 @@ class CheckInController extends ChangeNotifier {
     debugPrint('CheckInController.$operation failed: $error');
   }
 
-  bool _hasTeamMemberTabsAccess(User? user) {
-    return AppPermissionUtils.canAccessAuditTeamMembers(user);
-  }
-
   bool _isActualOwner(User? user) {
     return AppPermissionUtils.hasOwnerOverrideAccess(user);
   }
 
-  bool _isSelfAudit(AuditDetails details, User? user) {
-    final currentProfileUuid = user?.uuid?.trim() ?? '';
-    if (currentProfileUuid.isEmpty) {
-      return false;
+  void _requireWritableCheckIn() {
+    if (_state.isCheckInReadOnly) {
+      throw StateError('This check-in is read-only.');
     }
+  }
 
-    return details.profileUuid.trim() == currentProfileUuid ||
+  bool _matchesProfileUuid(String profileUuid, User? user) {
+    final uuid = profileUuid.trim();
+    return uuid.isNotEmpty && uuid == user?.uuid?.trim();
+  }
+
+  bool _isSelfAudit(AuditDetails details, User? user) {
+    return _matchesProfileUuid(details.profileUuid, user) ||
         details.profiles.any(
-          (profile) => profile.uuid.trim() == currentProfileUuid,
+          (profile) => _matchesProfileUuid(profile.uuid, user),
         );
   }
 

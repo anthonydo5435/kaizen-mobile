@@ -57,8 +57,9 @@ class _EditQuestionDialogState extends State<_EditQuestionDialog> {
       Navigator.of(context).pop(true);
     } else {
       final error = controller.questionsErrorMessage?.trim();
-      if (error != null && error.isNotEmpty)
+      if (error != null && error.isNotEmpty) {
         _editor.setValidationMessage(error);
+      }
     }
   }
 
@@ -112,7 +113,6 @@ class _EditQuestionDialogState extends State<_EditQuestionDialog> {
             borderRadius: const BorderRadius.vertical(top: Radius.circular(24)),
             child: ConstrainedBox(
               constraints: BoxConstraints(
-                maxWidth: 620,
                 maxHeight: availableHeight.clamp(
                   0.0,
                   mediaQuery.size.height * 0.92,
@@ -297,7 +297,10 @@ class _EditQuestionOptions extends StatelessWidget {
           child: _InlineTextAction(
             label: AppStrings.trainingQuestionAddOption,
             icon: Icons.add_rounded,
-            onTap: isEnabled ? () => editor.showDraftOption(question) : null,
+            onTap: guardPaidAction(
+              context,
+              isEnabled ? () => editor.showDraftOption(question) : null,
+            ),
           ),
         ),
       ],

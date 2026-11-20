@@ -30,12 +30,17 @@ class TrainingLibraryCategoryModel extends TrainingLibraryCategory {
 }
 
 class TrainingLibrarySeatModel extends TrainingLibrarySeat {
-  const TrainingLibrarySeatModel({required super.id, required super.title});
+  const TrainingLibrarySeatModel({
+    required super.id,
+    required super.title,
+    super.actualId,
+  });
 
   factory TrainingLibrarySeatModel.fromApiJson(Map<String, dynamic> json) {
     return TrainingLibrarySeatModel(
       id: _readString(json['uuid']),
       title: _readString(json['title']),
+      actualId: _readNullableString(json['actual_id']),
     );
   }
 }
@@ -103,7 +108,10 @@ class TrainingLibraryModuleModel extends TrainingLibraryModule {
         ? TrainingLibrarySeatModel.fromApiJson(
             json['job'] as Map<String, dynamic>,
           )
-        : const TrainingLibrarySeatModel(id: '', title: '');
+        : TrainingLibrarySeatModel(
+            id: json['job'] is String ? _readString(json['job']) : '',
+            title: '',
+          );
     final category = json['category'] is Map<String, dynamic>
         ? TrainingLibraryCategoryModel.fromApiJson(
             json['category'] as Map<String, dynamic>,

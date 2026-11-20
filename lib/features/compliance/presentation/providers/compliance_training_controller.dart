@@ -33,6 +33,8 @@ class ComplianceTrainingController extends ChangeNotifier {
   bool _hasConfiguredOrientation = false;
   bool _isVideoFullscreen = false;
   bool _isWaitingForDevicePortrait = false;
+  bool _isLandscapeViewport = false;
+  bool _suppressLandscapeVideo = false;
   int _portraitResetGeneration = 0;
 
   bool get isLoading => _isLoading;
@@ -42,7 +44,15 @@ class ComplianceTrainingController extends ChangeNotifier {
   int get currentModuleNumber => _currentModuleNumber;
   int get selectedTabIndex => _selectedTabIndex;
   bool get isCompletingQuizSubmit => _isCompletingQuizSubmit;
-  bool get canRotateVideo => _isVideoRotationEnabled;
+  bool get canExpandLandscapeVideo =>
+      _isVideoRotationEnabled && !_suppressLandscapeVideo;
+
+  void updateVideoViewport({required bool isLandscape}) {
+    _isLandscapeViewport = isLandscape;
+    if (!isLandscape && !_isWaitingForDevicePortrait) {
+      _suppressLandscapeVideo = false;
+    }
+  }
 
   void selectTab(int index) {
     if (_isDisposed || index == _selectedTabIndex) return;
@@ -100,7 +110,7 @@ class ComplianceTrainingController extends ChangeNotifier {
 
   void updateVideoFullscreen(bool fullscreen) {
     if (_isDisposed) return;
-    final enabled = fullscreen && _isVideoRotationEnabled;
+    final enabled = fullscreen && canExpandLandscapeVideo;
     if (enabled == _isVideoFullscreen) return;
     _isVideoFullscreen = enabled;
     unawaited(VideoPlaybackService.setFullscreen(enabled));
@@ -113,6 +123,10 @@ class ComplianceTrainingController extends ChangeNotifier {
       return;
     }
     _isWaitingForDevicePortrait = true;
+    // A tablet window can stay in landscape after a portrait request.
+    _suppressLandscapeVideo = true;
+    updateVideoFullscreen(false);
+    notifyListeners();
     final generation = ++_portraitResetGeneration;
     await SystemChrome.setPreferredOrientations(const [
       DeviceOrientation.portraitUp,
@@ -124,11 +138,16 @@ class ComplianceTrainingController extends ChangeNotifier {
     }
     _isWaitingForDevicePortrait = false;
     _requestPreferredOrientations();
+    if (!_isLandscapeViewport && _suppressLandscapeVideo) {
+      _suppressLandscapeVideo = false;
+      notifyListeners();
+    }
   }
 
   void _cancelPortraitReset() {
     if (!_isWaitingForDevicePortrait) return;
     _isWaitingForDevicePortrait = false;
+    if (!_isLandscapeViewport) _suppressLandscapeVideo = false;
     _portraitResetGeneration++;
     unawaited(VideoPlaybackService.cancelDevicePortraitWait());
   }
