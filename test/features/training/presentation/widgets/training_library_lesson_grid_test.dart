@@ -30,6 +30,7 @@ void main() {
         (index) => tester.getRect(_card('Lesson $index')),
       );
       expect(cards[0].top, cards[1].top);
+      expect(cards[0].height, closeTo(179 * 1.85, 0.01));
       expect(cards[0].height, greaterThan(cards[1].height));
       expect(cards[2].top, closeTo(cards[0].bottom + 8, 0.01));
       expect(cards[3].top, closeTo(cards[1].bottom + 8, 0.01));
@@ -139,6 +140,23 @@ void main() {
       expect(openedActions, isFalse);
     },
   );
+
+  testWidgets('lesson cards stay compact on iPad', (tester) async {
+    tester.view.physicalSize = const Size(1024, 1366);
+    tester.view.devicePixelRatio = 1;
+    addTearDown(tester.view.resetPhysicalSize);
+    addTearDown(tester.view.resetDevicePixelRatio);
+
+    await tester.pumpWidget(_host(lessons: _lessons(4)));
+
+    final tall = tester.getRect(_card('Lesson 0'));
+    final short = tester.getRect(_card('Lesson 1'));
+    expect(tall.width, greaterThan(450));
+    expect(tall.height, lessThan(420));
+    expect(short.height, lessThan(290));
+    expect(tall.height, greaterThan(short.height));
+    expect(tester.takeException(), isNull);
+  });
 
   testWidgets('narrow screens and large text keep cards within their bounds', (
     tester,

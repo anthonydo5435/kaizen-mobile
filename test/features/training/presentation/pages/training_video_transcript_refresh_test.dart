@@ -49,6 +49,13 @@ void main() {
           ];
         } else if (endpoint == ApiEndPoints.lmsPublicLink('description')) {
           response = {'active': false};
+        } else if (endpoint == ApiEndPoints.latestBackgroundJob) {
+          response = {
+            'job':
+                request.url.queryParameters['resource_uuid'] == 'uploaded-video'
+                ? {'uuid': 'job', 'status': 'completed', 'can_retry': false}
+                : null,
+          };
         } else if (endpoint == ApiEndPoints.trainingModuleDetail('lesson')) {
           detailRequests++;
           if (detailRequests > 1) return refresh.future;
@@ -91,14 +98,19 @@ void main() {
           ),
           localVideoPath: '',
         );
-        await tester.pumpAndSettle();
+        await tester.pump();
+        final loadingSummary = find.byKey(
+          const ValueKey('training-summary-loading'),
+        );
+        expect(loadingSummary, findsOneWidget);
         expect(detailRequests, 2);
         final captions = tester
             .element(find.text(AppStrings.trainingViewTranscript))
             .read<ComplianceVideoController>();
         captions.updatePlaybackPosition(const Duration(seconds: 1));
         await tester.tap(find.text(AppStrings.trainingViewTranscript));
-        await tester.pumpAndSettle();
+        await tester.pump();
+        await tester.pump(const Duration(milliseconds: 350));
         expect(
           find.text(AppStrings.trainingNoTranscriptAvailable),
           findsOneWidget,
@@ -113,6 +125,7 @@ void main() {
           ),
         );
         await tester.pumpAndSettle();
+        expect(loadingSummary, findsNothing);
         expect(find.byType(BottomSheet), findsOneWidget);
         expect(
           find.text(AppStrings.trainingNoTranscriptAvailable),

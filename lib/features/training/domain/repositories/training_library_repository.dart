@@ -89,6 +89,14 @@ abstract class TrainingLibraryRepository {
     required String moduleId,
   });
 
+  Future<TrainingVideoProcessingJob?> getLatestVideoProcessingJob({
+    required String videoId,
+  });
+
+  Future<TrainingVideoProcessingJob> retryVideoProcessingJob({
+    required String jobId,
+  });
+
   Future<void> updateSeatDescriptionTrainingModule({
     required String moduleId,
     String? title,

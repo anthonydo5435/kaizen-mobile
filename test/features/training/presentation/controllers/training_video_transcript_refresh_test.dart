@@ -49,15 +49,13 @@ void main() {
         ..writeAsBytesSync([0]);
       expect(await controller.deleteVideoForSelectedModule(), isTrue);
       expect(await controller.uploadVideoForSelectedModule(file), isTrue);
-      repository.refreshes.single.response.complete(
-        _detail('first', _video('uploaded')),
-      );
-      await Future<void>.delayed(Duration.zero);
+      expect(repository.refreshes, isEmpty);
+      expect(controller.isCheckingSelectedVideoProcessing, isTrue);
       expect(controller.hasSelectedModuleVideoTranscript, isFalse);
-      repository.summary.complete('Processed summary');
+      repository.uploadedJob.complete(_completedJob);
       await Future<void>.delayed(Duration.zero);
-      expect(repository.refreshes, hasLength(2));
-      repository.refreshes.last.response.complete(
+      expect(repository.checkedVideoIds, ['original-first', 'uploaded']);
+      repository.refreshes.single.response.complete(
         _detail(
           'first',
           _video('uploaded', transcript: '[00:00] Replacement transcript'),
@@ -68,18 +66,21 @@ void main() {
         controller.selectedModuleDetail!.trainingVideo!.transcript,
         '[00:00] Replacement transcript',
       );
-      expect(controller.summaryController.text, 'Processed summary');
+      expect(controller.summaryController.text, 'Server summary');
       expect(controller.selectedModuleLocalVideoPath, file.path);
+      expect(controller.isCheckingSelectedVideoProcessing, isFalse);
+      expect(repository.legacyGenerationRequests, 0);
     },
   );
 
   test(
-    'upload refreshes the transcript without replacing local drafts',
+    'background upload refreshes the summary and transcript without replacing the title draft',
     () async {
       applyUpload('uploaded');
+      repository.uploadedJob.complete(_completedJob);
+      await Future<void>.delayed(Duration.zero);
       expect(repository.refreshes, hasLength(1));
       controller.moduleTitleController.text = 'Unsaved title';
-      controller.summaryController.text = 'Unsaved summary';
       repository.refreshes.single.response.complete(
         _detail(
           'first',
@@ -95,41 +96,28 @@ void main() {
       );
       expect(controller.selectedModuleLocalVideoPath, '/local/uploaded.mp4');
       expect(controller.moduleTitleController.text, 'Unsaved title');
-      expect(controller.summaryController.text, 'Unsaved summary');
+      expect(controller.summaryController.text, 'Server summary');
     },
   );
 
-  test(
-    'processing completion retries a transcript that was not ready at upload',
-    () async {
-      applyUpload('uploaded');
-      repository.refreshes.single.response.complete(
-        _detail('first', _video('uploaded')),
-      );
-      await Future<void>.delayed(Duration.zero);
-      expect(controller.hasSelectedModuleVideoTranscript, isFalse);
-
-      controller.applyGeneratedSummaryForModule(
-        moduleId: 'first',
-        description: 'Generated summary',
-      );
-      expect(repository.refreshes, hasLength(2));
-      repository.refreshes.last.response.complete(
-        _detail('first', _video('uploaded', transcript: '[00:00] Ready now')),
-      );
-      await Future<void>.delayed(Duration.zero);
-      expect(
-        controller.selectedModuleDetail!.trainingVideo!.transcript,
-        '[00:00] Ready now',
-      );
-      expect(controller.summaryController.text, 'Generated summary');
-    },
-  );
+  test('loading another lesson ignores an unfinished job lookup', () async {
+    applyUpload('uploaded');
+    await controller.selectModule('second');
+    repository.uploadedJob.complete(_completedJob);
+    await Future<void>.delayed(Duration.zero);
+    expect(repository.refreshes, isEmpty);
+    expect(
+      controller.selectedModuleDetail!.trainingVideo!.uuid,
+      'original-second',
+    );
+  });
 
   test(
     'a refresh for the previous lesson cannot replace the current video',
     () async {
       applyUpload('uploaded');
+      repository.uploadedJob.complete(_completedJob);
+      await Future<void>.delayed(Duration.zero);
       await controller.selectModule('second');
       repository.refreshes.single.response.complete(
         _detail(
@@ -154,7 +142,9 @@ void main() {
     'an earlier replacement cannot attach its transcript to the new video',
     () async {
       applyUpload('earlier');
+      await Future<void>.delayed(Duration.zero);
       applyUpload('latest');
+      await Future<void>.delayed(Duration.zero);
       repository.refreshes.first.response.complete(
         _detail('first', _video('earlier', transcript: '[00:00] Stale video')),
       );
@@ -182,6 +172,12 @@ SeatDescriptionTrainingVideo _video(String id, {String? transcript}) =>
       transcript: transcript,
     );
 
+const _completedJob = TrainingVideoProcessingJob(
+  uuid: 'job',
+  status: 'completed',
+  canRetry: false,
+);
+
 SeatDescriptionTrainingModuleDetail _detail(
   String id,
   SeatDescriptionTrainingVideo? video,
@@ -201,7 +197,9 @@ SeatDescriptionTrainingModuleDetail _detail(
 );
 
 class _TranscriptRepository extends Fake implements TrainingLibraryRepository {
-  final summary = Completer<String?>();
+  final uploadedJob = Completer<TrainingVideoProcessingJob>();
+  final checkedVideoIds = <String>[];
+  int legacyGenerationRequests = 0;
   final videos = <String, SeatDescriptionTrainingVideo?>{
     for (final id in ['first', 'second'])
       id: _video('original-$id', transcript: '[00:00] Original'),
@@ -266,9 +264,22 @@ class _TranscriptRepository extends Fake implements TrainingLibraryRepository {
   }
 
   @override
+  Future<TrainingVideoProcessingJob?> getLatestVideoProcessingJob({
+    required String videoId,
+  }) async {
+    checkedVideoIds.add(videoId);
+    if (videoId.startsWith('original-')) return null;
+    if (videoId == 'uploaded') return uploadedJob.future;
+    return _completedJob;
+  }
+
+  @override
   Future<String?> generateSeatDescriptionTrainingModuleSummary({
     required String moduleId,
-  }) => summary.future;
+  }) async {
+    legacyGenerationRequests++;
+    return null;
+  }
 }
 
 class _FileUploader extends Fake implements FileUploader {

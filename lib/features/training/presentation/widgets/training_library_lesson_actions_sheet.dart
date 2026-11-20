@@ -23,7 +23,6 @@ Future<TrainingLibraryLessonAction?> showTrainingLibraryLessonActionsSheet(
     isScrollControlled: true,
     useSafeArea: true,
     backgroundColor: Colors.transparent,
-    constraints: const BoxConstraints(maxWidth: 620),
     builder: (context) => TrainingLibraryLessonActionsSheet(
       canEdit: canEdit,
       isPubliclyAvailable: isPubliclyAvailable,

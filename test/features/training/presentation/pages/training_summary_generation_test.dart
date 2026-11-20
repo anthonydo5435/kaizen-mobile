@@ -9,6 +9,7 @@ import 'package:provider/provider.dart';
 import 'package:shared_preferences/shared_preferences.dart';
 import 'package:sparrowkaizen/core/constants/app_strings.dart';
 import 'package:sparrowkaizen/core/managers/app_manager.dart';
+import 'package:sparrowkaizen/core/managers/models/company_billing_details.dart';
 import 'package:sparrowkaizen/core/network/api_endpoints.dart';
 import 'package:sparrowkaizen/core/preference/app_preference.dart';
 import 'package:sparrowkaizen/core/widgets/app_ai_generate_button.dart';
@@ -18,10 +19,12 @@ import 'package:sparrowkaizen/features/login/domain/entities/user.dart';
 import 'package:sparrowkaizen/features/training/domain/entities/seat_description_training_route.dart';
 import 'package:sparrowkaizen/features/training/presentation/pages/edit_training_screen.dart';
 
+import '../../fixtures/tiptap_sop_fixture.dart';
+
 void main() {
   for (final canManageTraining in [true, false]) {
     testWidgets(
-      'Video Summary Generate uses PUT and preserves edit permissions: $canManageTraining',
+      'Video and Assignment generation preserve permissions without lesson text: $canManageTraining',
       (tester) async {
         tester.view.physicalSize = const Size(390, 844);
         tester.view.devicePixelRatio = 1;
@@ -30,6 +33,9 @@ void main() {
         SharedPreferences.setMockInitialValues({});
         await AppPreference.init();
         AppManager.instance.resetSessionState();
+        AppManager.instance.saveBillingDetails(
+          CompanyBillingDetails.fromApiJson({'status': 'paid'}),
+        );
         AppManager.instance.updateCurrentUser(
           User(
             uuid: 'user',
@@ -42,6 +48,7 @@ void main() {
 
         final writes = <http.Request>[];
         final generationResponse = Completer<http.Response>();
+        var assignmentGenerated = false;
         final client = MockClient((request) async {
           final endpoint = request.url.path.replaceFirst(
             ApiEndPoints.version,
@@ -50,6 +57,11 @@ void main() {
           if (request.method != 'GET') {
             writes.add(request);
             expect(request.method, 'PUT');
+            if (endpoint ==
+                ApiEndPoints.generateTrainingModuleAssignment('lesson')) {
+              assignmentGenerated = true;
+              return http.Response('', 204);
+            }
             expect(endpoint, 'training_modules/lesson/generate_summary/');
             return generationResponse.future;
           }
@@ -68,7 +80,6 @@ void main() {
               'uuid': 'lesson',
               'actual_id': 'parent-lesson',
               'title': 'Lesson',
-              'description': 'Original summary',
               'training_video': {
                 'uuid': 'video',
                 'url': 'http://[',
@@ -77,9 +88,22 @@ void main() {
             };
           } else if (endpoint == ApiEndPoints.lmsPublicLink('description')) {
             response = {'active': false};
+          } else if (endpoint == ApiEndPoints.latestBackgroundJob) {
+            response = {'job': null};
           } else if (endpoint ==
               ApiEndPoints.trainingModuleDocument('lesson')) {
             response = {'uuid': 'document', 'text': '<p>Procedure</p>'};
+          } else if (endpoint ==
+              ApiEndPoints.trainingModuleAssignment('lesson')) {
+            response = assignmentGenerated
+                ? {
+                    'uuid': 'assignment',
+                    'title': 'Assignment',
+                    'instructions': '<p>Generated instructions</p>',
+                  }
+                : <String, Object>{};
+          } else if (endpoint == ApiEndPoints.trainingModuleQuestions('lesson')) {
+            response = [];
           } else {
             throw StateError('Unexpected API request: $endpoint');
           }
@@ -95,14 +119,17 @@ void main() {
           await tester.pumpWidget(
             ChangeNotifierProvider<AppManager>.value(
               value: AppManager.instance,
-              child: MaterialApp(
-                home: EditTrainingScreen(
-                  trainingRoute: const SeatDescriptionTrainingRoute(
-                    job: 'seat',
-                    category: 'category',
-                    description: 'description',
+              child: Provider<TrainingSopEditorFactory>.value(
+                value: TiptapSopFixture().create,
+                child: MaterialApp(
+                  home: EditTrainingScreen(
+                    trainingRoute: const SeatDescriptionTrainingRoute(
+                      job: 'seat',
+                      category: 'category',
+                      description: 'description',
+                    ),
+                    canManageTraining: canManageTraining,
                   ),
-                  canManageTraining: canManageTraining,
                 ),
               ),
             ),
@@ -124,6 +151,11 @@ void main() {
             final summaryController = tester
                 .widget<TextField>(editor)
                 .controller!;
+            expect(summaryController.text, isEmpty);
+            expect(
+              tester.widget<AppAiGenerateButton>(generate).isEnabled,
+              isTrue,
+            );
             final summaryField = find.byWidgetPredicate(
               (widget) =>
                   widget is TextField && widget.controller == summaryController,
@@ -138,6 +170,20 @@ void main() {
               of: summaryBlock,
               matching: find.byType(FastCircularProgressIndicator),
             );
+            await tester.ensureVisible(summaryField);
+            await tester.tap(summaryField);
+            await tester.pump();
+            final editable = tester.widget<EditableText>(
+              find.descendant(
+                of: summaryField,
+                matching: find.byType(EditableText),
+              ),
+            );
+            expect(editable.focusNode.hasFocus, isTrue);
+            expect(editable.showCursor, isTrue);
+            expect(summaryController.selection.isValid, isTrue);
+            expect(summaryController.selection.isCollapsed, isTrue);
+            expect(tester.testTextInput.isVisible, isTrue);
             await tester.ensureVisible(generate);
             final initialSize = tester.getSize(generate);
             expect(
@@ -201,18 +247,52 @@ void main() {
               description: null,
             );
             await tester.pump();
+            await tester.tap(find.text(AppStrings.trainingSopTab));
+            await tester.pumpAndSettle();
+            final generateSop = find.byWidgetPredicate(
+              (widget) =>
+                  widget is AppAiGenerateButton &&
+                  widget.label == AppStrings.trainingCreateWithAi,
+            );
             expect(
-              tester.widget<AppAiGenerateButton>(generate).isEnabled,
+              tester.widget<AppAiGenerateButton>(generateSop).isEnabled,
               isFalse,
             );
-            expect(tester.widget<TextButton>(button).onPressed, isNull);
-            await tester.tap(generate);
-            await tester.pump();
+
+            await tester.tap(find.text(AppStrings.trainingAssignmentTab));
+            await tester.pumpAndSettle();
+            final generateAssignment = find.byWidgetPredicate(
+              (widget) =>
+                  widget is AppAiGenerateButton &&
+                  widget.label == AppStrings.trainingGenerateAssignment,
+            );
+            expect(
+              tester.widget<AppAiGenerateButton>(generateAssignment).isEnabled,
+              isTrue,
+            );
+            await tester.tap(generateAssignment);
+            await tester.pumpAndSettle();
+            await tester.tap(
+              find.descendant(
+                of: find.byType(BottomSheet),
+                matching: generateAssignment,
+              ),
+            );
+            await tester.pumpAndSettle();
+            expect(
+              controller.selectedModuleAssignmentInstructions,
+              '<p>Generated instructions</p>',
+            );
           } else {
             expect(generate, findsNothing);
-            expect(find.text('Original summary'), findsOneWidget);
+            final summary = find.text(AppStrings.trainingNoSummaryAvailable);
+            expect(summary, findsOneWidget);
+            await tester.ensureVisible(summary);
+            await tester.tap(summary);
+            await tester.pump();
+            expect(tester.testTextInput.isVisible, isFalse);
           }
-          expect(writes, hasLength(canManageTraining ? 1 : 0));
+          expect(writes, hasLength(canManageTraining ? 2 : 0));
           expect(tester.takeException(), isNull);
           await tester.pumpWidget(const SizedBox.shrink());
         }, () => client);

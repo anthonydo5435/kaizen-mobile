@@ -6,7 +6,6 @@ import 'package:flutter/foundation.dart';
 import 'package:video_player/video_player.dart';
 
 import '../../../../core/constants/app_strings.dart';
-import '../../../../core/network/api_error.dart';
 import '../../../../core/services/background_media_upload_controller.dart';
 import '../../../../core/services/file_uploader.dart';
 import '../../data/datasources/training_library_remote_data_source.dart';
@@ -59,22 +58,6 @@ class TrainingVideoUploadTask {
   }
 }
 
-class TrainingVideoUploadSummaryEvent {
-  const TrainingVideoUploadSummaryEvent({
-    required this.eventSequence,
-    required this.descriptionId,
-    required this.moduleId,
-    required this.summary,
-    this.snackBarMessage,
-  });
-
-  final int eventSequence;
-  final String descriptionId;
-  final String moduleId;
-  final String? summary;
-  final String? snackBarMessage;
-}
-
 class TrainingVideoUploadController extends ChangeNotifier {
   TrainingVideoUploadController._({
     TrainingLibraryRepository? trainingRepository,
@@ -102,16 +85,11 @@ class TrainingVideoUploadController extends ChangeNotifier {
   final TrainingLibraryRepository _trainingRepository;
   final FileUploader _fileUploader;
   final BackgroundMediaUploadController _backgroundUploadController;
-  final List<TrainingVideoUploadSummaryEvent> _summaryEvents =
-      <TrainingVideoUploadSummaryEvent>[];
-  int _nextSummaryEventSequence = 0;
 
   String? get startErrorMessage =>
       _backgroundUploadController.startErrorMessage;
   int get latestTerminalEventSequence =>
       _backgroundUploadController.latestTerminalEventSequence;
-  int get latestSummaryEventSequence =>
-      _summaryEvents.isEmpty ? 0 : _summaryEvents.last.eventSequence;
   bool get isActive => _backgroundUploadController.isActive;
   bool get shouldShowBanner => _backgroundUploadController.shouldShowBanner;
 
@@ -128,12 +106,6 @@ class TrainingVideoUploadController extends ChangeNotifier {
           (task) => task.category == BackgroundMediaUploadCategory.training,
         )
         .map(TrainingVideoUploadTask.fromBackgroundTask)
-        .toList(growable: false);
-  }
-
-  List<TrainingVideoUploadSummaryEvent> summaryEventsSince(int eventSequence) {
-    return _summaryEvents
-        .where((event) => event.eventSequence > eventSequence)
         .toList(growable: false);
   }
 
@@ -241,10 +213,6 @@ class TrainingVideoUploadController extends ChangeNotifier {
               );
           return BackgroundMediaUploadResult(payload: uploadedVideo);
         },
-        afterSuccess: (_) => _generateSummaryInBackground(
-          descriptionId: resolvedDescriptionId,
-          moduleId: resolvedModuleId,
-        ),
       ),
     );
   }
@@ -275,55 +243,6 @@ class TrainingVideoUploadController extends ChangeNotifier {
     required String moduleId,
   }) {
     return 'training:$descriptionId:$moduleId';
-  }
-
-  Future<void> _generateSummaryInBackground({
-    required String descriptionId,
-    required String moduleId,
-  }) async {
-    try {
-      final generatedSummary = await _trainingRepository
-          .generateSeatDescriptionTrainingModuleSummary(moduleId: moduleId);
-      _recordSummaryEvent(
-        descriptionId: descriptionId,
-        moduleId: moduleId,
-        summary: generatedSummary,
-      );
-    } catch (error) {
-      if (error is ApiError && error.statusCode == 404) {
-        _recordSummaryEvent(
-          descriptionId: descriptionId,
-          moduleId: moduleId,
-          summary: null,
-          snackBarMessage: AppStrings.trainingNoSummaryAvailableSnackBar,
-        );
-        return;
-      }
-
-      debugPrint('Unable to generate training summary: $error');
-    }
-  }
-
-  void _recordSummaryEvent({
-    required String descriptionId,
-    required String moduleId,
-    String? summary,
-    String? snackBarMessage,
-  }) {
-    _nextSummaryEventSequence++;
-    _summaryEvents.add(
-      TrainingVideoUploadSummaryEvent(
-        eventSequence: _nextSummaryEventSequence,
-        descriptionId: descriptionId,
-        moduleId: moduleId,
-        summary: summary?.trim(),
-        snackBarMessage: snackBarMessage?.trim(),
-      ),
-    );
-    if (_summaryEvents.length > 50) {
-      _summaryEvents.removeRange(0, _summaryEvents.length - 50);
-    }
-    notifyListeners();
   }
 
   Future<int> _resolveVideoDurationInSeconds(File videoFile) async {

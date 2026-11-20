@@ -18,10 +18,20 @@ class TrainingLibraryCategory {
 }
 
 class TrainingLibrarySeat {
-  const TrainingLibrarySeat({required this.id, required this.title});
+  const TrainingLibrarySeat({
+    required this.id,
+    required this.title,
+    this.actualId,
+  });
 
   final String id;
   final String title;
+  final String? actualId;
+
+  Iterable<String> get profileIds sync* {
+    yield id;
+    if (actualId case final id? when id.isNotEmpty) yield id;
+  }
 }
 
 class TrainingLibraryLesson {

@@ -36,6 +36,9 @@ class TrainingLibraryModuleCard extends StatelessWidget {
   final VoidCallback onTap;
   final VoidCallback? onLongPress;
 
+  static double baseHeightForWidth(double width) =>
+      (width / 1.9).clamp(176.0, 230.0);
+
   @override
   Widget build(BuildContext context) {
     final module = this.module;
@@ -78,7 +81,7 @@ class TrainingLibraryModuleCard extends StatelessWidget {
                 constraints: BoxConstraints(
                   minHeight: constraints.hasBoundedHeight
                       ? constraints.maxHeight
-                      : (constraints.maxWidth / 1.9).clamp(176.0, 280.0) + 24,
+                      : baseHeightForWidth(constraints.maxWidth) + 24,
                 ),
                 child: Padding(
                   padding: const EdgeInsets.all(14),
