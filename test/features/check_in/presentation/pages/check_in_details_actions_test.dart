@@ -10,6 +10,7 @@ import 'package:shared_preferences/shared_preferences.dart';
 import 'package:sparrowkaizen/core/constants/app_colors.dart';
 import 'package:sparrowkaizen/core/constants/app_strings.dart';
 import 'package:sparrowkaizen/core/managers/app_manager.dart';
+import 'package:sparrowkaizen/core/managers/models/company_billing_details.dart';
 import 'package:sparrowkaizen/core/network/api_endpoints.dart';
 import 'package:sparrowkaizen/core/network/api_processor.dart';
 import 'package:sparrowkaizen/core/preference/app_preference.dart';
@@ -46,6 +47,9 @@ void main() {
     await AppPreference.setAuthToken('test-token');
     ApiCallExecutor.clearGetCache();
     AppManager.instance.resetSessionState();
+    AppManager.instance.saveBillingDetails(
+      CompanyBillingDetails.fromApiJson({'status': 'paid'}),
+    );
     final user = User(uuid: 'reviewer', isOwner: true);
     await AppPreference.saveUser(user);
     AppManager.instance.updateCurrentUser(user);
@@ -671,6 +675,75 @@ void main() {
         // Existing historical rows remain available regardless of the new-action guard.
         expect(find.text(AppStrings.view).hitTestable(), findsOneWidget);
         expect(tester.takeException(), isNull);
+      }, () => client);
+    });
+  }
+
+  for (final status in ['unpaid', 'canceled']) {
+    testWidgets('$status shows the billing dialog for New and Continue', (
+      tester,
+    ) async {
+      _setViewport(tester);
+      final manager = AppManager.instance;
+      manager.saveBillingDetails(
+        CompanyBillingDetails.fromApiJson({'status': status}),
+      );
+      manager.dismissBillingBanner();
+      expect(manager.showBillingBanner, isFalse);
+      final current = CustomFunctions.currentYearQuarter();
+      var navigations = 0;
+
+      await http.runWithClient(() async {
+        await tester.pumpWidget(
+          _screen(
+            year: current.year,
+            quarter: current.quarter,
+            onNavigate: () => navigations++,
+          ),
+        );
+        await tester.pumpAndSettle();
+        await tester.tap(find.text(AppStrings.newCheckIn));
+        await tester.pumpAndSettle();
+        expect(
+          find.text(AppStrings.paidFeaturesUnavailableMessage),
+          findsOneWidget,
+        );
+        await tester.tap(find.text(AppStrings.paidFeaturesUnavailableOk));
+        await tester.pumpAndSettle();
+
+        response = {
+          ..._details(today: true),
+          'audits': [
+            {
+              'date': CustomFunctions.apiDateString(),
+              'audit_details': {'great': 1},
+            },
+          ],
+        };
+        ApiCallExecutor.clearGetCache();
+        await tester.pumpWidget(const SizedBox.shrink());
+        await tester.pumpWidget(
+          _screen(
+            year: current.year,
+            quarter: current.quarter,
+            onNavigate: () => navigations++,
+          ),
+        );
+        await tester.pumpAndSettle();
+        for (final label in [
+          AppStrings.continueCheckIn,
+          AppStrings.continueAction,
+        ]) {
+          await tester.tap(find.text(label));
+          await tester.pumpAndSettle();
+          expect(
+            find.text(AppStrings.paidFeaturesUnavailableMessage),
+            findsOneWidget,
+          );
+          await tester.tap(find.text(AppStrings.paidFeaturesUnavailableOk));
+          await tester.pumpAndSettle();
+        }
+        expect(navigations, 0);
       }, () => client);
     });
   }

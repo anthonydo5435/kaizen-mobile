@@ -30,7 +30,6 @@ class _QuizQuestionCard extends StatelessWidget {
       barrierColor: Colors.black.withValues(alpha: 0.56),
       isScrollControlled: true,
       useSafeArea: true,
-      constraints: const BoxConstraints(maxWidth: 620),
       builder: (sheetContext) => _QuizQuestionActionsSheet(
         onSelected: (action) => Navigator.of(sheetContext).pop(action),
         onClose: () => Navigator.of(sheetContext).pop(),

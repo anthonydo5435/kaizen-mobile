@@ -82,6 +82,10 @@ class _SeatProfileCreateContent extends StatelessWidget {
             text: controller.submitActionLabel,
             onPressed: controller.canSubmit
                 ? () async {
+                    if (controller.isEditMode &&
+                        showBillingRestrictionIfNeeded(context)) {
+                      return;
+                    }
                     final didSubmit = await controller.submit();
                     if (!context.mounted ||
                         !didSubmit ||
@@ -406,9 +410,10 @@ class _PostCreateDescriptionActions extends StatelessWidget {
       children: [
         _SeatProfileDottedActionButton(
           label: AppStrings.seatProfileAddOrUpdateSeatCategoryAction,
-          onTap: isEnabled
-              ? () => _showManageSeatCategoriesDialog(context)
-              : null,
+          onTap: guardPaidAction(
+            context,
+            isEnabled ? () => _showManageSeatCategoriesDialog(context) : null,
+          ),
         ),
         const SizedBox(height: 12),
         AppAiGenerateButton(

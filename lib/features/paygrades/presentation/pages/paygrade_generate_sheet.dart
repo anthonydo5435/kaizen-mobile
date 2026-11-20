@@ -7,6 +7,7 @@ import '../../../../core/widgets/app_dot_divider.dart';
 import '../../../../core/widgets/app_keyboard_bottom_sheet_surface.dart';
 import '../../../../core/widgets/app_overlay_close_button.dart';
 import '../../../../core/widgets/app_text_view.dart';
+import '../../../../core/widgets/paid_features_unavailable_dialog.dart';
 import '../providers/paygrade_detail_controller.dart';
 
 Future<bool> showPaygradeGenerateSheet(
@@ -90,10 +91,10 @@ class _PaygradeGenerateSheetState extends State<PaygradeGenerateSheet> {
                 alignment: Alignment.bottomCenter,
                 child: ConstrainedBox(
                   constraints: BoxConstraints(
-                    maxWidth: 720,
                     maxHeight: MediaQuery.sizeOf(context).height * 0.88,
                   ),
                   child: AppKeyboardBottomSheetSurface(
+                    width: double.infinity,
                     color: AppColors.surfaceDark,
                     borderRadius: const BorderRadius.vertical(
                       top: Radius.circular(28),
@@ -168,9 +169,12 @@ class _PaygradeGenerateSheetState extends State<PaygradeGenerateSheet> {
                                   width: isCompact ? double.infinity : 220,
                                   child: AppButton(
                                     text: AppStrings.paygradesRegenerateAction,
-                                    onPressed: _sheetController.canSubmit
-                                        ? _submit
-                                        : null,
+                                    onPressed: guardPaidAction(
+                                      context,
+                                      _sheetController.canSubmit
+                                          ? _submit
+                                          : null,
+                                    ),
                                     isLoading: _sheetController.isSubmitting,
                                     borderRadius: 14,
                                     minimumHeight: 48,
@@ -330,7 +334,10 @@ class _GenerateCountCard extends StatelessWidget {
               SizedBox(width: isCompact ? 18 : 24),
               _CounterActionButton(
                 icon: Icons.add_rounded,
-                onTap: controller.canIncrement ? controller.increment : null,
+                onTap: guardPaidAction(
+                  context,
+                  controller.canIncrement ? controller.increment : null,
+                ),
               ),
             ],
           ),

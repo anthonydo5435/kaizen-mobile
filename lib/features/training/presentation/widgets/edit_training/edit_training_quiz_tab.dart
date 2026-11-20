@@ -5,6 +5,7 @@ class _QuizTabContent extends StatelessWidget {
     required this.isLoading,
     required this.questions,
     required this.canManageQuestions,
+    required this.canManageGeneration,
     required this.canAddQuestion,
     required this.canGenerateQuiz,
     required this.isGeneratingQuiz,
@@ -20,6 +21,7 @@ class _QuizTabContent extends StatelessWidget {
   final bool isLoading;
   final List<SeatDescriptionTrainingQuestion> questions;
   final bool canManageQuestions;
+  final bool canManageGeneration;
   final bool canAddQuestion;
   final bool canGenerateQuiz;
   final bool isGeneratingQuiz;
@@ -33,11 +35,11 @@ class _QuizTabContent extends StatelessWidget {
 
   @override
   Widget build(BuildContext context) {
-    if (isLoading && !canManageQuestions) {
+    if (isLoading && !canManageGeneration) {
       return const Center(child: FastCircularProgressIndicator());
     }
-    if (questions.isEmpty && !canManageQuestions) {
-      return const _QuizEmptyStateCard();
+    if (questions.isEmpty && !canManageGeneration && !canManageQuestions) {
+      return const _QuizEmptyState();
     }
 
     final creationHeader = _QuizCreationHeader(
@@ -61,7 +63,7 @@ class _QuizTabContent extends StatelessWidget {
     return Column(
       crossAxisAlignment: CrossAxisAlignment.stretch,
       children: [
-        if (canManageQuestions) ...[
+        if (canManageGeneration) ...[
           creationHeader,
           const SizedBox(height: 14),
         ],
@@ -72,10 +74,11 @@ class _QuizTabContent extends StatelessWidget {
             physics: const NeverScrollableScrollPhysics(),
             padding: EdgeInsets.zero,
             itemCount: questions.length,
-            findChildIndexCallback: (key) {
-              final index = questions.indexWhere((question) => ValueKey(question.uuid) == key);
-              // Separators occupy odd indices; keep each question associated with its UUID.
-              return index < 0 ? null : index * 2;
+            findItemIndexCallback: (key) {
+              final index = questions.indexWhere(
+                (question) => ValueKey(question.uuid) == key,
+              );
+              return index < 0 ? null : index;
             },
             separatorBuilder: (_, _) => const SizedBox(height: 12),
             itemBuilder: (context, index) {
@@ -91,7 +94,9 @@ class _QuizTabContent extends StatelessWidget {
                 onEditQuestionTap: onEditQuestionTap,
               );
             },
-          ),
+          )
+        else if (!canManageQuestions)
+          const Expanded(child: _QuizEmptyState()),
         if (canManageQuestions) ...[
           if (questions.isNotEmpty) const SizedBox(height: 12),
           _QuizAddQuestionButton(
@@ -173,7 +178,7 @@ class _QuizAddQuestionButton extends StatelessWidget {
       activeBorderColor: AppColors.secondaryColor,
       activeTextColor: AppColors.lightPurple1,
       activeIconColor: AppColors.lightPurple1,
-      onTap: canAddQuestion ? onAddQuestionTap : null,
+      onTap: guardPaidAction(context, canAddQuestion ? onAddQuestionTap : null),
     );
   }
 }

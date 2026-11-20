@@ -7,6 +7,7 @@ import '../../../../core/widgets/app_dot_divider.dart';
 import '../../../../core/widgets/app_keyboard_bottom_sheet_surface.dart';
 import '../../../../core/widgets/app_overlay_close_button.dart';
 import '../../../../core/widgets/app_text_view.dart';
+import '../../../../core/widgets/paid_features_unavailable_dialog.dart';
 import '../../domain/entities/seat_profile_detail.dart';
 
 //
@@ -151,6 +152,8 @@ class _SeatProfileDescriptionBottomSheetState
   late final _SeatProfileDescriptionSheetController _controller;
 
   bool get _isEditable => widget.onSave != null;
+  String get _submitLabel =>
+      widget.submitLabel ?? AppStrings.seatProfileUpdateAction;
 
   @override
   void initState() {
@@ -162,6 +165,10 @@ class _SeatProfileDescriptionBottomSheetState
     final onSave = widget.onSave;
     if (onSave == null) {
       Navigator.of(context).pop();
+      return;
+    }
+    if (_submitLabel == AppStrings.seatProfileUpdateAction &&
+        showBillingRestrictionIfNeeded(context)) {
       return;
     }
 
@@ -353,8 +360,7 @@ class _SeatProfileDescriptionBottomSheetState
                               child: SizedBox(
                                 child: AppButton(
                                   text: _isEditable
-                                      ? (widget.submitLabel ??
-                                            AppStrings.seatProfileUpdateAction)
+                                      ? _submitLabel
                                       : AppStrings.done,
                                   onPressed: _isEditable
                                       ? (_controller.canSave ? _submit : null)

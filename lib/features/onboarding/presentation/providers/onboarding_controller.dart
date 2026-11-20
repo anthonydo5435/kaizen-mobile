@@ -319,7 +319,7 @@ class OnboardingController extends ChangeNotifier {
               throw const ApiError.invalidResponse();
             }
 
-            return User.fromJson(profile);
+            return User.fromJson(json);
           },
         )
         .catchError((error) {
@@ -429,6 +429,7 @@ class OnboardingController extends ChangeNotifier {
 
       final updatedUser = user.copyWith(
         image: uploadedImage.image,
+        imageUuid: uploadedImage.uuid,
         imageUrl: uploadedImage.image,
       );
       _profileImagePath = uploadedImage.image;

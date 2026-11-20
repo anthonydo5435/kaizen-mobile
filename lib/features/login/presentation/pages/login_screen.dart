@@ -13,13 +13,16 @@ import '../../../auth/presentation/widgets/auth_outlined_text_field.dart';
 import '../../../auth/presentation/widgets/auth_page_frame.dart';
 import '../../data/datasources/auth_remote_data_source.dart';
 import '../../data/repositories/auth_repository_impl.dart';
+import '../../domain/entities/app_user.dart';
 import '../../domain/usecases/google_login_usecase.dart';
 import '../../domain/usecases/login_usecase.dart';
 import '../providers/login_controller.dart';
 import '../widgets/google_login_button.dart';
 
 class LoginScreen extends StatelessWidget {
-  const LoginScreen({super.key});
+  const LoginScreen({super.key, this.showAccountInProgress = false});
+
+  final bool showAccountInProgress;
 
   @override
   Widget build(BuildContext context) {
@@ -43,13 +46,15 @@ class LoginScreen extends StatelessWidget {
           ),
         ),
       ],
-      child: const _LoginScreenView(),
+      child: _LoginScreenView(showAccountInProgress: showAccountInProgress),
     );
   }
 }
 
 class _LoginScreenView extends StatefulWidget {
-  const _LoginScreenView();
+  const _LoginScreenView({required this.showAccountInProgress});
+
+  final bool showAccountInProgress;
 
   @override
   State<_LoginScreenView> createState() => _LoginScreenViewState();
@@ -57,13 +62,18 @@ class _LoginScreenView extends StatefulWidget {
 
 class _LoginScreenViewState extends State<_LoginScreenView> {
   late final LoginController _controller;
-  bool _isErrorDialogVisible = false;
+  bool _isLoginDialogVisible = false;
 
   @override
   void initState() {
     super.initState();
     _controller = context.read<LoginController>();
     _controller.addListener(_handleControllerStateChanged);
+    if (widget.showAccountInProgress) {
+      WidgetsBinding.instance.addPostFrameCallback((_) {
+        _showAccountInProgressDialog();
+      });
+    }
   }
 
   @override
@@ -77,12 +87,26 @@ class _LoginScreenViewState extends State<_LoginScreenView> {
     final user = _controller.user;
 
     if (_controller.shouldShowErrorMessage() && errorMessage != null) {
-      _showLoginErrorDialog(errorMessage);
+      _showLoginDialog(AppStrings.loginFailedTitle, errorMessage);
     }
 
     if (_controller.shouldHandleUserNavigation() && user != null) {
       WidgetsBinding.instance.addPostFrameCallback((_) async {
         if (!mounted) {
+          return;
+        }
+
+        if (user.setupStep == LoginSetupStep.workspaceImport) {
+          await _showAccountInProgressDialog();
+          return;
+        }
+
+        if (user.setupStep == LoginSetupStep.emailVerification) {
+          AppRouter.pushReplacementNamed<void, void>(
+            context,
+            AppRouter.verifyEmail,
+            arguments: VerifyEmailRouteArgs(user: user),
+          );
           return;
         }
 
@@ -99,13 +123,20 @@ class _LoginScreenViewState extends State<_LoginScreenView> {
     }
   }
 
-  Future<void> _showLoginErrorDialog(String message) async {
-    if (!mounted || _isErrorDialogVisible) {
-      return;
+  Future<void> _showAccountInProgressDialog() => _showLoginDialog(
+    AppStrings.loginAccountInProgressTitle,
+    AppStrings.loginAccountInProgressMessage,
+  );
+
+  Future<void> _showLoginDialog(String title, String message) async {
+    if (!mounted || _isLoginDialogVisible) return;
+    _isLoginDialogVisible = true;
+    FocusScope.of(context).unfocus();
+    try {
+      await CustomFunctions.showCustomAlert(context, title, message);
+    } finally {
+      _isLoginDialogVisible = false;
     }
-    _isErrorDialogVisible = true;
-    CustomFunctions.showCustomAlert(context, AppStrings.loginFailedTitle, message);
-    _isErrorDialogVisible = false;
   }
 
   @override

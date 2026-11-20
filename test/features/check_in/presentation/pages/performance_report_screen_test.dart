@@ -11,6 +11,8 @@ import 'package:shared_preferences/shared_preferences.dart';
 import 'package:sparrowkaizen/core/constants/app_strings.dart';
 import 'package:sparrowkaizen/core/constants/app_colors.dart';
 import 'package:sparrowkaizen/core/managers/app_manager.dart';
+import 'package:sparrowkaizen/core/managers/app_manager_remote_data_source.dart';
+import 'package:sparrowkaizen/core/managers/models/company_billing_details.dart';
 import 'package:sparrowkaizen/core/network/api_endpoints.dart';
 import 'package:sparrowkaizen/core/network/api_processor.dart';
 import 'package:sparrowkaizen/core/preference/app_preference.dart';
@@ -27,6 +29,7 @@ import 'package:sparrowkaizen/features/check_in/presentation/widgets/performance
 import 'package:sparrowkaizen/features/check_in/presentation/widgets/performance_report_persona_card.dart';
 import 'package:sparrowkaizen/features/check_in/presentation/widgets/performance_report_selectors.dart';
 import 'package:sparrowkaizen/features/login/domain/entities/user.dart';
+import 'package:sparrowkaizen/features/organizations/domain/entities/organization.dart';
 
 import '../../support/performance_report_fixtures.dart';
 
@@ -39,6 +42,9 @@ void main() {
     SharedPreferences.setMockInitialValues({});
     await AppPreference.init();
     AppManager.instance.resetSessionState();
+    AppManager.instance.saveBillingDetails(
+      CompanyBillingDetails.fromApiJson({'status': 'paid'}),
+    );
     ApiCallExecutor.clearGetCache();
     repository = ReportRepository();
     audit = reportAuditController(repository);
@@ -742,19 +748,14 @@ void main() {
   testWidgets(
     'certification keeps its size and submits signatures and commitment in a child organisation',
     (tester) async {
-      await http.runWithClient(
-        () => AppManager.instance.fetchOrganizations(requireSuccess: true),
-        () => MockClient(
-          (_) async => http.Response(
-            '[{"uuid":"child-org","name":"Child","type":"child"}]',
-            200,
-          ),
-        ),
+      await AppManager.instance.fetchOrganizations(
+        requireSuccess: true,
+        remoteDataSource: _ChildOrganizationDataSource(),
       );
       AppManager.instance.updateCurrentUser(
         User(isOwner: true, organizationUuid: 'child-org'),
       );
-      expect(AppManager.instance.canCurrentOrganizationModifyContent, isFalse);
+      expect(AppManager.instance.canCurrentOrganizationModifyContent, isTrue);
       await mount(tester);
       final field = find.byType(TextField);
       await tester.ensureVisible(field);
@@ -820,6 +821,27 @@ void main() {
   });
 
   testWidgets(
+    'Certify shows the billing dialog even after dismissing the banner',
+    (tester) async {
+      AppManager.instance.saveBillingDetails(
+        CompanyBillingDetails.fromApiJson({'status': 'unpaid'}),
+      );
+      AppManager.instance.dismissBillingBanner();
+      await mount(tester);
+      final button = find.widgetWithText(FilledButton, AppStrings.certify);
+      await tester.ensureVisible(button);
+      await tester.tap(button);
+      await tester.pumpAndSettle();
+      expect(
+        find.text(AppStrings.paidFeaturesUnavailableMessage),
+        findsOneWidget,
+      );
+      expect(find.byType(SnackBar), findsNothing);
+      expect(repository.certificationPayload, isNull);
+    },
+  );
+
+  testWidgets(
     'generating remarks preserves button bounds and updates the ratings',
     (tester) async {
       repository.buildReport = (profile) =>
@@ -831,6 +853,21 @@ void main() {
         AppStrings.performanceReportGenerateRemarks,
       );
       await tester.ensureVisible(button);
+      AppManager.instance.saveBillingDetails(
+        CompanyBillingDetails.fromApiJson({'status': 'unpaid'}),
+      );
+      await tester.tap(button);
+      await tester.pumpAndSettle();
+      expect(
+        find.text(AppStrings.paidFeaturesUnavailableMessage),
+        findsOneWidget,
+      );
+      expect(find.text('Generated guidance'), findsNothing);
+      await tester.tap(find.text(AppStrings.paidFeaturesUnavailableOk));
+      await tester.pumpAndSettle();
+      AppManager.instance.saveBillingDetails(
+        CompanyBillingDetails.fromApiJson({'status': 'paid'}),
+      );
       final before = tester.getSize(button);
       final generating = audit.generatePerformanceReportRemarks();
       await tester.pump();
@@ -1056,4 +1093,18 @@ class _ReportsNavigationObserver extends NavigatorObserver {
   void didPop(Route<dynamic> route, Route<dynamic>? previousRoute) {
     popped.add(route);
   }
+}
+
+class _ChildOrganizationDataSource extends Fake
+    implements AppManagerRemoteDataSource {
+  @override
+  Future<List<Organization>> fetchOrganizations({
+    required String accessToken,
+  }) async => [
+    Organization.fromJson({
+      'uuid': 'child-org',
+      'name': 'Child',
+      'type': 'child',
+    }),
+  ];
 }

@@ -157,7 +157,7 @@ class _CheckInScreenViewState extends State<_CheckInScreenView> {
     _syncSearchController(state.searchQuery);
 
     return DrawerMainScreen(
-      title: state.isOwner
+      title: state.canBrowseTeamCheckIns
           ? AppStrings.checkInTitle
           : AppStrings.auditMyCheckInTitle,
       selectedMenu: AppMenuType.audits,
@@ -218,25 +218,24 @@ class _CheckInScreenViewState extends State<_CheckInScreenView> {
     CheckInState state,
     bool showGeneralSeats,
   ) {
-    final showTeamTabs = state.isOwner && !state.isActualOwner;
     return Padding(
       padding: const EdgeInsets.fromLTRB(8, 8, 8, 22),
       child: CheckInStatusSwitcher(
-        selectedStatus: state.isOwner
+        selectedStatus: state.canBrowseTeamCheckIns
             ? state.selectedStatus
             : AuditMemberStatus.active,
-        activeTitle: showTeamTabs
+        activeTitle: state.showTeamMembersTab
             ? AppStrings.auditTeamMembersTab
             : state.isActualOwner
             ? AppStrings.auditCheckInsTab
             : AppStrings.auditMyCheckInsTab,
         deactivatedTitle: AppStrings.auditMyCheckInsTab,
-        showDeactivated: showTeamTabs,
+        showDeactivated: state.showTeamMembersTab,
         isGeneralSeatsSelected: showGeneralSeats,
         onGeneralSeatsSelected: _selectGeneralSeats,
         onStatusSelected: (status) => _selectCheckIns(
           controller,
-          state.isOwner ? status : AuditMemberStatus.deactivated,
+          state.canBrowseTeamCheckIns ? status : AuditMemberStatus.deactivated,
         ),
       ),
     );
@@ -248,7 +247,7 @@ class _CheckInScreenViewState extends State<_CheckInScreenView> {
     required double bottomInset,
   }) {
     final members = controller.visibleMembers;
-    final showSearchAndFilter = state.isOwner;
+    final showSearchAndFilter = state.canBrowseTeamCheckIns;
     final isInitialLoading = state.isLoading && state.mainList == null;
     final isSearchLoading =
         state.isLoading &&
@@ -336,6 +335,7 @@ class _CheckInScreenViewState extends State<_CheckInScreenView> {
         year: controller.selectedAuditYear,
         quarter: controller.selectedAuditQuarter,
         selectedProfileUuid: member is AuditProfile ? member.profileUuid : null,
+        isMyCheckIn: controller.state.isMyCheckInsSelected,
       ),
     );
     if (!mounted) return;
@@ -457,7 +457,11 @@ class _CheckInScreenViewState extends State<_CheckInScreenView> {
 
   Widget _buildEmptyCheckInState(AuditMemberStatus status) {
     final state = context.read<CheckInController>().state;
-    final statusLabel = switch ((state.isActualOwner, state.isOwner, status)) {
+    final statusLabel = switch ((
+      state.usesOwnerListing,
+      state.showTeamMembersTab,
+      status,
+    )) {
       (true, _, AuditMemberStatus.active) =>
         AppStrings.auditActive.toLowerCase(),
       (true, _, AuditMemberStatus.deactivated) =>
@@ -468,7 +472,7 @@ class _CheckInScreenViewState extends State<_CheckInScreenView> {
         AppStrings.auditMyCheckInsTab.toLowerCase(),
       (false, false, _) => AppStrings.auditMyCheckInsTab.toLowerCase(),
     };
-    final message = state.isActualOwner
+    final message = state.usesOwnerListing
         ? '${AppStrings.nothingFound}\nTry a different search for $statusLabel members.'
         : AppStrings.auditNoStatusAvailable(statusLabel);
 

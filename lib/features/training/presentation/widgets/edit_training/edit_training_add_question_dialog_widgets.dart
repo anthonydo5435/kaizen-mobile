@@ -229,7 +229,10 @@ class _QuestionOptionsList extends StatelessWidget {
         ),
         _SecondaryTrainingActionButton(
           label: AppStrings.trainingQuestionAddOption,
-          onTap: isEnabled && form.canAddOption ? form.addOptionField : null,
+          onTap: guardPaidAction(
+            context,
+            isEnabled && form.canAddOption ? form.addOptionField : null,
+          ),
           isEnabled: isEnabled && form.canAddOption,
           isDottedBorder: true,
           borderStrokeWidth: 1,

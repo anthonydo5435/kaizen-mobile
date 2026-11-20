@@ -45,7 +45,7 @@ class AuthPageFrame extends StatelessWidget {
           ] else
             SizedBox(height: contentTopSpacing ?? (isTabletLayout ? 28 : 44)),
           _AuthIntroBlock(title: title, subtitle: subtitle),
-          SizedBox(height: isTabletLayout ? 48 : 60),
+          SizedBox(height: 48),
           body,
         ],
       ),

@@ -40,7 +40,6 @@ class _GenerateSopDialogState extends State<_GenerateSopDialog> {
             alignment: Alignment.bottomCenter,
             child: Container(
               width: double.infinity,
-              constraints: const BoxConstraints(maxWidth: 620),
               decoration: const BoxDecoration(
                 color: AppColors.mainBg,
                 borderRadius: BorderRadius.vertical(top: Radius.circular(28)),
@@ -158,6 +157,9 @@ class _GenerateSopDialogState extends State<_GenerateSopDialog> {
                       child: TextButton.icon(
                         onPressed: canGenerate
                             ? () async {
+                                if (showBillingRestrictionIfNeeded(context)) {
+                                  return;
+                                }
                                 final didGenerate = await context
                                     .read<TrainingModuleController>()
                                     .generateSopForSelectedModule();

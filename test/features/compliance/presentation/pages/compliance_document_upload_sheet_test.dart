@@ -9,6 +9,7 @@ import 'package:provider/provider.dart';
 import 'package:sparrowkaizen/core/constants/app_colors.dart';
 import 'package:sparrowkaizen/core/constants/app_strings.dart';
 import 'package:sparrowkaizen/core/managers/app_manager.dart';
+import 'package:sparrowkaizen/core/managers/models/company_billing_details.dart';
 import 'package:sparrowkaizen/core/widgets/app_overlay_close_button.dart';
 import 'package:sparrowkaizen/core/widgets/fast_circular_progress.dart';
 import 'package:sparrowkaizen/features/compliance/data/models/compliance_document_model.dart';
@@ -24,6 +25,13 @@ import 'package:sparrowkaizen/features/compliance/presentation/pages/document/co
 import 'package:sparrowkaizen/features/compliance/presentation/widgets/document_card.dart';
 
 void main() {
+  setUp(() {
+    AppManager.instance.saveBillingDetails(
+      CompanyBillingDetails.fromApiJson({'status': 'paid'}),
+    );
+  });
+  tearDown(() => AppManager.instance.saveBillingDetails(null));
+
   final documentMappers = <String, ComplianceDocument Function(bool)>{
     'document definition': (requiresExpiry) =>
         ComplianceDocumentModel.fromApiJson({
@@ -130,6 +138,26 @@ void main() {
     await tester.enterText(find.byType(TextField).last, '2027-04-05');
     FocusManager.instance.primaryFocus?.unfocus();
     await tester.pumpAndSettle();
+    AppManager.instance.saveBillingDetails(
+      CompanyBillingDetails.fromApiJson({'status': 'past_due'}),
+    );
+    AppManager.instance.dismissBillingBanner();
+    await tester.tap(find.text(AppStrings.submit));
+    await tester.pumpAndSettle();
+    expect(
+      find.text(AppStrings.paidFeaturesUnavailableMessage),
+      findsOneWidget,
+    );
+    expect(upload.operations, isEmpty);
+    await tester.tap(find.text(AppStrings.paidFeaturesUnavailableOk));
+    await tester.pumpAndSettle();
+
+    AppManager.instance.saveBillingDetails(
+      CompanyBillingDetails.fromApiJson({
+        'status': 'past_due',
+        'isInTrial': true,
+      }),
+    );
     final bytes = await tester.runAsync(() => photo.readAsBytes());
     final submitButton = tester.widget<FilledButton>(
       find

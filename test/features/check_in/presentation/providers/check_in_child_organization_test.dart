@@ -64,17 +64,14 @@ void main() {
           ),
         );
         expect(AppManager.instance.isCurrentOrganizationChild, isTrue);
-        expect(
-          AppManager.instance.canCurrentOrganizationModifyContent,
-          isFalse,
-        );
+        expect(AppManager.instance.canCurrentOrganizationModifyContent, isTrue);
         expect(
           AppManager.instance.currentUserCanOpenTrainingModuleCreateFlow,
-          isFalse,
+          isTrue,
         );
         expect(
           AppManager.instance.currentUserCanOpenSeatProfileCreateFlow,
-          isFalse,
+          isTrue,
         );
 
         final saved = await controller.submitAuditDescriptionSelection(

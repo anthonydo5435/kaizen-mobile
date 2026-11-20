@@ -9,6 +9,7 @@ import 'package:provider/provider.dart';
 import 'package:shared_preferences/shared_preferences.dart';
 import 'package:sparrowkaizen/core/constants/app_strings.dart';
 import 'package:sparrowkaizen/core/managers/app_manager.dart';
+import 'package:sparrowkaizen/core/managers/models/company_billing_details.dart';
 import 'package:sparrowkaizen/core/network/api_endpoints.dart';
 import 'package:sparrowkaizen/core/network/api_processor.dart';
 import 'package:sparrowkaizen/core/preference/app_preference.dart';
@@ -71,6 +72,9 @@ void main() {
     await AppPreference.setAuthToken('test-token');
     ApiCallExecutor.clearGetCache();
     AppManager.instance.resetSessionState();
+    AppManager.instance.saveBillingDetails(
+      CompanyBillingDetails.fromApiJson({'status': 'paid'}),
+    );
     final user = User(uuid: 'reviewer', isOwner: true);
     await AppPreference.saveUser(user);
     AppManager.instance.updateCurrentUser(user);
@@ -213,6 +217,49 @@ void main() {
           77,
         );
         expect(tester.takeException(), isNull);
+      }, () => client);
+    },
+  );
+
+  testWidgets(
+    'canceled billing blocks rating changes in the list and details',
+    (tester) async {
+      final manager = AppManager.instance;
+      manager.saveBillingDetails(
+        CompanyBillingDetails.fromApiJson({'status': 'canceled'}),
+      );
+      manager.dismissBillingBanner();
+
+      Future<void> expectBillingDialog(Finder control) async {
+        await tester.ensureVisible(control);
+        await tester.tap(control);
+        await tester.pumpAndSettle();
+        expect(
+          find.text(AppStrings.paidFeaturesUnavailableMessage),
+          findsOneWidget,
+        );
+        await tester.tap(find.text(AppStrings.paidFeaturesUnavailableOk));
+        await tester.pumpAndSettle();
+      }
+
+      await http.runWithClient(() async {
+        await mount(tester, date: CustomFunctions.apiDateString());
+        final card = find.byKey(const ValueKey('audit-a:a-first'));
+        final listCount = find.descendant(of: card, matching: find.text('77'));
+        final decrement = find.byIcon(Icons.keyboard_arrow_down_rounded);
+        await expectBillingDialog(listCount);
+        await expectBillingDialog(
+          find.descendant(of: card, matching: decrement).first,
+        );
+        expect(listCount, findsOneWidget);
+
+        await tester.tap(find.text('a task 1'));
+        await tester.pumpAndSettle();
+        expect(find.byType(SingleDescriptionDetails), findsOneWidget);
+        await expectBillingDialog(find.text('77'));
+        await expectBillingDialog(decrement.first);
+        expect(find.text('77'), findsOneWidget);
+        expect(requests.where((request) => request.method == 'PATCH'), isEmpty);
       }, () => client);
     },
   );

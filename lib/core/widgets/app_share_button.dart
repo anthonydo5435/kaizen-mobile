@@ -3,6 +3,7 @@ import 'package:flutter/material.dart';
 import '../constants/app_colors.dart';
 import '../constants/app_strings.dart';
 import 'app_gradient_action_button.dart';
+import 'paid_features_unavailable_dialog.dart';
 
 class AppShareButton extends StatelessWidget {
   const AppShareButton({super.key, required this.onTap});
@@ -27,7 +28,7 @@ class AppShareButton extends StatelessWidget {
       boxShadows: const <BoxShadow>[],
       gradientColors: const [AppColors.surfaceDark3, AppColors.hex1b1e27],
       borderColor: AppColors.fieldBorder.withValues(alpha: 0.16),
-      onTap: onTap,
+      onTap: guardPaidAction(context, onTap),
     ),
   );
 }

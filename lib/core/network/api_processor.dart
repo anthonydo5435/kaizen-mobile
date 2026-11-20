@@ -12,6 +12,8 @@ import 'package:sparrowkaizen/core/network/models/organization_conflict_payload.
 import 'package:sparrowkaizen/core/preference/app_preference.dart';
 import 'package:sparrowkaizen/core/utils/auth_controller.dart';
 
+import 'api_http_client.dart';
+
 class ApiCallExecutor {
   const ApiCallExecutor({this.onResponse});
 
@@ -23,7 +25,7 @@ class ApiCallExecutor {
   static const int _maxGetRequestRetries = 2;
   static final Map<String, _CachedHttpResponse> _getCache =
       <String, _CachedHttpResponse>{};
-  static final http.Client _httpClient = http.Client();
+  static final http.Client _httpClient = ApiHttpClient();
 
   static void clearGetCache() {
     if (_getCache.isEmpty) {
@@ -49,11 +51,12 @@ class ApiCallExecutor {
     final resolvedAuthToken =
         authToken ??
         (endpoint == ApiEndPoints.login ? null : AppPreference.getAuthToken());
+    final organizationUuid = ApiHttpClient.organizationUuid;
     final cacheKey = _buildCacheKey(
       apiCallType: apiCallType,
       endpoint: resolvedEndpoint,
       parameters: parameters,
-      authToken: resolvedAuthToken,
+      organizationUuid: organizationUuid,
     );
 
     if (apiCallType == ApiCallType.get &&
@@ -88,7 +91,10 @@ class ApiCallExecutor {
                 parameters: parameters,
               )
             : Uri.parse(fullEndpoint));
-    debugPrint('Call $requestUri $statusCode');
+    final logUri = endpoint.startsWith('accounts/verify_token/')
+        ? '${ApiEndPoints.baseUrl}${ApiEndPoints.version}accounts/verify_token/'
+        : requestUri.toString();
+    debugPrint('Call $logUri $statusCode');
     try {
       onResponse?.call(response);
     } catch (error) {
@@ -123,7 +129,9 @@ class ApiCallExecutor {
 
     final retriedStatusCode = response.statusCode;
 
-    if (retriedStatusCode == 409) {
+    // The list establishes organisation context; resolving it by fetching the
+    // same list again would wait on the request that is already in progress.
+    if (retriedStatusCode == 409 && endpoint != ApiEndPoints.organizations) {
       final conflictPayload = OrganizationConflictPayload.fromResponseBody(
         response.body,
       );
@@ -149,15 +157,17 @@ class ApiCallExecutor {
     }
 
     if (retriedStatusCode < 200 || retriedStatusCode > 299) {
+      final responseData = _decodeErrorResponse(response.body);
       throw ApiError.requestFailed(
         retriedStatusCode,
-        message:
-            _extractErrorMessage(response.body) ??
-            AppStrings.apiRequestFailed(retriedStatusCode),
+        message: _readErrorMessage(responseData),
+        responseData: responseData,
       );
     }
 
-    if (apiCallType == ApiCallType.get && cacheKey != null) {
+    if (apiCallType == ApiCallType.get &&
+        cacheKey != null &&
+        organizationUuid == ApiHttpClient.organizationUuid) {
       _storeCachedGetResponse(cacheKey, response);
     } else if (apiCallType != ApiCallType.get) {
       _invalidateGetCache();
@@ -312,7 +322,7 @@ class ApiCallExecutor {
     required ApiCallType apiCallType,
     required String endpoint,
     Map<String, dynamic>? parameters,
-    String? authToken,
+    required String organizationUuid,
   }) {
     if (apiCallType != ApiCallType.get) {
       return null;
@@ -325,7 +335,7 @@ class ApiCallExecutor {
         ? baseUri
         : buildUriWithQueryParameters(uri: baseUri, parameters: parameters);
 
-    return ' ::${resolvedUri.toString()}';
+    return '$organizationUuid ::${resolvedUri.toString()}';
   }
 
   http.Response? _readCachedGetResponse(String cacheKey) {
@@ -359,15 +369,14 @@ class ApiCallExecutor {
     _getCache.remove(cacheKey);
   }
 
-  String? _extractErrorMessage(String body) {
+  Object? _decodeErrorResponse(String body) {
     if (body.trim().isEmpty) {
       return null;
     }
 
     try {
-      final decoded = jsonDecode(body);
-      return _readErrorMessage(decoded);
-    } catch (_) {
+      return jsonDecode(body);
+    } on FormatException {
       return body.trim();
     }
   }

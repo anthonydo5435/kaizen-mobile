@@ -3,6 +3,7 @@ import '../network/api_error.dart';
 import '../network/api_processor.dart';
 import '../managers/app_manager.dart';
 import '../preference/app_preference.dart';
+import '../../features/login/domain/entities/login_response.dart';
 import '../../routes/app_router.dart';
 
 class AuthController {
@@ -12,11 +13,30 @@ class AuthController {
   static Future<String>? _refreshOperation;
   static int? _refreshSessionVersion;
   static Future<void>? _logoutOperation;
+  static LoginResponse? _pendingSignIn;
+  static int? _pendingSignInVersion;
+
+  /// Credentials used before verification and workspace checks finish.
+  static LoginResponse? get pendingSignIn =>
+      _pendingSignInVersion == AppPreference.sessionVersion
+      ? _pendingSignIn
+      : null;
+
+  static void holdPendingSignIn(LoginResponse credentials) {
+    _pendingSignIn = credentials;
+    _pendingSignInVersion = AppPreference.sessionVersion;
+  }
+
+  static void discardPendingSignIn() {
+    _pendingSignIn = null;
+    _pendingSignInVersion = null;
+  }
 
   static Future<void> logout() async {
     final pending = _logoutOperation;
     if (pending != null) return pending;
-    if (AppPreference.getAuthToken().isEmpty &&
+    if (pendingSignIn == null &&
+        AppPreference.getAuthToken().isEmpty &&
         AppPreference.getRefreshToken().isEmpty &&
         AppManager.instance.currentUser == null) {
       return;
@@ -32,6 +52,7 @@ class AuthController {
   }
 
   static Future<void> _logout() async {
+    discardPendingSignIn();
     final clearing = AppPreference.clearUserSession();
     final version = AppPreference.sessionVersion;
     ApiCallExecutor.clearGetCache();
@@ -53,14 +74,18 @@ class AuthController {
     if (pending != null && _refreshSessionVersion == version) return pending;
 
     // A late 401 can belong to a token that another request already refreshed.
-    final currentAccessToken = AppPreference.getAuthToken().trim();
+    final savedToken = AppPreference.getAuthToken().trim();
+    final pendingCredentials = failedAccessToken != null && savedToken.isEmpty
+        ? pendingSignIn
+        : null;
+    final currentAccessToken = pendingCredentials?.access ?? savedToken;
     if (failedAccessToken != null &&
         currentAccessToken.isNotEmpty &&
         failedAccessToken != currentAccessToken) {
       return currentAccessToken;
     }
 
-    final operation = _refreshToken(version);
+    final operation = _refreshToken(version, pendingCredentials);
     _refreshOperation = operation;
     _refreshSessionVersion = version;
     try {
@@ -73,8 +98,12 @@ class AuthController {
     }
   }
 
-  static Future<String> _refreshToken(int sessionVersion) async {
-    final refreshToken = AppPreference.getRefreshToken().trim();
+  static Future<String> _refreshToken(
+    int sessionVersion,
+    LoginResponse? pendingCredentials,
+  ) async {
+    final refreshToken =
+        (pendingCredentials?.refresh ?? AppPreference.getRefreshToken()).trim();
     if (refreshToken.isEmpty) {
       await logout();
       throw ApiError.requestFailed(401);
@@ -105,8 +134,19 @@ class AuthController {
         },
       );
 
-      if (sessionVersion != AppPreference.sessionVersion) {
+      if (sessionVersion != AppPreference.sessionVersion ||
+          (pendingCredentials != null &&
+              !identical(pendingCredentials, pendingSignIn))) {
         throw ApiError.requestFailed(401);
+      }
+      if (pendingCredentials != null) {
+        holdPendingSignIn(
+          LoginResponse(
+            access: response['access']!,
+            refresh: response['refresh']!,
+          ),
+        );
+        return response['access']!;
       }
       // Update both cached preferences before yielding, keeping this session's
       // version stable so other requests can reuse the rotated credentials.
@@ -121,6 +161,8 @@ class AuthController {
       return response['access']!;
     } on ApiError catch (error) {
       if (sessionVersion == AppPreference.sessionVersion &&
+          (pendingCredentials == null ||
+              identical(pendingCredentials, pendingSignIn)) &&
           (error.statusCode == 400 || error.statusCode == 401)) {
         await logout();
       }

@@ -12,7 +12,9 @@ class CheckInState {
     this.isLoading = true,
     this.isOwner = true,
     this.isActualOwner = false,
+    this.showTeamMembersTab = false,
     this.isSelfAudit = false,
+    this.isCheckInReadOnly = false,
     this.mainList,
     this.isLoadingMore = false,
     this.isAuditActionLoading = false,
@@ -50,7 +52,9 @@ class CheckInState {
   final bool isLoading;
   final bool isOwner;
   final bool isActualOwner;
+  final bool showTeamMembersTab;
   final bool isSelfAudit;
+  final bool isCheckInReadOnly;
   final AuditMainList? mainList;
   final bool isLoadingMore;
   final bool isAuditActionLoading;
@@ -84,11 +88,22 @@ class CheckInState {
   final String? selectedAuditDetailsProfileUuid;
   final Set<String> favoriteUpdatingProfileJobs;
 
+  bool get canBrowseTeamCheckIns => isOwner || showTeamMembersTab;
+
+  bool get usesOwnerListing => isActualOwner && !showTeamMembersTab;
+
+  bool get isMyCheckInsSelected =>
+      !usesOwnerListing && selectedStatus == AuditMemberStatus.deactivated;
+
+  bool get canContinueCheckIn => !isSelfAudit && !isCheckInReadOnly;
+
   CheckInState copyWith({
     bool? isLoading,
     bool? isOwner,
     bool? isActualOwner,
+    bool? showTeamMembersTab,
     bool? isSelfAudit,
+    bool? isCheckInReadOnly,
     AuditMainList? mainList,
     bool? isLoadingMore,
     bool? isAuditActionLoading,
@@ -143,7 +158,9 @@ class CheckInState {
       isLoading: isLoading ?? this.isLoading,
       isOwner: isOwner ?? this.isOwner,
       isActualOwner: isActualOwner ?? this.isActualOwner,
+      showTeamMembersTab: showTeamMembersTab ?? this.showTeamMembersTab,
       isSelfAudit: isSelfAudit ?? this.isSelfAudit,
+      isCheckInReadOnly: isCheckInReadOnly ?? this.isCheckInReadOnly,
       mainList: clearMainList ? null : mainList ?? this.mainList,
       isLoadingMore: isLoadingMore ?? this.isLoadingMore,
       isAuditActionLoading: isAuditActionLoading ?? this.isAuditActionLoading,

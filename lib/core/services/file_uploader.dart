@@ -7,6 +7,7 @@ import 'package:http/http.dart' as http;
 
 import '../network/api_endpoints.dart';
 import '../network/api_error.dart';
+import '../network/api_http_client.dart';
 import '../network/api_processor.dart';
 import '../preference/app_preference.dart';
 import '../utils/operation_cancellation_token.dart';
@@ -66,7 +67,7 @@ class FileUploader {
       cancellationToken: cancellationToken,
     );
 
-    final client = http.Client();
+    final client = ApiHttpClient();
     final removeCancellationListener = cancellationToken?.addListener(
       client.close,
     );
@@ -124,7 +125,7 @@ class FileUploader {
       cancellationToken: cancellationToken,
     );
 
-    final client = http.Client();
+    final client = ApiHttpClient();
     final removeCancellationListener = cancellationToken?.addListener(
       client.close,
     );
@@ -219,7 +220,7 @@ class FileUploader {
         http.MultipartFile.fromBytes('image', fileBytes, filename: fileName),
       );
 
-    final client = http.Client();
+    final client = ApiHttpClient();
     late final http.Response response;
     try {
       final streamedResponse = await client.send(request);

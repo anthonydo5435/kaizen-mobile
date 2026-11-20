@@ -23,22 +23,25 @@ void main() {
       }
     });
 
-    test('keeps child departments read-only without the owner flag', () {
-      for (final user in <User?>[
-        null,
-        User(isOwner: false, roles: const ['owner']),
-        User(roles: const ['owner', 'csuite']),
-        User(hasSandboxAccess: true),
-      ]) {
-        expect(
-          AppPermissionUtils.canEditDepartments(
-            user: user,
-            currentOrganization: _organization('child'),
-          ),
-          isFalse,
-        );
-      }
-    });
+    test(
+      'department access matches parent organisations without the owner flag',
+      () {
+        for (final user in <User?>[
+          null,
+          User(isOwner: false, roles: const ['owner']),
+          User(roles: const ['owner', 'csuite']),
+          User(hasSandboxAccess: true),
+        ]) {
+          expect(
+            AppPermissionUtils.canEditDepartments(
+              user: user,
+              currentOrganization: _organization('child'),
+            ),
+            isTrue,
+          );
+        }
+      },
+    );
 
     test('preserves existing access outside child organisations', () {
       for (final type in ['parent', 'sandbox']) {
@@ -85,14 +88,16 @@ void main() {
       );
     });
 
-    test('keeps child organisations read-only even for explicit owners', () {
-      expect(
-        AppPermissionUtils.canManagePublicLinks(
-          user: User(isOwner: true, roles: ['owner']),
-          currentOrganization: _organization('child'),
-        ),
-        isFalse,
-      );
+    test('requires the same explicit owner flag in child organisations', () {
+      for (final isOwner in [false, true]) {
+        expect(
+          AppPermissionUtils.canManagePublicLinks(
+            user: User(isOwner: isOwner, roles: ['owner']),
+            currentOrganization: _organization('child'),
+          ),
+          isOwner,
+        );
+      }
     });
   });
 
@@ -176,16 +181,20 @@ void main() {
 
     for (final type in <String>['child', ' ChIlD ']) {
       for (final account in accounts.entries) {
-        test('blocks ${account.key} in organisation type "$type"', () {
-          final permissions = _contentPermissions(
-            account.value,
-            _organization(type),
-          );
+        test(
+          'preserves ${account.key} permissions in organisation type "$type"',
+          () {
+            final permissions = _contentPermissions(
+              account.value,
+              _organization(type),
+            );
 
-          for (final permission in permissions.entries) {
-            expect(permission.value, isFalse, reason: permission.key);
-          }
-        });
+            expect(
+              permissions,
+              _contentPermissions(account.value, _organization('parent')),
+            );
+          },
+        );
       }
     }
 
@@ -204,15 +213,51 @@ void main() {
       }
     }
 
-    test('keeps owner sandbox and team viewing access', () {
+    test('keeps owner team viewing access', () {
       final owner = User(isOwner: true);
 
-      expect(AppPermissionUtils.canAccessSandbox(owner), isTrue);
       expect(AppPermissionUtils.canAccessAuditTeamMembers(owner), isTrue);
     });
   });
 
-  group('sandbox training permissions', () {
+  group('operator and integrator permissions', () {
+    for (final (role, isTopOperator) in [
+      ('top operator', true),
+      ('integrator', false),
+    ]) {
+      test('$role receives owner management access in every organisation', () {
+        final user = User(
+          isOwner: false,
+          isTopOperator: isTopOperator,
+          isIntegrator: !isTopOperator,
+          roles: const ['team_member'],
+        );
+        for (final type in ['parent', 'child', 'sandbox']) {
+          final organization = _organization(type);
+          final owner = user.copyWith(isOwner: true);
+          expect(
+            _contentPermissions(user, organization),
+            _contentPermissions(owner, organization),
+          );
+          expect(
+            AppPermissionUtils.canManagePublicLinks(
+              user: user,
+              currentOrganization: organization,
+            ),
+            isFalse,
+          );
+          expect(
+            AppPermissionUtils.hasReadOnlyPersonalCheckIns(owner),
+            isFalse,
+          );
+        }
+        expect(AppPermissionUtils.canAccessAuditTeamMembers(user), isTrue);
+        expect(AppPermissionUtils.hasReadOnlyPersonalCheckIns(user), isTrue);
+      });
+    }
+  });
+
+  group('training tab permissions', () {
     for (final type in ['parent', 'sandbox', 'child', ' ChIlD ']) {
       for (final hasSandboxAccess in <bool?>[null, false, true]) {
         test('sandbox access $hasSandboxAccess in $type organisations', () {
@@ -278,7 +323,7 @@ void main() {
               user: user,
               currentOrganization: _organization(type),
             ),
-            type != 'child',
+            isTrue,
           );
           expect(
             AppPermissionUtils.canManageTrainingForSeatProfile(
@@ -286,7 +331,7 @@ void main() {
               currentOrganization: _organization(type),
               seatProfileId: '',
             ),
-            type != 'child',
+            isTrue,
           );
           expect(
             AppPermissionUtils.canViewTrainingQuizAndAssignment(
@@ -294,13 +339,13 @@ void main() {
               currentOrganization: _organization(type),
               seatProfileId: '',
             ),
-            hasSandboxAccess == true || type != 'child',
+            isTrue,
           );
         }
       }
     });
 
-    test('sandbox tab access preserves department lead editing scope', () {
+    test('tab access preserves department lead editing scope', () {
       for (final hasSandboxAccess in [false, true]) {
         final user = User(
           roles: const ['dept_lead'],
@@ -315,7 +360,7 @@ void main() {
         );
         for (final type in ['parent', 'child']) {
           for (final seat in ['managed-seat', 'other-seat']) {
-            final canEdit = type != 'child' && seat == 'managed-seat';
+            final canEdit = seat == 'managed-seat';
             expect(
               AppPermissionUtils.canManageTrainingForSeatProfile(
                 user: user,
@@ -330,63 +375,74 @@ void main() {
                 currentOrganization: _organization(type),
                 seatProfileId: seat,
               ),
-              (hasSandboxAccess && seat == 'managed-seat') || canEdit,
+              canEdit,
             );
           }
         }
       }
     });
 
-    test(
-      'sandbox viewing requires a managed seat without granting editing',
-      () {
-        for (final type in ['parent', 'sandbox', 'child']) {
-          for (final hasSandboxAccess in <bool?>[null, false, true]) {
-            final user = User(
-              roles: const ['team_member'],
-              hasSandboxAccess: hasSandboxAccess,
-              hierarchyMemberships: const [
-                UserHierarchyMembership(
-                  nodeUuid: 'node',
-                  role: 'team_member',
-                  job: OrganizationHierarchyJob(
-                    uuid: 'own-seat',
-                    title: 'Own Seat',
-                  ),
-                  manageableSeatProfileIds: ['managed-seat'],
+    test('managed and assigned seats allow viewing without editing', () {
+      for (final type in ['parent', 'sandbox', 'child']) {
+        for (final hasSandboxAccess in <bool?>[null, false, true]) {
+          final user = User(
+            roles: const ['team_member'],
+            hasSandboxAccess: hasSandboxAccess,
+            hierarchyMemberships: const [
+              UserHierarchyMembership(
+                nodeUuid: 'node',
+                role: 'team_member',
+                job: OrganizationHierarchyJob(
+                  uuid: 'own-seat',
+                  title: 'Own Seat',
                 ),
-              ],
+                manageableSeatProfileIds: ['managed-seat'],
+              ),
+            ],
+          );
+          for (final seat in [
+            'managed-seat',
+            ' MANAGED-SEAT ',
+            'own-seat',
+            'other-seat',
+            '',
+          ]) {
+            expect(
+              AppPermissionUtils.canViewTrainingQuizAndAssignment(
+                user: user,
+                currentOrganization: _organization(type),
+                seatProfileId: seat,
+              ),
+              ['managed-seat', 'own-seat'].contains(seat.trim().toLowerCase()),
+              reason: '$type sandbox=$hasSandboxAccess seat=$seat',
             );
-            for (final seat in [
-              'managed-seat',
-              ' MANAGED-SEAT ',
-              'own-seat',
-              'other-seat',
-              '',
-            ]) {
-              expect(
-                AppPermissionUtils.canViewTrainingQuizAndAssignment(
-                  user: user,
-                  currentOrganization: _organization(type),
-                  seatProfileId: seat,
-                ),
-                hasSandboxAccess == true &&
-                    seat.trim().toLowerCase() == 'managed-seat',
-                reason: '$type sandbox=$hasSandboxAccess seat=$seat',
-              );
-              expect(
-                AppPermissionUtils.canManageTrainingForSeatProfile(
-                  user: user,
-                  currentOrganization: _organization(type),
-                  seatProfileId: seat,
-                ),
-                isFalse,
-              );
-            }
+            expect(
+              AppPermissionUtils.isAssignedToTrainingSeatProfile(
+                user: user,
+                seatProfileId: seat,
+              ),
+              seat == 'own-seat',
+            );
+            expect(
+              AppPermissionUtils.canManageTrainingForSeatProfile(
+                user: user,
+                currentOrganization: _organization(type),
+                seatProfileId: seat,
+              ),
+              isFalse,
+            );
           }
+          expect(
+            AppPermissionUtils.isAssignedToTrainingSeatProfile(
+              user: user,
+              seatProfileId: 'local-seat-id',
+              additionalSeatProfileIds: const [' OWN-SEAT '],
+            ),
+            isTrue,
+          );
         }
-      },
-    );
+      }
+    });
   });
 
   group('AppPermissionUtils.canManageTrainingForSeatProfile', () {

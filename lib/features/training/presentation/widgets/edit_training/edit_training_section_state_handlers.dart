@@ -8,6 +8,7 @@ extension _EditTrainingSectionViewStateHandlers
     }
     _lastHandledTabIndex = _selectedTabIndex;
     _cancelPortraitReset();
+    _rearmLandscapeVideoInPortrait();
     _updatePreferredOrientations();
     FocusScope.of(context).unfocus();
     unawaited(_syncSelectedTabData(context.read<TrainingModuleController>()));
@@ -153,33 +154,6 @@ extension _EditTrainingSectionViewStateHandlers
         if (message != null && message.isNotEmpty) {
           _showApiErrorSnackBar(message);
         }
-      }
-    }
-
-    final summaryEvents = uploadController.summaryEventsSince(
-      _lastHandledGlobalVideoSummaryEventSequence,
-    );
-    if (summaryEvents.isEmpty) {
-      return;
-    }
-
-    _lastHandledGlobalVideoSummaryEventSequence =
-        summaryEvents.last.eventSequence;
-
-    for (final event in summaryEvents) {
-      if (event.descriptionId != widget.trainingDescriptionId ||
-          controller.selectedModuleId != event.moduleId) {
-        continue;
-      }
-
-      controller.applyGeneratedSummaryForModule(
-        moduleId: event.moduleId,
-        description: event.summary,
-      );
-
-      final message = _normalizeSnackBarMessage(event.snackBarMessage);
-      if (message != null) {
-        _showApiErrorSnackBar(message);
       }
     }
   }

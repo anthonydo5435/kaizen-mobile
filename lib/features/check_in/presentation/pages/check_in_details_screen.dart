@@ -8,10 +8,10 @@ import 'package:sparrowkaizen/routes/app_router.dart';
 
 import '../../../../core/constants/app_colors.dart';
 import '../../../../core/constants/app_strings.dart';
-import '../../../../core/managers/app_manager.dart';
 import '../../../../core/utils/custom_functions.dart';
 import '../../../../core/widgets/app_button.dart';
 import '../../../../core/widgets/app_text_view.dart';
+import '../../../../core/widgets/paid_features_unavailable_dialog.dart';
 import '../../data/datasources/audit_remote_data_source.dart';
 import '../../data/repositories/audit_repository_impl.dart';
 import '../../domain/entities/audit_details.dart';
@@ -21,7 +21,6 @@ import '../../domain/usecases/get_audit_overview_usecase.dart';
 import '../../domain/usecases/get_quarterly_audit_usecase.dart';
 import '../providers/check_in_controller.dart';
 import '../widgets/check_in_details_period_controls.dart';
-import '../widgets/upgrade_plan_dialog.dart';
 import 'performance_report_dialogs.dart';
 
 class CheckInDetailsScreen extends StatelessWidget {
@@ -32,6 +31,7 @@ class CheckInDetailsScreen extends StatelessWidget {
     this.quarter,
     this.selectedProfileUuid,
     this.seatId,
+    this.isMyCheckIn = false,
   });
 
   final String profileJobId;
@@ -39,6 +39,7 @@ class CheckInDetailsScreen extends StatelessWidget {
   final int? quarter;
   final String? selectedProfileUuid;
   final String? seatId;
+  final bool isMyCheckIn;
 
   @override
   Widget build(BuildContext context) {
@@ -79,6 +80,7 @@ class CheckInDetailsScreen extends StatelessWidget {
                 quarter: quarter,
                 profileUuid: selectedProfileUuid,
                 seatId: seatId,
+                isMyCheckIn: isMyCheckIn,
               ),
         ),
       ],
@@ -135,7 +137,7 @@ class _CheckInDetailsScreenView extends StatelessWidget {
             ),
             if (!state.isLoading &&
                 details != null &&
-                !state.isSelfAudit &&
+                state.canContinueCheckIn &&
                 !controller.hasDetailsLoadError)
               _buildNewAuditButton(
                 context,
@@ -522,7 +524,7 @@ class _CheckInDetailsScreenView extends StatelessWidget {
     CheckInController controller,
     AuditDetails details,
   ) {
-    final isSelfAudit = controller.state.isSelfAudit;
+    final state = controller.state;
     final isPastLastAuditDate = CustomFunctions.isDateBeforeToday(
       details.lastAuditDate,
     );
@@ -544,18 +546,30 @@ class _CheckInDetailsScreenView extends StatelessWidget {
       separatorBuilder: (_, __) => const SizedBox(height: 12),
       itemBuilder: (context, index) {
         final audit = visibleAudits[index];
-        final actionLabel = CustomFunctions.isAuditWithinContinueWindow(audit.date)
+        final canContinue = CustomFunctions.isAuditWithinContinueWindow(
+          audit.date,
+        );
+        final actionLabel = canContinue && state.canContinueCheckIn
             ? AppStrings.continueAction
             : AppStrings.view;
 
-        return GestureDetector(
-          behavior: HitTestBehavior.opaque,
-          onTap: () => _openSingleAuditDetails(
+        Future<void> openAudit() async {
+          if (!state.isCheckInReadOnly &&
+              canContinue &&
+              showBillingRestrictionIfNeeded(context)) {
+            return;
+          }
+          await _openSingleAuditDetails(
             context,
             details,
             audit.date,
             quarterlyAuditUuid: audit.quarterlyAuditUuid,
-          ),
+          );
+        }
+
+        return GestureDetector(
+          behavior: HitTestBehavior.opaque,
+          onTap: openAudit,
           child: Container(
             padding: const EdgeInsets.symmetric(horizontal: 16, vertical: 12),
             decoration: BoxDecoration(
@@ -605,14 +619,7 @@ class _CheckInDetailsScreenView extends StatelessWidget {
                 ),
                 const SizedBox(width: 12),
                 GestureDetector(
-                  onTap: () {
-                    _openSingleAuditDetails(
-                      context,
-                      details,
-                      audit.date,
-                      quarterlyAuditUuid: audit.quarterlyAuditUuid,
-                    );
-                  },
+                  onTap: openAudit,
                   child: Container(
                     decoration: BoxDecoration(
                       color: AppColors.secondaryColor,
@@ -628,7 +635,7 @@ class _CheckInDetailsScreenView extends StatelessWidget {
                       mainAxisSize: MainAxisSize.min,
                       children: [
                         AppTextView.body2(
-                          isSelfAudit ? AppStrings.view : actionLabel,
+                          actionLabel,
                           color: AppColors.textPrimary,
                           fontSize: 14,
                           fontWeight: FontWeight.w500,
@@ -690,6 +697,7 @@ class _CheckInDetailsScreenView extends StatelessWidget {
         requireDescriptionSelection: requireDescriptionSelection,
         isSelfAudit: controller.state.isSelfAudit,
         isGeneralSeatAudit: controller.isGeneralSeatAudit,
+        isReadOnly: controller.state.isCheckInReadOnly,
       ),
     );
 
@@ -763,24 +771,17 @@ class _CheckInDetailsScreenView extends StatelessWidget {
     bool shouldStartNewAudit,
   ) async {
     final controller = context.read<CheckInController>();
+    if (controller.state.isAuditActionLoading ||
+        !controller.state.canContinueCheckIn) {
+      return;
+    }
     if (shouldStartNewAudit && !controller.isSelectedAuditPeriodCurrent) {
       return;
     }
 
-    if (context.read<AppManager>().showBillingBanner) {
-      await showDialog<void>(
-        context: context,
-        builder: (_) => const UpgradePlanDialog(),
-        barrierDismissible: false,
-      );
-      return;
-    }
+    if (showBillingRestrictionIfNeeded(context)) return;
 
     final todayDate = CustomFunctions.apiDateString();
-    if (controller.state.isAuditActionLoading || controller.state.isSelfAudit) {
-      return;
-    }
-
     controller.setAuditActionLoading(true);
 
     try {

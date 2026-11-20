@@ -52,7 +52,8 @@ class CheckInDescriptionCardController extends ChangeNotifier {
   String? _errorMessage;
 
   bool get isOpeningDetails => _isOpeningDetails;
-  bool get showDecrementControl => _isOwner && !_isSelfAudit;
+  bool get showDecrementControl =>
+      _isOwner && !_isSelfAudit && !_checkInController.state.isCheckInReadOnly;
   bool get showGeneralSeatRatingLock => AuditRating.isLockedByGeneralSeat(
     isMirror: _description.isMirror || _resolvedIsMirror,
     isGeneralSeatAudit: _isGeneralSeatAudit,
@@ -63,7 +64,9 @@ class CheckInDescriptionCardController extends ChangeNotifier {
       !_isSelfAudit &&
       !showGeneralSeatRatingLock;
   bool get canCreateComments =>
-      !_audit.isMismatch && CustomFunctions.isAuditWithinContinueWindow(_date);
+      !_checkInController.state.isCheckInReadOnly &&
+      !_audit.isMismatch &&
+      CustomFunctions.isAuditWithinContinueWindow(_date);
 
   String get descriptionText => _description.description.isEmpty
       ? AppStrings.auditNoDescriptionAvailable
@@ -272,6 +275,7 @@ class CheckInDescriptionCardController extends ChangeNotifier {
   }
 
   Future<void> saveTextComment(String comment) async {
+    if (!canCreateComments) return;
     await _checkInController.createAuditDescriptionComment(
       descriptionId: await resolveAuditUuid(),
       comment: comment,
@@ -283,6 +287,7 @@ class CheckInDescriptionCardController extends ChangeNotifier {
     File? mediaFile,
     String? mediaType,
   ) async {
+    if (!canCreateComments) return;
     await _checkInController.createAuditDescriptionMediaComment(
       descriptionId: await resolveAuditUuid(),
       comment: comment,

@@ -8,6 +8,7 @@ import 'package:http/testing.dart';
 import 'package:shared_preferences/shared_preferences.dart';
 import 'package:sparrowkaizen/core/constants/app_strings.dart';
 import 'package:sparrowkaizen/core/managers/app_manager.dart';
+import 'package:sparrowkaizen/core/managers/models/company_billing_details.dart';
 import 'package:sparrowkaizen/core/network/api_processor.dart';
 import 'package:sparrowkaizen/core/preference/app_preference.dart';
 import 'package:sparrowkaizen/core/widgets/app_button.dart';
@@ -29,6 +30,9 @@ void main() {
     SharedPreferences.setMockInitialValues({});
     await AppPreference.init();
     AppManager.instance.resetSessionState();
+    AppManager.instance.saveBillingDetails(
+      CompanyBillingDetails.fromApiJson({'status': 'paid'}),
+    );
     AppManager.instance.updateCurrentUser(
       User(uuid: 'owner', isOwner: true, organizationUuid: 'org'),
     );
@@ -459,7 +463,7 @@ void main() {
   );
 
   test(
-    'permission loss and child organisations block writes in the controller',
+    'role permission loss blocks writes while child organisations retain owner access',
     () async {
       final controller = PaygradeDetailController(useCase);
       addTearDown(controller.dispose);
@@ -490,9 +494,9 @@ void main() {
         () => client,
       );
       expect(AppManager.instance.currentOrganization?.type, 'child');
-      expect(controller.canEditPayRate(entry), isFalse);
-      await expectLater(saveEdit(controller, entry, '42'), throwsStateError);
-      expect(executor.patches, isEmpty);
+      expect(controller.canEditPayRate(entry), isTrue);
+      await saveEdit(controller, entry, '42');
+      expect(executor.patches, hasLength(1));
     },
   );
 

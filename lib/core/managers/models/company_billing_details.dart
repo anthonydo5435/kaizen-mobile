@@ -1,6 +1,7 @@
 class CompanyBillingDetails {
   const CompanyBillingDetails({
     required this.status,
+    this.isInTrial = false,
     required this.trialEnd,
     required this.requiresPayment,
     required this.latestInvoiceId,
@@ -18,6 +19,7 @@ class CompanyBillingDetails {
   });
 
   final String? status;
+  final bool isInTrial;
   final String? trialEnd;
   final bool requiresPayment;
   final String? latestInvoiceId;
@@ -36,6 +38,10 @@ class CompanyBillingDetails {
   factory CompanyBillingDetails.fromApiJson(Map<String, dynamic> json) {
     return CompanyBillingDetails(
       status: _readString(json['status']),
+      isInTrial:
+          _readBool(json['is_in_trial']) ??
+          _readBool(json['isInTrial']) ??
+          false,
       trialEnd: _readString(json['trial_end']),
       requiresPayment: _readBool(json['requires_payment']) ?? false,
       latestInvoiceId: _readString(json['latest_invoice_id']),
@@ -56,6 +62,7 @@ class CompanyBillingDetails {
   Map<String, dynamic> toJson() {
     return <String, dynamic>{
       'status': status,
+      'is_in_trial': isInTrial,
       'trial_end': trialEnd,
       'requires_payment': requiresPayment,
       'latest_invoice_id': latestInvoiceId,

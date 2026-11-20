@@ -119,7 +119,7 @@ class _PaygradeListingCardState extends State<PaygradeListingCard> {
       children: [
         Expanded(child: AppTextView.body2(label, color: AppColors.textSecondary)),
         const SizedBox(width: 12),
-        Flexible(
+        Expanded(
           child: AppTextView.body2(
             value,
             textAlign: TextAlign.end,

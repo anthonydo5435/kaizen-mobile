@@ -5,6 +5,7 @@ import 'package:flutter_test/flutter_test.dart';
 import 'package:shared_preferences/shared_preferences.dart';
 import 'package:sparrowkaizen/core/constants/app_strings.dart';
 import 'package:sparrowkaizen/core/managers/app_manager.dart';
+import 'package:sparrowkaizen/core/managers/models/company_billing_details.dart';
 import 'package:sparrowkaizen/core/preference/app_preference.dart';
 import 'package:sparrowkaizen/core/widgets/app_ai_generate_button.dart';
 import 'package:sparrowkaizen/features/login/domain/entities/user.dart';
@@ -25,6 +26,9 @@ void main() {
     SharedPreferences.setMockInitialValues({});
     await AppPreference.init();
     AppManager.instance.resetSessionState();
+    AppManager.instance.saveBillingDetails(
+      CompanyBillingDetails.fromApiJson({'status': 'paid'}),
+    );
     AppManager.instance.updateCurrentUser(User(uuid: 'owner', isOwner: true));
     useCase = SeatProfileCreateUseCase();
     flowResult = null;
@@ -135,7 +139,23 @@ void main() {
         isNull,
       );
       await tester.enterText(find.byType(TextField).first, ' Senior Operator ');
-      await tap(tester, find.text(AppStrings.seatProfileUpdateAction));
+      final update = find.text(AppStrings.seatProfileUpdateAction);
+      AppManager.instance.saveBillingDetails(
+        CompanyBillingDetails.fromApiJson({'status': 'canceled'}),
+      );
+      AppManager.instance.dismissBillingBanner();
+      await tap(tester, update);
+      expect(
+        find.text(AppStrings.paidFeaturesUnavailableMessage),
+        findsOneWidget,
+      );
+      expect(useCase.updates, isEmpty);
+      await tap(tester, find.text(AppStrings.paidFeaturesUnavailableOk));
+
+      AppManager.instance.saveBillingDetails(
+        CompanyBillingDetails.fromApiJson({'status': 'paid'}),
+      );
+      await tap(tester, update);
       expect(useCase.updates.single.id, 'actual-seat');
       expect(useCase.updates.single.title, 'Senior Operator');
       expect(useCase.updates.single.department, createDepartment);
@@ -146,48 +166,88 @@ void main() {
     },
   );
 
-  testWidgets(
-    'category validation and incomplete-total confirmation precede saving and details navigation',
-    (tester) async {
-      await mount(tester);
-      await createProfile(tester);
-      await tap(
-        tester,
-        find.text(AppStrings.seatProfileAddOrUpdateSeatCategoryAction),
+  testWidgets('category validation and save work while billing is canceled', (
+    tester,
+  ) async {
+    await mount(tester);
+    await createProfile(tester);
+    final addOrUpdateCategory = find.text(
+      AppStrings.seatProfileAddOrUpdateSeatCategoryAction,
+    );
+    AppManager.instance.saveBillingDetails(
+      CompanyBillingDetails.fromApiJson({'status': 'unpaid'}),
+    );
+    AppManager.instance.dismissBillingBanner();
+    await tap(tester, addOrUpdateCategory);
+    expect(
+      find.text(AppStrings.paidFeaturesUnavailableMessage),
+      findsOneWidget,
+    );
+    expect(
+      find.text(AppStrings.seatProfileManageCategoriesDialogTitle),
+      findsNothing,
+    );
+    await tap(tester, find.text(AppStrings.paidFeaturesUnavailableOk));
+
+    AppManager.instance.saveBillingDetails(
+      CompanyBillingDetails.fromApiJson({'status': 'paid'}),
+    );
+    await tap(tester, addOrUpdateCategory);
+    AppManager.instance.saveBillingDetails(
+      CompanyBillingDetails.fromApiJson({'status': 'canceled'}),
+    );
+    final fields = find.descendant(
+      of: find.byType(Dialog),
+      matching: find.byType(TextField),
+    );
+    await tester.enterText(fields.last, '0');
+    await tap(tester, find.text(AppStrings.seatProfileSaveAction));
+    expect(
+      find.text(AppStrings.seatProfileCategoryImportanceInvalid),
+      findsOneWidget,
+    );
+    expect(useCase.categorySaves, isEmpty);
+    await tester.enterText(fields.last, '50');
+    await tap(tester, find.text(AppStrings.seatProfileSaveAction));
+    expect(
+      find.text(AppStrings.seatProfileCategoriesSaveConfirmationTitle),
+      findsOneWidget,
+    );
+    expect(useCase.categorySaves, isEmpty);
+    await tap(tester, find.text(AppStrings.done));
+    expect(useCase.categorySaves, isEmpty);
+    await tap(tester, find.text(AppStrings.seatProfileSaveAction));
+    await tap(tester, find.text(AppStrings.seatProfileSaveAction));
+    expect(useCase.categorySaves.single.id, 'actual-seat');
+    expect(useCase.categorySaves.single.categories.single.uuid, 'category-id');
+    expect(useCase.categorySaves.single.categories.single.weightPercent, 50);
+    expect(openedSeatId, 'actual-seat');
+    expect(flowResult, isTrue);
+    expect(tester.takeException(), isNull);
+  });
+
+  for (final status in ['unpaid', 'canceled']) {
+    testWidgets('Generate with AI is blocked for $status billing', (
+      tester,
+    ) async {
+      AppManager.instance.saveBillingDetails(
+        CompanyBillingDetails.fromApiJson({'status': status}),
       );
-      final fields = find.descendant(
-        of: find.byType(Dialog),
-        matching: find.byType(TextField),
-      );
-      await tester.enterText(fields.last, '0');
-      await tap(tester, find.text(AppStrings.seatProfileSaveAction));
+      AppManager.instance.dismissBillingBanner();
+      await mount(tester, initialData: editFormData);
+      await tap(tester, find.text(AppStrings.seatProfileGenerateWithAiAction));
+
       expect(
-        find.text(AppStrings.seatProfileCategoryImportanceInvalid),
+        find.text(AppStrings.paidFeaturesUnavailableMessage),
         findsOneWidget,
       );
-      expect(useCase.categorySaves, isEmpty);
-      await tester.enterText(fields.last, '50');
-      await tap(tester, find.text(AppStrings.seatProfileSaveAction));
       expect(
-        find.text(AppStrings.seatProfileCategoriesSaveConfirmationTitle),
-        findsOneWidget,
+        find.text(AppStrings.seatProfileGenerateSeatContentDialogTitle),
+        findsNothing,
       );
-      expect(useCase.categorySaves, isEmpty);
-      await tap(tester, find.text(AppStrings.done));
-      expect(useCase.categorySaves, isEmpty);
-      await tap(tester, find.text(AppStrings.seatProfileSaveAction));
-      await tap(tester, find.text(AppStrings.seatProfileSaveAction));
-      expect(useCase.categorySaves.single.id, 'actual-seat');
-      expect(
-        useCase.categorySaves.single.categories.single.uuid,
-        'category-id',
-      );
-      expect(useCase.categorySaves.single.categories.single.weightPercent, 50);
-      expect(openedSeatId, 'actual-seat');
-      expect(flowResult, isTrue);
-      expect(tester.takeException(), isNull);
-    },
-  );
+      expect(useCase.generations, isEmpty);
+    });
+  }
 
   testWidgets(
     'AI generation preserves choices, button size and the actual-seat destination',

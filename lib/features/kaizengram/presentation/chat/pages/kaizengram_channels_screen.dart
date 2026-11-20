@@ -7,6 +7,7 @@ import '../../../../../core/constants/app_colors.dart';
 import '../../../../../core/utils/custom_functions.dart';
 import '../../../../../core/widgets/app_text_view.dart';
 import '../../../../../core/widgets/app_keyboard_bottom_sheet_surface.dart';
+import '../../../../../core/widgets/paid_features_unavailable_dialog.dart';
 import '../../widgets/kaizengram_notifier_state.dart';
 import '../providers/kaizengram_chat_controller.dart';
 import '../widgets/chat_module_ui.dart';
@@ -102,6 +103,7 @@ class _KaizengramChannelsView extends StatelessWidget {
   }
 
   Future<void> _showCreateChannelSheet(BuildContext context) async {
+    if (showBillingRestrictionIfNeeded(context)) return;
     final controller = context.read<KaizengramChatController>();
     final createdChannel = await showModalBottomSheet<String>(
       context: context,
@@ -118,6 +120,7 @@ class _KaizengramChannelsView extends StatelessWidget {
   }
 
   Future<void> _showDirectMessageSheet(BuildContext context) async {
+    if (showBillingRestrictionIfNeeded(context)) return;
     final controller = context.read<KaizengramChatController>();
     final selectedEmail = await showModalBottomSheet<String>(
       context: context,

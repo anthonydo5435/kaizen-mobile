@@ -10,6 +10,7 @@ import 'package:shared_preferences/shared_preferences.dart';
 import 'package:sparrowkaizen/core/constants/app_colors.dart';
 import 'package:sparrowkaizen/core/constants/app_strings.dart';
 import 'package:sparrowkaizen/core/managers/app_manager.dart';
+import 'package:sparrowkaizen/core/managers/models/company_billing_details.dart';
 import 'package:sparrowkaizen/core/preference/app_preference.dart';
 import 'package:sparrowkaizen/core/widgets/app_overlay_close_button.dart';
 import 'package:sparrowkaizen/core/widgets/app_swipe_reveal_action.dart';
@@ -28,6 +29,9 @@ void main() {
     SharedPreferences.setMockInitialValues({});
     await AppPreference.init();
     AppManager.instance.resetSessionState();
+    AppManager.instance.saveBillingDetails(
+      CompanyBillingDetails.fromApiJson({'status': 'paid'}),
+    );
     AppManager.instance.updateCurrentUser(
       User(uuid: 'owner', isOwner: true, organizationUuid: 'org'),
     );
@@ -206,6 +210,26 @@ void main() {
     expect(tester.takeException(), isNull);
   });
 
+  testWidgets('unpaid billing shows the dialog on Update Category', (
+    tester,
+  ) async {
+    await _openScreen(tester);
+    AppManager.instance.saveBillingDetails(
+      CompanyBillingDetails.fromApiJson({'status': 'unpaid'}),
+    );
+    AppManager.instance.dismissBillingBanner();
+    await tester.tap(find.text(AppStrings.seatProfileUpdateCategoryAction));
+    await tester.pumpAndSettle();
+    expect(
+      find.text(AppStrings.paidFeaturesUnavailableMessage),
+      findsOneWidget,
+    );
+    expect(
+      find.text(AppStrings.seatProfileManageCategoriesDialogTitle),
+      findsNothing,
+    );
+  });
+
   testWidgets('left swipe edits the collapsed description through the shared controller', (
     tester,
   ) async {
@@ -222,9 +246,31 @@ void main() {
       tester.widget<TextField>(find.byType(TextField).first).controller!.text,
       'Controls Financial Records',
     );
-    await tester.enterText(find.byType(TextField).first, 'Updated Financial Records');
-    await tester.ensureVisible(find.text(AppStrings.seatProfileUpdateAction));
-    await tester.tap(find.text(AppStrings.seatProfileUpdateAction));
+    await tester.enterText(
+      find.byType(TextField).first,
+      'Updated Financial Records',
+    );
+    final update = find.text(AppStrings.seatProfileUpdateAction);
+    await tester.ensureVisible(update);
+    AppManager.instance.saveBillingDetails(
+      CompanyBillingDetails.fromApiJson({'status': 'unpaid'}),
+    );
+    AppManager.instance.dismissBillingBanner();
+    await tester.tap(update);
+    await tester.pumpAndSettle();
+    expect(
+      find.text(AppStrings.paidFeaturesUnavailableMessage),
+      findsOneWidget,
+    );
+    expect(useCase.updatedDescriptionId, isNull);
+    await tester.tap(find.text(AppStrings.paidFeaturesUnavailableOk));
+    await tester.pumpAndSettle();
+
+    AppManager.instance.saveBillingDetails(
+      CompanyBillingDetails.fromApiJson({'status': 'paid'}),
+    );
+    await tester.ensureVisible(update);
+    await tester.tap(update);
     await tester.pumpAndSettle();
     expect(useCase.updatedDescriptionId, 'actual-records');
     expect(find.text('Updated Financial Records'), findsOneWidget);
@@ -406,7 +452,7 @@ void main() {
     expect(tester.takeException(), isNull);
   });
 
-  testWidgets('child organisation descriptions allow Show More without editing or deletion', (
+  testWidgets('child organisation descriptions retain owner editing and deletion actions', (
     tester,
   ) async {
     final client = MockClient(
@@ -425,8 +471,10 @@ void main() {
     final useCase = await _openScreen(tester);
     await _openCategory(tester, 'Financial Management');
     await _swipeDescription(tester, 'records', const Offset(-200, 0));
-    expect(find.byTooltip(AppStrings.seatProfileDeleteDescriptionAction), findsNothing);
-    expect(find.text(AppStrings.seatProfileEditAction), findsNothing);
+    expect(find.byTooltip(AppStrings.seatProfileDeleteDescriptionAction), findsOneWidget);
+    expect(_withinDescription('records', AppStrings.seatProfileEditAction).hitTestable(), findsOneWidget);
+    // Close Edit/Delete before revealing the action on the other side.
+    await _swipeDescription(tester, 'records', const Offset(180, 0));
     await _swipeDescription(tester, 'records', const Offset(180, 0));
     await tester.tap(_withinDescription('records', AppStrings.seatProfileShowMoreAction));
     await tester.pumpAndSettle();

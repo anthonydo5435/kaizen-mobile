@@ -8,6 +8,7 @@ import 'package:provider/provider.dart';
 import 'package:shared_preferences/shared_preferences.dart';
 import 'package:sparrowkaizen/core/constants/app_strings.dart';
 import 'package:sparrowkaizen/core/managers/app_manager.dart';
+import 'package:sparrowkaizen/core/managers/models/company_billing_details.dart';
 import 'package:sparrowkaizen/core/network/api_endpoints.dart';
 import 'package:sparrowkaizen/core/network/api_processor.dart';
 import 'package:sparrowkaizen/core/preference/app_preference.dart';
@@ -16,6 +17,7 @@ import 'package:sparrowkaizen/features/check_in/domain/entities/audit_member_sta
 import 'package:sparrowkaizen/features/check_in/presentation/pages/check_in_descriptions_list_screen.dart';
 import 'package:sparrowkaizen/features/check_in/presentation/pages/check_in_details_screen.dart';
 import 'package:sparrowkaizen/features/check_in/presentation/pages/check_in_screen.dart';
+import 'package:sparrowkaizen/features/check_in/presentation/pages/check_in_single_description.dart';
 import 'package:sparrowkaizen/features/check_in/presentation/providers/check_in_controller.dart';
 import 'package:sparrowkaizen/features/check_in/presentation/widgets/check_in_member_card.dart';
 import 'package:sparrowkaizen/features/login/domain/entities/user.dart';
@@ -62,6 +64,16 @@ void main() {
           },
         ],
       };
+    } else if (path.endsWith(
+      ApiEndPoints.quarterlyAuditDescriptionAudit(
+        quarterlyAuditId: 'quarterly-audit',
+        descriptionId: 'description',
+      ),
+    )) {
+      response = {
+        'uuid': 'audit-description',
+        'audit': ['great'],
+      };
     } else if (request.method == 'PATCH' &&
         path.endsWith(ApiEndPoints.auditDescription('audit-description'))) {
       final body = jsonDecode(request.body) as Map<String, dynamic>;
@@ -100,6 +112,9 @@ void main() {
     await AppPreference.init();
     await AppPreference.setAuthToken('test-token');
     AppManager.instance.resetSessionState();
+    AppManager.instance.saveBillingDetails(
+      CompanyBillingDetails.fromApiJson({'status': 'paid'}),
+    );
     ApiCallExecutor.clearGetCache();
   });
   tearDown(AppManager.instance.resetSessionState);
@@ -173,6 +188,71 @@ void main() {
         }, () => client);
       },
     );
+  }
+
+  for (final (role, isTopOperator) in [
+    ('top operator', true),
+    ('integrator', false),
+  ]) {
+    testWidgets('$role can view My Check-ins and edit team check-ins', (
+      tester,
+    ) async {
+      _setViewport(tester);
+      final user = User(
+        uuid: 'reviewer',
+        isTopOperator: isTopOperator,
+        isIntegrator: !isTopOperator,
+        roles: const ['team_member'],
+      );
+      await AppPreference.saveUser(user);
+      AppManager.instance.updateCurrentUser(user);
+      final openCheckIn = find.descendant(
+        of: find.byType(CheckInMemberCard),
+        matching: find.text(AppStrings.checkInTitle),
+      );
+      final descriptionList = find.byType(CheckInDescriptionsListScreen);
+      final detail = find.byType(CheckInDetailsScreen);
+      final camera = find.byIcon(Icons.camera_alt_outlined);
+
+      await http.runWithClient(() async {
+        await tester.pumpWidget(_screen());
+        await tester.pumpAndSettle();
+        await _tap(tester, find.text(AppStrings.auditMyCheckInsTab));
+        await _tap(tester, openCheckIn);
+        expect(detail, findsOneWidget);
+        expect(find.text(AppStrings.newCheckIn), findsNothing);
+        expect(find.text(AppStrings.continueCheckIn), findsNothing);
+        await _tap(tester, find.text(AppStrings.view));
+        expect(descriptionList, findsOneWidget);
+        expect(camera, findsNothing);
+        await _tap(tester, find.text('1'));
+        await tester.pump(const Duration(milliseconds: 250));
+        expect(rating, 1);
+        final description = find.byType(SingleDescriptionDetails);
+        await _tap(tester, find.text('Daily task'));
+        expect(
+          tester.widget<SingleDescriptionDetails>(description).isViewOnly,
+          isTrue,
+        );
+        expect(camera, findsNothing);
+        expect(requests.every((request) => request.method == 'GET'), isTrue);
+
+        for (final screen in [description, descriptionList, detail]) {
+          Navigator.of(tester.element(screen)).pop();
+          await tester.pumpAndSettle();
+        }
+        await _tap(tester, find.text(AppStrings.auditTeamMembersTab));
+        await _tap(tester, openCheckIn);
+        await _tap(tester, find.text(AppStrings.continueAction));
+        expect(camera, findsOneWidget);
+        await _tap(tester, find.text('1'));
+        await tester.pump(const Duration(milliseconds: 250));
+        await tester.pumpAndSettle();
+        expect(rating, 2);
+        expect(tester.takeException(), isNull);
+        await tester.pumpWidget(const SizedBox.shrink());
+      }, () => client);
+    });
   }
 
   testWidgets(

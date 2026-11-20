@@ -384,13 +384,6 @@ class _SetupTrainingScreenView extends StatelessWidget {
         builder: (_) => EditTrainingScreen(
           trainingRoute: _resolvedTrainingRoute(controller),
           startNewLessonWhenEmpty: true,
-          canManageTraining: AppManager.instance
-              .canCurrentUserManageTrainingForSeatProfile(
-                seatProfileId: controller.selectedSeatProfile?.id ?? '',
-                additionalSeatProfileIds: <String>[
-                  controller.selectedSeatProfile?.resolvedSeatId ?? '',
-                ],
-              ),
           useNonBlockingVideoUpload: true,
         ),
       ),
@@ -407,6 +400,7 @@ class _SetupTrainingScreenView extends StatelessWidget {
       job: seatProfileId,
       category: categoryId,
       description: descriptionId,
+      actualSeatProfileId: controller.selectedSeatProfile?.resolvedSeatId,
     );
   }
 }

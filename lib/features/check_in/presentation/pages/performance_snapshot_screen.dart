@@ -124,7 +124,7 @@ class _PerformanceSnapshotView extends StatelessWidget {
                       ),
                     ),
                 ],
-                if (data.isLoading && data.items.isEmpty)
+                if (data.isShowingLoader && data.items.isEmpty)
                   Center(child: FastCircularProgressIndicator())
                 else if (visibleReports.isEmpty)
                   _EmptyState(message: controller.emptyStateMessage)
@@ -191,12 +191,22 @@ class _PerformanceSnapshotView extends StatelessWidget {
     controller.setSelectedJobTitle(result);
   }
 
-  Future<void> _openReport(BuildContext context, AuditProfile profile, bool isMyReport) {
-    return AppRouter.pushNamed(
+  Future<void> _openReport(
+    BuildContext context,
+    AuditProfile profile,
+    bool isMyReport,
+  ) async {
+    final controller = context.read<PerformanceSnapshotController>();
+    await AppRouter.pushNamed<void>(
       context,
       AppRouter.reports,
-      arguments: PerformanceReportRouteArgs(profile: profile, isMyReport: isMyReport),
+      arguments: PerformanceReportRouteArgs(
+        profile: profile,
+        isMyReport: isMyReport,
+      ),
     );
+    if (!context.mounted) return;
+    await controller.refresh(showLoader: false);
   }
 }
 

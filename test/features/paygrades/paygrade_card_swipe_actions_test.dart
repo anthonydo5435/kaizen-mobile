@@ -168,9 +168,12 @@ void main() {
   });
 
   for (final childOrganization in [false, true]) {
-    testWidgets('read-only cards expand without edit/delete (child: $childOrganization)', (
+    testWidgets('team member cards expand without edit/delete (child: $childOrganization)', (
       tester,
     ) async {
+      AppManager.instance.updateCurrentUser(
+        User(uuid: 'member', roles: ['team_member'], organizationUuid: 'org'),
+      );
       if (childOrganization) {
         final client = MockClient(
           (_) async => http.Response(
@@ -184,10 +187,6 @@ void main() {
         await http.runWithClient(
           () => AppManager.instance.fetchOrganizations(forceRefresh: true, requireSuccess: true),
           () => client,
-        );
-      } else {
-        AppManager.instance.updateCurrentUser(
-          User(uuid: 'member', roles: ['team_member'], organizationUuid: 'org'),
         );
       }
       await openScreen(tester);

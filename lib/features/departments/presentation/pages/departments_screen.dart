@@ -17,6 +17,7 @@ import '../../data/repositories/departments_repository_impl.dart';
 import '../../domain/usecases/manage_departments_use_case.dart';
 import '../models/department_color_option.dart';
 import '../providers/departments_controller.dart';
+import 'department_audit_stats_screen.dart';
 import 'department_edit_dialog.dart';
 
 class DepartmentsScreen extends StatelessWidget {
@@ -159,9 +160,32 @@ class _DepartmentsScreenViewState extends State<_DepartmentsScreenView> {
           department: department,
           showEditAction:
               canManageContent && !_isPrivilegedDepartment(department),
+          onTap: department.id.isEmpty
+              ? null
+              : () => _openAuditStats(department),
           onEditTap: () => _openEditDialog(department),
         );
       },
+    );
+  }
+
+  Future<void> _openAuditStats(Department department) async {
+    if (!_controller.canViewAuditStats(department.id)) {
+      ScaffoldMessenger.of(context).showSnackBar(
+        const SnackBar(
+          content: Text(AppStrings.departmentAuditStatsUnavailable),
+        ),
+      );
+      return;
+    }
+    final manageDepartments = context.read<ManageDepartmentsUseCase>();
+    await Navigator.of(context).push<void>(
+      MaterialPageRoute(
+        builder: (_) => DepartmentAuditStatsScreen(
+          department: department,
+          manageDepartments: manageDepartments,
+        ),
+      ),
     );
   }
 
@@ -193,51 +217,59 @@ class _DepartmentCard extends StatelessWidget {
   const _DepartmentCard({
     required this.department,
     required this.showEditAction,
+    required this.onTap,
     required this.onEditTap,
   });
 
   final Department department;
   final bool showEditAction;
+  final VoidCallback? onTap;
   final VoidCallback onEditTap;
 
   @override
   Widget build(BuildContext context) {
     final color = DepartmentColorPalette.resolveColor(department.colorHex);
 
-    final card = Container(
-      decoration: BoxDecoration(
-        color: AppColors.surfaceDark,
+    final card = Material(
+      color: AppColors.surfaceDark,
+      clipBehavior: Clip.antiAlias,
+      shape: RoundedRectangleBorder(
         borderRadius: BorderRadius.circular(16),
-        border: Border.all(
-          color: AppColors.fieldBorder.withValues(alpha: 0.16),
-        ),
+        side: BorderSide(color: AppColors.fieldBorder.withValues(alpha: 0.16)),
       ),
-      constraints: const BoxConstraints(minHeight: 80),
-      padding: const EdgeInsets.symmetric(horizontal: 16, vertical: 20),
-      child: Row(
-        children: [
-          Container(
-            width: 18,
-            height: 18,
-            decoration: BoxDecoration(
-              color: color,
-              borderRadius: BorderRadius.circular(999),
-              border: Border.all(
-                color: AppColors.textPrimary.withValues(alpha: 0.28),
+      child: InkWell(
+        onTap: onTap,
+        splashFactory: NoSplash.splashFactory,
+        highlightColor: Colors.transparent,
+        child: Container(
+          constraints: const BoxConstraints(minHeight: 80),
+          padding: const EdgeInsets.symmetric(horizontal: 16, vertical: 20),
+          child: Row(
+            children: [
+              Container(
+                width: 18,
+                height: 18,
+                decoration: BoxDecoration(
+                  color: color,
+                  borderRadius: BorderRadius.circular(999),
+                  border: Border.all(
+                    color: AppColors.textPrimary.withValues(alpha: 0.28),
+                  ),
+                ),
               ),
-            ),
+              const SizedBox(width: 14),
+              Expanded(
+                child: AppTextView.body2(
+                  department.name,
+                  color: AppColors.textPrimary,
+                  fontWeight: FontWeight.w700,
+                  maxLines: 1,
+                  overflow: TextOverflow.ellipsis,
+                ),
+              ),
+            ],
           ),
-          const SizedBox(width: 14),
-          Expanded(
-            child: AppTextView.body2(
-              department.name,
-              color: AppColors.textPrimary,
-              fontWeight: FontWeight.w700,
-              maxLines: 1,
-              overflow: TextOverflow.ellipsis,
-            ),
-          ),
-        ],
+        ),
       ),
     );
 

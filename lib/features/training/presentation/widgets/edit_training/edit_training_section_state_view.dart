@@ -215,7 +215,6 @@ extension _EditTrainingSectionViewStateView on _EditTrainingSectionViewState {
         isDeletingVideo: false,
         isUploadingThumbnail: false,
         canEditSummary: false,
-        isEditingSummary: false,
         isSavingSummary: false,
         summaryController: controller.summaryController,
         contentHorizontalPadding: contentHorizontalPadding,
@@ -239,9 +238,9 @@ extension _EditTrainingSectionViewStateView on _EditTrainingSectionViewState {
     }
 
     if (tabIndex == 0) {
+      final canRetrySummary = controller.canRetrySelectedVideoProcessing;
       return _VideoTabContent(
-        fullscreenInLandscape:
-            widget.allowDeviceRotation && _selectedTabIndex == 0,
+        fullscreenInLandscape: _canExpandLandscapeVideo,
         onExitLandscapeFullscreen: widget.allowDeviceRotation
             ? _resetToPortrait
             : null,
@@ -258,12 +257,23 @@ extension _EditTrainingSectionViewStateView on _EditTrainingSectionViewState {
         isDeletingVideo: controller.isDeletingVideo,
         isUploadingThumbnail: controller.isUploadingThumbnail,
         canEditSummary: controller.canEditSelectedModuleSummary,
-        isEditingSummary: controller.isEditingSummary,
         isSavingSummary: controller.isSavingSummary,
         summaryController: controller.summaryController,
         contentHorizontalPadding: contentHorizontalPadding,
+        showSummary: controller.showSelectedModuleSummary,
+        showSummaryLoading: controller.isLoadingSelectedVideoSummary,
+        summaryProcessingError: controller.selectedSummaryProcessingError,
+        showSummaryRetryProgress: controller.isRetryingSelectedVideoProcessing,
+        showGenerateSummary: controller.showSelectedModuleSummaryAction,
+        summaryActionLabel: canRetrySummary
+            ? AppStrings.trainingRetrySummaryGenerationAction
+            : AppStrings.trainingGenerateSummaryAction,
         canGenerateSummary:
-            controller.canGenerateSummaryForSelectedModule &&
+            (canRetrySummary || controller.canGenerateSummaryForSelectedModule) &&
+            !controller.isRetryingSelectedVideoProcessing &&
+            !controller.isSavingSummary &&
+            !controller.isUploadingVideo &&
+            !controller.isDeletingVideo &&
             !isBackgroundVideoUploadActive,
         isGeneratingSummary: controller.isGeneratingSummary,
         isWritingSummary: controller.isWritingSummary,
@@ -275,6 +285,10 @@ extension _EditTrainingSectionViewStateView on _EditTrainingSectionViewState {
         onSaveSummaryTap: () => controller.saveSummaryForSelectedModule(),
         onGenerateSummaryTap: () {
           FocusScope.of(context).unfocus();
+          if (canRetrySummary) {
+            unawaited(controller.retrySelectedVideoProcessing());
+            return;
+          }
           unawaited(
             controller.generateSummaryForSelectedModule(
               animate: !MediaQuery.disableAnimationsOf(context),
@@ -291,7 +305,7 @@ extension _EditTrainingSectionViewStateView on _EditTrainingSectionViewState {
         isLoading:
             controller.isDocumentLoading ||
             !controller.hasResolvedSelectedModuleDocument,
-        canManageGeneration: controller.canManageTraining,
+        canManageGeneration: controller.canManageTrainingGeneration,
         canGenerate: controller.canGenerateSopForSelectedModule,
         isGeneratingSop: controller.isGeneratingSop,
         canEditDocument: controller.canEditSelectedModuleDocument,
@@ -321,6 +335,7 @@ extension _EditTrainingSectionViewStateView on _EditTrainingSectionViewState {
         isLoading: controller.isQuestionsLoading,
         questions: controller.selectedModuleQuestions,
         canManageQuestions: controller.canManageTraining,
+        canManageGeneration: controller.canManageTrainingGeneration,
         canAddQuestion: controller.canAddQuestionToSelectedModule,
         canGenerateQuiz: controller.canGenerateQuizForSelectedModule,
         isGeneratingQuiz: controller.isGeneratingQuiz,
@@ -343,7 +358,7 @@ extension _EditTrainingSectionViewStateView on _EditTrainingSectionViewState {
         isLoading:
             controller.isAssignmentLoading ||
             !controller.hasResolvedSelectedModuleAssignment,
-        canManageGeneration: controller.canManageTraining,
+        canManageGeneration: controller.canManageTrainingGeneration,
         canGenerate: controller.canGenerateAssignmentForSelectedModule,
         isGenerating: controller.isGeneratingAssignment,
         canEditAssignment: controller.canEditSelectedModuleAssignment,

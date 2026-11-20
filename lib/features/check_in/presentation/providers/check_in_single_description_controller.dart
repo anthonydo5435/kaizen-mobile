@@ -141,7 +141,8 @@ class CheckInSingleDescriptionController extends ChangeNotifier {
         .toList(growable: false);
   }
 
-  bool get showDecrementControl => _isOwner && !_isSelfAudit;
+  bool get showDecrementControl =>
+      _isOwner && !_isSelfAudit && !_checkInController.state.isCheckInReadOnly;
   String get descriptionText => description.description.isEmpty
       ? AppStrings.auditNoDescriptionAvailable
       : description.description;

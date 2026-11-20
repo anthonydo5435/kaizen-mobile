@@ -8,6 +8,7 @@ import '../../../../../core/utils/custom_functions.dart';
 import '../../../../../core/widgets/app_back_button.dart';
 import '../../../../../core/widgets/app_button.dart';
 import '../../../../../core/widgets/app_text_view.dart';
+import '../../../../../core/widgets/paid_features_unavailable_dialog.dart';
 import '../../../domain/entities/learning_module_detail_track.dart';
 import '../../providers/compliance_quiz_controller.dart';
 
@@ -31,6 +32,7 @@ class WelcomeQuizScreen extends StatefulWidget {
 
 class _WelcomeQuizScreenState extends State<WelcomeQuizScreen> {
   Future<void> _handleStartPressed() async {
+    if (showBillingRestrictionIfNeeded(context)) return;
     final quizController = context.read<ComplianceQuizController>();
     final didStart = await quizController.startQuiz(
       trackAssignmentUuid: widget.trackAssignmentUuid,

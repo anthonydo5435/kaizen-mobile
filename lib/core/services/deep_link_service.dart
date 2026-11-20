@@ -8,6 +8,7 @@ import '../managers/app_manager.dart';
 import '../managers/app_manager_remote_data_source.dart';
 import '../navigation/browser_app_link.dart';
 import '../preference/app_preference.dart';
+import '../utils/auth_controller.dart';
 
 class DeepLinkService {
   DeepLinkService._();
@@ -125,6 +126,10 @@ class DeepLinkService {
 
   bool get hasPendingAuthenticatedTarget => _pendingAuthenticatedTarget != null;
 
+  void deferAuthenticatedTarget(DeepLinkTarget target) {
+    _pendingAuthenticatedTarget ??= target;
+  }
+
   Future<DeepLinkTarget?> takePendingAuthenticatedTargetReady({
     bool markAsNavigating = false,
   }) async {
@@ -151,14 +156,16 @@ class DeepLinkService {
       return;
     }
 
-    if (target.requiresAuthentication && !_hasAuthenticatedSession()) {
+    final isCompletingLogin = _isCompletingLogin;
+    if (target.requiresAuthentication &&
+        (!_hasAuthenticatedSession() || isCompletingLogin)) {
       _pendingAuthenticatedTarget = target;
       if (_isStartupPhaseActive) {
         _completeStartupTarget(null);
         return;
       }
 
-      _navigateToLoginForAuthentication();
+      if (!isCompletingLogin) _navigateToLoginForAuthentication();
       return;
     }
 
@@ -295,7 +302,12 @@ class DeepLinkService {
 
     final payload = _decodeJwtPayload(rawToken);
     final tokenType = payload?['token_type']?.toString().trim().toLowerCase();
+    if (tokenType == 'email_verification' &&
+        (_hasAuthenticatedSession() || AuthController.pendingSignIn != null)) {
+      return DeepLinkTarget.emailVerification(rawToken);
+    }
 
+    AuthController.discardPendingSignIn();
     await AppPreference.clearTokens();
     await AppPreference.clearActiveCompany();
     await AppPreference.clearUser();
@@ -429,7 +441,7 @@ class DeepLinkService {
       organizationId: organizationId,
     );
 
-    if (!_hasAuthenticatedSession()) {
+    if (!_hasAuthenticatedSession() || _isCompletingLogin) {
       return target;
     }
 
@@ -486,6 +498,13 @@ class DeepLinkService {
 
   bool _hasAuthenticatedSession() {
     return AppPreference.getAuthToken().trim().isNotEmpty;
+  }
+
+  bool get _isCompletingLogin {
+    final routeName = AppManager.instance.currentRouteName;
+    return routeName == AppRouter.verifyEmail ||
+        (routeName == AppRouter.login &&
+            (_hasAuthenticatedSession() || AuthController.pendingSignIn != null));
   }
 
   Future<DeepLinkTarget?> _prepareAuthenticatedTarget(
@@ -744,6 +763,13 @@ class DeepLinkTarget {
         arguments: LoginSetPasswordRouteArgs(email: email, token: token),
         clearStack: true,
         requiresAuthentication: false,
+      );
+
+  DeepLinkTarget.emailVerification(String token)
+    : this._(
+        routeName: AppRouter.verifyEmail,
+        arguments: VerifyEmailRouteArgs(verificationToken: token),
+        clearStack: true,
       );
 
   DeepLinkTarget.complianceTracks(

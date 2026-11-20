@@ -28,6 +28,7 @@ import '../../../../core/widgets/app_overlay_close_button.dart';
 import '../../../../core/widgets/app_dialog_style.dart';
 import '../../../../core/widgets/app_text_view.dart';
 import '../../../../core/widgets/fast_circular_progress.dart';
+import '../../../../core/widgets/paid_features_unavailable_dialog.dart';
 import '../../data/datasources/training_library_remote_data_source.dart';
 import '../../data/repositories/training_library_repository_impl.dart';
 import '../../../compliance/presentation/pages/document/full_screen_doc.dart';
@@ -120,34 +121,25 @@ class EditTrainingScreen extends StatelessWidget {
         allowDeviceRotation: true,
         horizontalContentPadding: 8,
         builder: (context, section, headerActions, hideScreenHeader) {
-          final isLandscape =
-              MediaQuery.orientationOf(context) == Orientation.landscape;
           return Scaffold(
             backgroundColor: AppColors.mainBg,
             resizeToAvoidBottomInset: false,
             body: SafeArea(
-              top: !isLandscape,
-              left: !isLandscape,
-              right: !isLandscape,
+              top: !hideScreenHeader,
+              left: !hideScreenHeader,
+              right: !hideScreenHeader,
               bottom: false,
               child: Column(
                 children: [
                   Offstage(
                     offstage: hideScreenHeader,
                     child: SafeArea(
-                      left: !isLandscape,
-                      right: !isLandscape,
                       bottom: false,
-                      minimum: EdgeInsets.fromLTRB(
-                        isLandscape ? 12 : 8,
-                        isLandscape ? 0 : 2,
-                        isLandscape ? 12 : 8,
-                        0,
-                      ),
+                      minimum: const EdgeInsets.fromLTRB(8, 2, 8, 0),
                       child: _buildHeader(context, headerActions),
                     ),
                   ),
-                  SizedBox(height: isLandscape ? 0 : 18),
+                  SizedBox(height: hideScreenHeader ? 0 : 18),
                   Expanded(child: section),
                 ],
               ),
@@ -243,10 +235,10 @@ class EditTrainingSection extends StatelessWidget {
     final routeBasedTrainingAccess = AppManager.instance
         .canCurrentUserManageTrainingForSeatProfile(
           seatProfileId: trainingRoute.job,
+          additionalSeatProfileIds: trainingRoute.additionalSeatProfileIds,
         );
     final resolvedCanManageTraining =
-        AppManager.instance.canCurrentOrganizationModifyContent &&
-        (canManageTraining == true || routeBasedTrainingAccess);
+        canManageTraining == true || routeBasedTrainingAccess;
 
     return MultiProvider(
       providers: [
@@ -266,9 +258,17 @@ class EditTrainingSection extends StatelessWidget {
                 context.read<TrainingLibraryRepositoryImpl>(),
                 canManageTraining: resolvedCanManageTraining,
                 sopEditorFactory: context.read<TrainingSopEditorFactory?>(),
+                canGenerateForAssignedSeat: AppManager.instance
+                    .isCurrentUserAssignedToTrainingSeatProfile(
+                      seatProfileId: trainingRoute.job,
+                      additionalSeatProfileIds:
+                          trainingRoute.additionalSeatProfileIds,
+                    ),
                 canViewQuizAndAssignment: AppManager.instance
                     .canCurrentUserViewTrainingQuizAndAssignment(
                       seatProfileId: trainingRoute.job,
+                      additionalSeatProfileIds:
+                          trainingRoute.additionalSeatProfileIds,
                     ),
               )..initialize(
                 jobId: trainingRoute.job,
@@ -280,7 +280,9 @@ class EditTrainingSection extends StatelessWidget {
       ],
       child: _EditTrainingSectionView(
         initialModuleId: resolvedInitialModuleId,
+        trainingRoute: trainingRoute,
         trainingDescriptionId: trainingRoute.description,
+        canManageTraining: canManageTraining == true,
         startNewLessonWhenEmpty: startNewLessonWhenEmpty,
         isEmbedded: isEmbedded,
         skipResumeSessionRefreshOnMediaPicker:
@@ -298,7 +300,9 @@ class EditTrainingSection extends StatelessWidget {
 class _EditTrainingSectionView extends StatefulWidget {
   const _EditTrainingSectionView({
     required this.initialModuleId,
+    required this.trainingRoute,
     required this.trainingDescriptionId,
+    required this.canManageTraining,
     required this.startNewLessonWhenEmpty,
     required this.isEmbedded,
     required this.skipResumeSessionRefreshOnMediaPicker,
@@ -310,7 +314,9 @@ class _EditTrainingSectionView extends StatefulWidget {
   });
 
   final String? initialModuleId;
+  final SeatDescriptionTrainingRoute trainingRoute;
   final String trainingDescriptionId;
+  final bool canManageTraining;
   final bool startNewLessonWhenEmpty;
   final bool isEmbedded;
   final bool skipResumeSessionRefreshOnMediaPicker;
@@ -348,9 +354,9 @@ class _EditTrainingSectionViewState extends State<_EditTrainingSectionView> {
   String? _lastQuestionsErrorMessage;
   int _lastHandledSummarySnackBarSequence = 0;
   int _lastHandledGlobalVideoUploadEventSequence = 0;
-  int _lastHandledGlobalVideoSummaryEventSequence = 0;
   int _activeTrainingModalSheetCount = 0;
   late final Listenable _viewStateListenable;
+  final _suppressLandscapeVideo = ValueNotifier(false);
   bool _isLandscapeVideoFullscreen = false;
   bool _isWaitingForDevicePortrait = false;
   int _portraitResetGeneration = 0;
@@ -369,24 +375,29 @@ class _EditTrainingSectionViewState extends State<_EditTrainingSectionView> {
       _selectedTabIndex == 1 &&
       MediaQuery.orientationOf(context) == Orientation.landscape;
 
-  bool get _isLandscapeVideo =>
+  bool get _canExpandLandscapeVideo =>
       widget.allowDeviceRotation &&
       !widget.isEmbedded &&
       _selectedTabIndex == 0 &&
+      !_suppressLandscapeVideo.value &&
       _trainingController?.isCreatingNewLessonDraft != true &&
       !_isFinalizingVideoSetup &&
       (_trainingController?.selectedModuleDetail?.trainingVideo?.url
               ?.trim()
               .isNotEmpty ??
-          false) &&
+          false);
+
+  bool get _isLandscapeVideo =>
+      _canExpandLandscapeVideo &&
       MediaQuery.orientationOf(context) == Orientation.landscape;
 
-  void _syncLandscapeVideoDisplay(bool enabled) {
+  void _syncLandscapeVideoDisplay(bool fullscreen) {
     if (ModalRoute.of(context)?.isCurrent != true) return;
+    final enabled = fullscreen && _canExpandLandscapeVideo;
     if (_isLandscapeVideoFullscreen == enabled) return;
     _isLandscapeVideoFullscreen = enabled;
     unawaited(VideoPlaybackService.setFullscreen(enabled));
-    if (!enabled && _selectedTabIndex == 0) {
+    if (!enabled && _selectedTabIndex == 0 && !_isWaitingForDevicePortrait) {
       _updatePreferredOrientations();
     }
   }
@@ -394,6 +405,10 @@ class _EditTrainingSectionViewState extends State<_EditTrainingSectionView> {
   void _resetToPortrait() {
     if (_isWaitingForDevicePortrait) return;
     _isWaitingForDevicePortrait = true;
+    if (_selectedTabIndex == 0) {
+      _syncLandscapeVideoDisplay(false);
+      _suppressLandscapeVideo.value = true;
+    }
     final generation = ++_portraitResetGeneration;
     unawaited(_restoreRotationAfterDevicePortrait(generation));
   }
@@ -409,6 +424,14 @@ class _EditTrainingSectionViewState extends State<_EditTrainingSectionView> {
     }
     _isWaitingForDevicePortrait = false;
     _updatePreferredOrientations();
+    _rearmLandscapeVideoInPortrait();
+  }
+
+  void _rearmLandscapeVideoInPortrait() {
+    if (MediaQuery.orientationOf(context) == Orientation.portrait &&
+        !_isWaitingForDevicePortrait) {
+      _suppressLandscapeVideo.value = false;
+    }
   }
 
   void _cancelPortraitReset() {
@@ -433,11 +456,13 @@ class _EditTrainingSectionViewState extends State<_EditTrainingSectionView> {
   @override
   void initState() {
     super.initState();
+    AppManager.instance.addListener(_updateTrainingAccess);
     _tabNavigation = TrainingTabNavigationController()
       ..addListener(_handleTabChanged);
     _updatePreferredOrientations();
     _viewStateListenable = Listenable.merge([
       _tabNavigation,
+      _suppressLandscapeVideo,
       _isPickingVideoNotifier,
       _isFinalizingVideoSetupNotifier,
       if (widget.useNonBlockingVideoUpload)
@@ -446,8 +471,6 @@ class _EditTrainingSectionViewState extends State<_EditTrainingSectionView> {
     if (widget.useNonBlockingVideoUpload) {
       _lastHandledGlobalVideoUploadEventSequence =
           TrainingVideoUploadController.instance.latestTerminalEventSequence;
-      _lastHandledGlobalVideoSummaryEventSequence =
-          TrainingVideoUploadController.instance.latestSummaryEventSequence;
       TrainingVideoUploadController.instance.addListener(
         _handleGlobalVideoUploadChanged,
       );
@@ -458,6 +481,7 @@ class _EditTrainingSectionViewState extends State<_EditTrainingSectionView> {
   @override
   void didChangeDependencies() {
     super.didChangeDependencies();
+    _rearmLandscapeVideoInPortrait();
     final controller = context.read<TrainingModuleController>();
     if (identical(_trainingController, controller)) {
       return;
@@ -479,7 +503,19 @@ class _EditTrainingSectionViewState extends State<_EditTrainingSectionView> {
   }
 
   @override
+  void didUpdateWidget(covariant _EditTrainingSectionView oldWidget) {
+    super.didUpdateWidget(oldWidget);
+    if (oldWidget.trainingRoute.actualSeatProfileId !=
+        widget.trainingRoute.actualSeatProfileId) {
+      WidgetsBinding.instance.addPostFrameCallback((_) {
+        if (mounted) _updateTrainingAccess();
+      });
+    }
+  }
+
+  @override
   void dispose() {
+    AppManager.instance.removeListener(_updateTrainingAccess);
     _cancelPortraitReset();
     if (_isLandscapeVideoFullscreen) {
       unawaited(VideoPlaybackService.setFullscreen(false));
@@ -499,10 +535,35 @@ class _EditTrainingSectionViewState extends State<_EditTrainingSectionView> {
     }
     _tabNavigation.removeListener(_handleTabChanged);
     _tabNavigation.dispose();
+    _suppressLandscapeVideo.dispose();
     _newLessonTitleFocusNode.dispose();
     _isPickingVideoNotifier.dispose();
     _isFinalizingVideoSetupNotifier.dispose();
     super.dispose();
+  }
+
+  void _updateTrainingAccess() {
+    final appManager = AppManager.instance;
+    final route = widget.trainingRoute;
+    final additionalSeatProfileIds = route.additionalSeatProfileIds;
+    _trainingController?.updateTrainingAccess(
+      canManage:
+          widget.canManageTraining ||
+          appManager.canCurrentUserManageTrainingForSeatProfile(
+            seatProfileId: route.job,
+            additionalSeatProfileIds: additionalSeatProfileIds,
+          ),
+      canViewQuizAndAssignment: appManager
+          .canCurrentUserViewTrainingQuizAndAssignment(
+            seatProfileId: route.job,
+            additionalSeatProfileIds: additionalSeatProfileIds,
+          ),
+      canGenerateForAssignedSeat: appManager
+          .isCurrentUserAssignedToTrainingSeatProfile(
+            seatProfileId: route.job,
+            additionalSeatProfileIds: additionalSeatProfileIds,
+          ),
+    );
   }
 
   void _updatePreferredOrientations() {

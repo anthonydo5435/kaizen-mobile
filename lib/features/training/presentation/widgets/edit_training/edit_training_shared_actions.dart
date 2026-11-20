@@ -309,28 +309,37 @@ class TrainingLessonTitleField extends StatelessWidget {
 class _TrainingOutlinedTextField extends StatelessWidget {
   const _TrainingOutlinedTextField({
     required this.controller,
+    required this.focusNode,
     required this.hintText,
     required this.minLines,
     required this.maxLines,
     this.readOnly = false,
-    this.showCursor,
     this.onTap,
     this.textInputAction,
+    this.maxLength,
+    this.counterText,
+    this.outlineColor,
     this.fontSize = 14,
     this.fontWeight = FontWeight.w600,
     this.textHeight = 1.4,
     this.hintFontWeight = FontWeight.w500,
-    this.contentPadding = const EdgeInsets.symmetric(horizontal: 16, vertical: 14),
+    this.contentPadding = const EdgeInsets.symmetric(
+      horizontal: 16,
+      vertical: 14,
+    ),
   });
 
   final TextEditingController controller;
+  final FocusNode focusNode;
   final String hintText;
   final int minLines;
   final int maxLines;
   final bool readOnly;
-  final bool? showCursor;
   final VoidCallback? onTap;
   final TextInputAction? textInputAction;
+  final int? maxLength;
+  final String? counterText;
+  final Color? outlineColor;
   final double fontSize;
   final FontWeight fontWeight;
   final double textHeight;
@@ -339,16 +348,19 @@ class _TrainingOutlinedTextField extends StatelessWidget {
 
   @override
   Widget build(BuildContext context) {
+    final outline =
+        outlineColor ?? AppColors.fieldBorder.withValues(alpha: 0.16);
     return TextField(
       controller: controller,
+      focusNode: focusNode,
       autofocus: false,
       readOnly: readOnly,
-      showCursor: showCursor,
       onTap: onTap,
       cursorColor: Colors.white,
       cursorHeight: 15,
       minLines: minLines,
       maxLines: maxLines,
+      maxLength: maxLength,
       textInputAction: textInputAction,
       keyboardType: maxLines > 1 ? TextInputType.multiline : TextInputType.text,
       style: TextStyle(
@@ -359,6 +371,7 @@ class _TrainingOutlinedTextField extends StatelessWidget {
       ),
       decoration: InputDecoration(
         hintText: hintText,
+        counterText: counterText,
         hintStyle: TextStyle(
           color: AppColors.textSecondary.withValues(alpha: 0.74),
           fontSize: fontSize,
@@ -370,11 +383,11 @@ class _TrainingOutlinedTextField extends StatelessWidget {
         contentPadding: contentPadding,
         border: OutlineInputBorder(
           borderRadius: BorderRadius.circular(18),
-          borderSide: BorderSide(color: AppColors.fieldBorder.withValues(alpha: 0.16)),
+          borderSide: BorderSide(color: outline),
         ),
         enabledBorder: OutlineInputBorder(
           borderRadius: BorderRadius.circular(18),
-          borderSide: BorderSide(color: AppColors.fieldBorder.withValues(alpha: 0.16)),
+          borderSide: BorderSide(color: outline),
         ),
         focusedBorder: OutlineInputBorder(
           borderRadius: BorderRadius.circular(18),

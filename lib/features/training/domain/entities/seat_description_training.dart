@@ -118,6 +118,33 @@ class SeatDescriptionTrainingVideo {
   final String? url;
   final int duration;
   final String? transcript;
+
+  SeatDescriptionTrainingVideo withTranscript(String transcript) =>
+      SeatDescriptionTrainingVideo(
+        uuid: uuid,
+        title: title,
+        url: url,
+        duration: duration,
+        transcript: transcript,
+      );
+}
+
+class TrainingVideoProcessingJob {
+  const TrainingVideoProcessingJob({
+    required this.uuid,
+    required this.status,
+    required this.canRetry,
+    this.errorMessage,
+  });
+
+  final String uuid;
+  final String status;
+  final bool canRetry;
+  final String? errorMessage;
+
+  bool get isCompleted => status == 'completed' && !canRetry;
+  bool get isProcessing =>
+      !canRetry && (status == 'pending' || status == 'in_progress');
 }
 
 class SeatDescriptionTrainingDocument {

@@ -14,6 +14,7 @@ import '../../../../core/widgets/app_dialog_style.dart';
 import '../../../../core/widgets/app_overlay_close_button.dart';
 import '../../../../core/widgets/app_text_view.dart';
 import '../../../../core/widgets/fast_circular_progress.dart';
+import '../../../../core/widgets/paid_features_unavailable_dialog.dart';
 import '../../../../routes/app_router.dart';
 import '../../data/datasources/seat_profile_remote_data_source.dart';
 import '../../data/repositories/seat_profile_repository_impl.dart';

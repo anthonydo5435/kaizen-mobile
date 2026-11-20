@@ -1,12 +1,21 @@
 import 'package:flutter/material.dart';
 import 'package:flutter_test/flutter_test.dart';
 import 'package:sparrowkaizen/core/constants/app_strings.dart';
+import 'package:sparrowkaizen/core/managers/app_manager.dart';
+import 'package:sparrowkaizen/core/managers/models/company_billing_details.dart';
 import 'package:sparrowkaizen/core/widgets/app_gradient_action_button.dart';
 import 'package:sparrowkaizen/core/widgets/app_overlay_close_button.dart';
 import 'package:sparrowkaizen/core/widgets/fast_circular_progress.dart';
 import 'package:sparrowkaizen/core/widgets/share_dialogue.dart';
 
 void main() {
+  setUp(() {
+    AppManager.instance.saveBillingDetails(
+      CompanyBillingDetails.fromApiJson({'status': 'paid'}),
+    );
+  });
+  tearDown(() => AppManager.instance.saveBillingDetails(null));
+
   testWidgets('missing link shows module copy and only the create action', (
     tester,
   ) async {

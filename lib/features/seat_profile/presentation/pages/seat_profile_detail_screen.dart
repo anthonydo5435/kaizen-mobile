@@ -9,6 +9,7 @@ import '../../../../core/widgets/app_ai_generate_button.dart';
 import '../../../../core/widgets/app_share_button.dart';
 import '../../../../core/widgets/app_text_view.dart';
 import '../../../../core/widgets/fast_circular_progress.dart';
+import '../../../../core/widgets/paid_features_unavailable_dialog.dart';
 import '../../../../routes/app_router.dart';
 import '../../data/datasources/seat_profile_remote_data_source.dart';
 import '../../data/repositories/seat_profile_repository_impl.dart';
@@ -326,7 +327,10 @@ class _DetailActionRow extends StatelessWidget {
         Expanded(
           child: SeatProfileDottedActionButton(
             label: AppStrings.seatProfileUpdateCategoryAction,
-            onTap: isEnabled && !isBusy ? onUpdateCategory : null,
+            onTap: guardPaidAction(
+              context,
+              isEnabled && !isBusy ? onUpdateCategory : null,
+            ),
           ),
         ),
         const SizedBox(width: 12),

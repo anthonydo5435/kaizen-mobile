@@ -8,6 +8,7 @@ import '../../../../core/constants/app_strings.dart';
 import '../../../../core/widgets/app_button.dart';
 import '../../../../core/widgets/app_text_view.dart';
 import '../../../../core/widgets/fast_circular_progress.dart';
+import '../../../../core/widgets/paid_features_unavailable_dialog.dart';
 import '../../domain/entities/audit_description_audit.dart';
 import '../../domain/entities/quarterly_audit.dart';
 import '../providers/check_in_controller.dart';
@@ -486,7 +487,7 @@ class _SelectionCounter extends StatelessWidget {
       children: [
         InkWell(
           borderRadius: BorderRadius.circular(12),
-          onTap: hasReachedLimit ? null : onTapCount,
+          onTap: guardPaidAction(context, hasReachedLimit ? null : onTapCount),
           child: Container(
             width: 42,
             height: 42,
@@ -507,7 +508,7 @@ class _SelectionCounter extends StatelessWidget {
           const SizedBox(height: 12),
           InkWell(
             borderRadius: BorderRadius.circular(12),
-            onTap: onTapArrow,
+            onTap: guardPaidAction(context, onTapArrow),
             child: Container(
               width: 42,
               height: 24,

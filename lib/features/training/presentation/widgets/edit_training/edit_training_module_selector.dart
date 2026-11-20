@@ -212,7 +212,7 @@ class _NewLessonCard extends StatelessWidget {
       color: isSelected ? AppColors.secondaryColor.withValues(alpha: 0.08) : Colors.transparent,
       borderRadius: BorderRadius.circular(12),
       child: InkWell(
-        onTap: onTap,
+        onTap: guardPaidAction(context, onTap),
         borderRadius: BorderRadius.circular(12),
         child: CustomPaint(
           foregroundPainter: const _DottedRoundedBorderPainter(
@@ -300,7 +300,6 @@ class _ModuleSelectionSheet extends StatelessWidget {
         child: Container(
           width: double.infinity,
           constraints: BoxConstraints(
-            maxWidth: 620,
             maxHeight: MediaQuery.sizeOf(context).height * 0.85,
           ),
           decoration: const BoxDecoration(
@@ -420,7 +419,7 @@ class _AddNewLessonSheetButton extends StatelessWidget {
       gapLength: 3,
     ),
     child: OutlinedButton.icon(
-      onPressed: onTap,
+      onPressed: guardPaidAction(context, onTap),
       style: OutlinedButton.styleFrom(
         backgroundColor: Colors.transparent,
         foregroundColor: AppColors.secondaryColor,

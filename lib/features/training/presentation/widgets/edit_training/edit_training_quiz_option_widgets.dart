@@ -23,9 +23,7 @@ class _DraftQuizOptionTile extends StatelessWidget {
       decoration: BoxDecoration(
         color: Colors.white.withValues(alpha: 0.025),
         borderRadius: BorderRadius.circular(16),
-        border: Border.all(
-          color: AppColors.fieldBorder.withValues(alpha: 0.18),
-        ),
+        border: Border.all(color: AppColors.fieldBorder.withValues(alpha: 0.18)),
       ),
       child: Row(
         crossAxisAlignment: CrossAxisAlignment.center,
@@ -36,12 +34,8 @@ class _DraftQuizOptionTile extends StatelessWidget {
             child: Padding(
               padding: const EdgeInsets.only(right: 10, top: 2, bottom: 2),
               child: Icon(
-                isSelected
-                    ? Icons.radio_button_checked_rounded
-                    : Icons.radio_button_off_rounded,
-                color: isSelected
-                    ? AppColors.secondaryColor
-                    : AppColors.textSecondary,
+                isSelected ? Icons.radio_button_checked_rounded : Icons.radio_button_off_rounded,
+                color: isSelected ? AppColors.secondaryColor : AppColors.textSecondary,
                 size: 18,
               ),
             ),
@@ -182,12 +176,8 @@ class _QuizOptionTile extends StatelessWidget {
             child: Padding(
               padding: const EdgeInsets.only(top: 2, right: 10, bottom: 2),
               child: Icon(
-                isSelected
-                    ? Icons.radio_button_checked_rounded
-                    : Icons.radio_button_off_rounded,
-                color: isSelected
-                    ? AppColors.secondaryColor
-                    : AppColors.textSecondary,
+                isSelected ? Icons.radio_button_checked_rounded : Icons.radio_button_off_rounded,
+                color: isSelected ? AppColors.secondaryColor : AppColors.textSecondary,
                 size: 18,
               ),
             ),
@@ -226,28 +216,18 @@ class _QuizOptionTile extends StatelessWidget {
   }
 }
 
-class _QuizEmptyStateCard extends StatelessWidget {
-  const _QuizEmptyStateCard();
+class _QuizEmptyState extends StatelessWidget {
+  const _QuizEmptyState();
 
   @override
   Widget build(BuildContext context) {
-    return Container(
-      width: double.infinity,
-      decoration: BoxDecoration(
-        color: AppColors.surfaceDark2.withValues(alpha: 0.38),
-        borderRadius: BorderRadius.circular(18),
-        border: Border.all(
-          color: AppColors.fieldBorder.withValues(alpha: 0.16),
-        ),
-      ),
-      child: const Center(
-        child: Padding(
-          padding: EdgeInsets.symmetric(horizontal: 24),
-          child: AppTextView.body3(
-            AppStrings.trainingNoQuizQuestionsAvailable,
-            color: AppColors.textSecondary,
-            textAlign: TextAlign.center,
-          ),
+    return const Center(
+      child: Padding(
+        padding: EdgeInsets.symmetric(horizontal: 24),
+        child: AppTextView.body3(
+          AppStrings.trainingNoQuizQuestionsAvailable,
+          color: AppColors.textSecondary,
+          textAlign: TextAlign.center,
         ),
       ),
     );
@@ -267,9 +247,7 @@ class _ContentMessage extends StatelessWidget {
       decoration: BoxDecoration(
         color: AppColors.surfaceDark2.withValues(alpha: 0.38),
         borderRadius: BorderRadius.circular(18),
-        border: Border.all(
-          color: AppColors.fieldBorder.withValues(alpha: 0.16),
-        ),
+        border: Border.all(color: AppColors.fieldBorder.withValues(alpha: 0.16)),
       ),
       child: AppTextView.body3(
         message,
@@ -305,9 +283,7 @@ class _DottedRoundedBorderPainter extends CustomPainter {
       ..strokeWidth = strokeWidth;
 
     final path = Path()
-      ..addRRect(
-        RRect.fromRectAndRadius(Offset.zero & size, Radius.circular(radius)),
-      );
+      ..addRRect(RRect.fromRectAndRadius(Offset.zero & size, Radius.circular(radius)));
 
     for (final metric in path.computeMetrics()) {
       var distance = 0.0;
