@@ -34,6 +34,7 @@ void main() {
             'job': 'b8a99b8b-6a6a-46ed-9bd7-3408b1edf09b',
             'job_category': '54760b19-1b8f-4f1c-bfdf-935b88f2d861',
             'job_category_description': '30f1c014-c7ec-41ee-8414-f0009c6e53f8',
+            'module_type': 'job_based',
             'page': page,
             'page_size': 10,
             'view': 'list',
@@ -84,6 +85,7 @@ void main() {
         );
 
         expect(apiCallExecutor.capturedParameters, <String, dynamic>{
+          'module_type': 'job_based',
           'page': 2,
           'page_size': 10,
           'view': 'list',
@@ -108,6 +110,7 @@ void main() {
       );
 
       expect(apiCallExecutor.capturedParameters, <String, dynamic>{
+        'module_type': 'job_based',
         'page': 1,
         'page_size': 10,
         'view': 'list',

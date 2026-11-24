@@ -14,6 +14,7 @@ Future<TrainingLibraryLessonAction?> showTrainingLibraryLessonActionsSheet(
   BuildContext context, {
   required bool canEdit,
   required bool isPubliclyAvailable,
+  bool showVisibility = true,
 }) async {
   if (!canEdit) {
     return null;
@@ -26,6 +27,7 @@ Future<TrainingLibraryLessonAction?> showTrainingLibraryLessonActionsSheet(
     builder: (context) => TrainingLibraryLessonActionsSheet(
       canEdit: canEdit,
       isPubliclyAvailable: isPubliclyAvailable,
+      showVisibility: showVisibility,
       onSelected: (action) => Navigator.of(context).pop(action),
       onClose: () => Navigator.of(context).pop(),
     ),
@@ -37,12 +39,14 @@ class TrainingLibraryLessonActionsSheet extends StatelessWidget {
     super.key,
     required this.canEdit,
     required this.isPubliclyAvailable,
+    this.showVisibility = true,
     required this.onSelected,
     required this.onClose,
   });
 
   final bool canEdit;
   final bool isPubliclyAvailable;
+  final bool showVisibility;
   final ValueChanged<TrainingLibraryLessonAction> onSelected;
   final VoidCallback onClose;
 
@@ -92,43 +96,45 @@ class TrainingLibraryLessonActionsSheet extends StatelessWidget {
                 const SizedBox(height: 28),
                 const AppDotDivider(),
                 const SizedBox(height: 28),
-                _LessonActionTile(
-                  title: AppStrings.visibilityLabel,
-                  icon: const Icon(
-                    Icons.person_outline_rounded,
-                    color: AppColors.textPrimary,
-                    size: 28,
-                  ),
-                  iconBackground: AppColors.secondaryColor,
-                  onTap: canEdit
-                      ? () => onSelected(TrainingLibraryLessonAction.visibility)
-                      : null,
-                  showArrow: canEdit,
-                  subtitle: Text.rich(
-                    TextSpan(
-                      text: AppStrings.trainingLibraryVisibilityPrefix,
-                      children: [
-                        TextSpan(
-                          text: isPubliclyAvailable
-                              ? AppStrings.trainingLibraryAllVisibility
-                              : AppStrings.trainingLibraryRestrictedVisibility,
-                          style: TextStyle(
-                            color: AppColors.secondaryColor,
-                            fontWeight: FontWeight.w500,
-                            fontSize: 14,
-                          ),
-                        ),
-                      ],
-                    ),
-                    style: const TextStyle(
+                if (showVisibility) ...[
+                  _LessonActionTile(
+                    title: AppStrings.visibilityLabel,
+                    icon: const Icon(
+                      Icons.person_outline_rounded,
                       color: AppColors.textPrimary,
-                      fontSize: 14,
-                      height: 1.25,
+                      size: 28,
+                    ),
+                    iconBackground: AppColors.secondaryColor,
+                    onTap: () =>
+                        onSelected(TrainingLibraryLessonAction.visibility),
+                    showArrow: true,
+                    subtitle: Text.rich(
+                      TextSpan(
+                        text: AppStrings.trainingLibraryVisibilityPrefix,
+                        children: [
+                          TextSpan(
+                            text: isPubliclyAvailable
+                                ? AppStrings.trainingLibraryAllVisibility
+                                : AppStrings
+                                      .trainingLibraryRestrictedVisibility,
+                            style: const TextStyle(
+                              color: AppColors.secondaryColor,
+                              fontWeight: FontWeight.w500,
+                              fontSize: 14,
+                            ),
+                          ),
+                        ],
+                      ),
+                      style: const TextStyle(
+                        color: AppColors.textPrimary,
+                        fontSize: 14,
+                        height: 1.25,
+                      ),
                     ),
                   ),
-                ),
-                if (canEdit) ...[
                   const SizedBox(height: 12),
+                ],
+                if (canEdit) ...[
                   _LessonActionTile(
                     title: AppStrings.trainingDeleteModuleAction,
                     icon: SvgPicture.asset(

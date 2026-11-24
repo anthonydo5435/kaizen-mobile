@@ -232,13 +232,15 @@ class EditTrainingSection extends StatelessWidget {
         ? initialModuleId
         : trainingRoute.initialModuleId;
 
-    final routeBasedTrainingAccess = AppManager.instance
-        .canCurrentUserManageTrainingForSeatProfile(
-          seatProfileId: trainingRoute.job,
-          additionalSeatProfileIds: trainingRoute.additionalSeatProfileIds,
-        );
-    final resolvedCanManageTraining =
-        canManageTraining == true || routeBasedTrainingAccess;
+    final appManager = AppManager.instance;
+    final resolvedCanManageTraining = trainingRoute.isGeneral
+        ? appManager.currentUserCanManageGeneralTrainingModules
+        : canManageTraining == true ||
+              appManager.canCurrentUserManageTrainingForSeatProfile(
+                seatProfileId: trainingRoute.job,
+                additionalSeatProfileIds:
+                    trainingRoute.additionalSeatProfileIds,
+              );
 
     return MultiProvider(
       providers: [
@@ -258,14 +260,16 @@ class EditTrainingSection extends StatelessWidget {
                 context.read<TrainingLibraryRepositoryImpl>(),
                 canManageTraining: resolvedCanManageTraining,
                 sopEditorFactory: context.read<TrainingSopEditorFactory?>(),
-                canGenerateForAssignedSeat: AppManager.instance
-                    .isCurrentUserAssignedToTrainingSeatProfile(
+                canGenerateForAssignedSeat:
+                    !trainingRoute.isGeneral &&
+                    appManager.isCurrentUserAssignedToTrainingSeatProfile(
                       seatProfileId: trainingRoute.job,
                       additionalSeatProfileIds:
                           trainingRoute.additionalSeatProfileIds,
                     ),
-                canViewQuizAndAssignment: AppManager.instance
-                    .canCurrentUserViewTrainingQuizAndAssignment(
+                canViewQuizAndAssignment:
+                    !trainingRoute.isGeneral &&
+                    appManager.canCurrentUserViewTrainingQuizAndAssignment(
                       seatProfileId: trainingRoute.job,
                       additionalSeatProfileIds:
                           trainingRoute.additionalSeatProfileIds,
@@ -275,6 +279,7 @@ class EditTrainingSection extends StatelessWidget {
                 descriptionId: trainingRoute.description,
                 initialModuleId: resolvedInitialModuleId,
                 startNewLessonWhenEmpty: startNewLessonWhenEmpty,
+                isGeneralLesson: trainingRoute.isGeneral,
               ),
         ),
       ],
@@ -545,6 +550,14 @@ class _EditTrainingSectionViewState extends State<_EditTrainingSectionView> {
   void _updateTrainingAccess() {
     final appManager = AppManager.instance;
     final route = widget.trainingRoute;
+    if (route.isGeneral) {
+      _trainingController?.updateTrainingAccess(
+        canManage: appManager.currentUserCanManageGeneralTrainingModules,
+        canViewQuizAndAssignment: false,
+        canGenerateForAssignedSeat: false,
+      );
+      return;
+    }
     final additionalSeatProfileIds = route.additionalSeatProfileIds;
     _trainingController?.updateTrainingAccess(
       canManage:
@@ -619,11 +632,13 @@ class _EditTrainingSectionViewState extends State<_EditTrainingSectionView> {
               widget.builder?.call(
                 context,
                 section,
-                _TrainingHeaderActions(
-                  controller: controller,
-                  onShowAllLessons: () => _showAllLessons(controller),
-                  onAddLesson: () => _startNewLesson(controller),
-                ),
+                widget.trainingRoute.isGeneral
+                    ? const SizedBox.shrink()
+                    : _TrainingHeaderActions(
+                        controller: controller,
+                        onShowAllLessons: () => _showAllLessons(controller),
+                        onAddLesson: () => _startNewLesson(controller),
+                      ),
                 isLandscapeExpanded,
               ) ??
               section,

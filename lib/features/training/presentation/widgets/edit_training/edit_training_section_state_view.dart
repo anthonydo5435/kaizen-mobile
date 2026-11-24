@@ -239,13 +239,15 @@ extension _EditTrainingSectionViewStateView on _EditTrainingSectionViewState {
 
     if (tabIndex == 0) {
       final canRetrySummary = controller.canRetrySelectedVideoProcessing;
+      final localVideoPath = controller.selectedModuleLocalVideoPath;
       return _VideoTabContent(
+        initializeOnDemand: !widget.isEmbedded && localVideoPath == null,
         fullscreenInLandscape: _canExpandLandscapeVideo,
         onExitLandscapeFullscreen: widget.allowDeviceRotation
             ? _resetToPortrait
             : null,
         detail: controller.selectedModuleDetail,
-        localVideoPath: controller.selectedModuleLocalVideoPath,
+        localVideoPath: localVideoPath,
         isReadOnly: !controller.canManageTraining,
         isUploadEnabled:
             controller.canUploadSelectedModuleVideo &&

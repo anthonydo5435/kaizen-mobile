@@ -6,8 +6,17 @@ class SeatDescriptionTrainingRoute {
     this.actualSeatProfileId,
     this.actualSeatProfileIdLookup,
     this.initialModuleId,
-  });
+  }) : isGeneral = false;
 
+  const SeatDescriptionTrainingRoute.general({this.initialModuleId})
+    : job = '',
+      category = '',
+      description = '',
+      actualSeatProfileId = null,
+      actualSeatProfileIdLookup = null,
+      isGeneral = true;
+
+  final bool isGeneral;
   final String job;
   final String category;
   final String description;

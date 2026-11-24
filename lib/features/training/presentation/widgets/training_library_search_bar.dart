@@ -5,13 +5,18 @@ import '../../../../core/widgets/app_listing_search_bar.dart';
 import '../controllers/training_library_controller.dart';
 
 class TrainingLibrarySearchBar extends StatefulWidget {
-  const TrainingLibrarySearchBar({super.key, required this.controller, required this.onSelectSeat});
+  const TrainingLibrarySearchBar({
+    super.key,
+    required this.controller,
+    required this.onSelectSeat,
+  });
 
   final TrainingLibraryController controller;
-  final VoidCallback onSelectSeat;
+  final VoidCallback? onSelectSeat;
 
   @override
-  State<TrainingLibrarySearchBar> createState() => _TrainingLibrarySearchBarState();
+  State<TrainingLibrarySearchBar> createState() =>
+      _TrainingLibrarySearchBarState();
 }
 
 class _TrainingLibrarySearchBarState extends State<TrainingLibrarySearchBar> {

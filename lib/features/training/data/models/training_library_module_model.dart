@@ -90,11 +90,14 @@ class TrainingLibraryModuleModel extends TrainingLibraryModule {
     required super.thumbnailLink,
     required super.category,
     super.descriptionId,
+    super.moduleType,
   });
 
   factory TrainingLibraryModuleModel.fromApiJson(Map<String, dynamic> json) {
     final descriptionJson = json['description'];
     final description = _readDescription(descriptionJson);
+    final isGeneral =
+        json['module_type'] == TrainingModuleType.general.apiValue;
     final isLessonListing =
         descriptionJson is Map<String, dynamic> ||
         (json['training_modules'] is! List && json.containsKey('duration'));
@@ -127,12 +130,15 @@ class TrainingLibraryModuleModel extends TrainingLibraryModule {
       department: department,
       totalDuration: _readInt(json['duration'] ?? json['total_duration']),
       seat: seat,
-      lessons: isLessonListing
+      lessons: isGeneral || isLessonListing
           ? [TrainingLibraryLessonModel.fromApiJson(json)]
           : _readLessons(json['training_modules']),
       thumbnailLink: _readNullableString(json['thumbnail_link']),
       category: category,
-      descriptionId: isLessonListing
+      moduleType: isGeneral
+          ? TrainingModuleType.general
+          : TrainingModuleType.jobBased,
+      descriptionId: !isGeneral && isLessonListing
           ? (descriptionJson is Map<String, dynamic>
                 ? _readString(descriptionJson['uuid'])
                 : '')

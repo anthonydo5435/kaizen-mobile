@@ -1017,6 +1017,7 @@ class TrainingModuleController extends ChangeNotifier {
   String? _deletingQuestionOptionKey;
   String? _deletingModuleId;
   String? _updatingModuleVisibilityId;
+  bool _isGeneralLesson = false;
   String _jobId = '';
   String _descriptionId = '';
   int _summarySnackBarSequence = 0;
@@ -1416,15 +1417,17 @@ class TrainingModuleController extends ChangeNotifier {
     required String descriptionId,
     String? initialModuleId,
     bool startNewLessonWhenEmpty = false,
+    bool isGeneralLesson = false,
   }) async {
     final resolvedJobId = jobId.trim();
     final resolvedDescriptionId = descriptionId.trim();
-    if (resolvedDescriptionId.isEmpty) {
+    if (!isGeneralLesson && resolvedDescriptionId.isEmpty) {
       _errorMessage = AppStrings.loginSomethingWentWrong;
       notifyListeners();
       return;
     }
 
+    _isGeneralLesson = isGeneralLesson;
     _jobId = resolvedJobId;
     _descriptionId = resolvedDescriptionId;
     _isLoading = true;
@@ -1442,6 +1445,22 @@ class TrainingModuleController extends ChangeNotifier {
     _resetEditors();
     newLessonTitleController.clear();
     notifyListeners();
+
+    if (isGeneralLesson) {
+      _selectedModuleId = initialModuleId?.trim() ?? '';
+      if (_selectedModuleId.isNotEmpty) {
+        await _loadSelectedModuleDetail();
+      } else {
+        _isLoading = false;
+        if (startNewLessonWhenEmpty && _canManageTraining) {
+          startCreatingNewLessonDraft();
+        } else {
+          _errorMessage = AppStrings.trainingGeneralLessonCreateAccessDenied;
+          notifyListeners();
+        }
+      }
+      return;
+    }
 
     try {
       final modules = await _trainingRepository
@@ -1489,6 +1508,7 @@ class TrainingModuleController extends ChangeNotifier {
       return;
     }
 
+    _isGeneralLesson = false;
     _jobId = '';
     _descriptionId = '';
     _isCreatingNewLessonDraft = false;
@@ -1511,16 +1531,23 @@ class TrainingModuleController extends ChangeNotifier {
       return;
     }
 
-    _modules = <SeatDescriptionTrainingModule>[
+    _setStandaloneModule(resolvedLessonId, detail);
+    notifyListeners();
+  }
+
+  void _setStandaloneModule(
+    String moduleId,
+    SeatDescriptionTrainingModuleDetail detail,
+  ) {
+    _modules = [
       SeatDescriptionTrainingModule(
-        uuid: resolvedLessonId,
+        uuid: moduleId,
         actualId: detail.actualId,
         title: detail.title,
         thumbnailLink: detail.previewThumbnailLink,
         isPubliclyAvailable: detail.isPubliclyAvailable,
       ),
     ];
-    notifyListeners();
   }
 
   Future<void> selectModule(String moduleId) async {
@@ -1591,8 +1618,7 @@ class TrainingModuleController extends ChangeNotifier {
     if (!_canManageTraining ||
         _isCreatingModule ||
         resolvedTitle.isEmpty ||
-        _jobId.isEmpty ||
-        _descriptionId.isEmpty) {
+        (!_isGeneralLesson && (_jobId.isEmpty || _descriptionId.isEmpty))) {
       return false;
     }
 
@@ -1601,14 +1627,22 @@ class TrainingModuleController extends ChangeNotifier {
     notifyListeners();
 
     try {
-      final createdModule = await _trainingRepository
-          .createSeatDescriptionTrainingModule(
-            jobId: _jobId,
-            descriptionId: _descriptionId,
-            title: resolvedTitle,
-          );
-      final refreshedModules = await _trainingRepository
-          .getSeatDescriptionTrainingModules(descriptionId: _descriptionId);
+      final createdModule = _isGeneralLesson
+          ? await _trainingRepository.createGeneralTrainingModule(
+              title: resolvedTitle,
+            )
+          : await _trainingRepository.createSeatDescriptionTrainingModule(
+              jobId: _jobId,
+              descriptionId: _descriptionId,
+              title: resolvedTitle,
+            );
+      if (_isDisposed) return false;
+      final refreshedModules = _isGeneralLesson
+          ? [createdModule]
+          : await _trainingRepository.getSeatDescriptionTrainingModules(
+              descriptionId: _descriptionId,
+            );
+      if (_isDisposed) return false;
       final resolvedModules = refreshedModules.isNotEmpty
           ? refreshedModules
           : <SeatDescriptionTrainingModule>[createdModule];
@@ -1636,7 +1670,7 @@ class TrainingModuleController extends ChangeNotifier {
       return false;
     } finally {
       _isCreatingModule = false;
-      notifyListeners();
+      if (!_isDisposed) notifyListeners();
     }
   }
 
@@ -2876,7 +2910,7 @@ class TrainingModuleController extends ChangeNotifier {
 
   Future<bool> uploadThumbnailForSelectedModule(File imageFile) async {
     if (!_canManageTraining ||
-        _descriptionId.isEmpty ||
+        (!_isGeneralLesson && _descriptionId.isEmpty) ||
         _selectedModuleId.trim().isEmpty ||
         _isUploadingThumbnail ||
         _isUploadingVideo ||
@@ -2899,11 +2933,12 @@ class TrainingModuleController extends ChangeNotifier {
         fileBytes: await imageFile.readAsBytes(),
         contentType: contentType,
       );
-      final refreshedModules = await _trainingRepository
-          .getSeatDescriptionTrainingModules(
-            descriptionId: _descriptionId,
-            forceRefresh: true,
-          );
+      final refreshedModules = _isGeneralLesson
+          ? _modules
+          : await _trainingRepository.getSeatDescriptionTrainingModules(
+              descriptionId: _descriptionId,
+              forceRefresh: true,
+            );
       final selectedModule = _resolveSelectedModuleForThumbnailUpdate(
         refreshedModules,
       );
@@ -3185,11 +3220,10 @@ class TrainingModuleController extends ChangeNotifier {
         _syncDocumentEditorText();
       } else {
         final detail = await _trainingRepository
-            .getSeatDescriptionTrainingModuleDetail(
-              moduleId: moduleId,
-            );
+            .getSeatDescriptionTrainingModuleDetail(moduleId: moduleId);
         if (!isCurrentRequest()) return;
         _selectedModuleDetail = detail;
+        if (_isGeneralLesson) _setStandaloneModule(moduleId, detail);
       }
       if (_selectedModuleDetail?.trainingVideo == null) {
         _moduleLocalVideoPaths.remove(_selectedModuleId.trim());

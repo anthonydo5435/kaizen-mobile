@@ -1,3 +1,4 @@
+import '../entities/training_library_module.dart';
 import '../entities/training_library_page.dart';
 import '../repositories/training_library_repository.dart';
 
@@ -10,6 +11,7 @@ class GetTrainingLibraryModulesUseCase {
     required String view,
     required int page,
     int pageSize = 10,
+    TrainingModuleType moduleType = TrainingModuleType.jobBased,
     String searchType = 'category',
     String searchText = '',
     String? departmentId,
@@ -22,6 +24,7 @@ class GetTrainingLibraryModulesUseCase {
       view: view,
       page: page,
       pageSize: pageSize,
+      moduleType: moduleType,
       searchType: searchType,
       searchText: searchText,
       departmentId: departmentId,

@@ -1,4 +1,5 @@
 import '../../domain/entities/seat_description_training.dart';
+import '../../domain/entities/training_library_module.dart';
 import '../../domain/entities/training_library_page.dart';
 import '../../domain/entities/lms_public_link.dart';
 import '../../domain/repositories/training_library_repository.dart';
@@ -31,6 +32,7 @@ class TrainingLibraryRepositoryImpl implements TrainingLibraryRepository {
     required String view,
     required int page,
     int pageSize = 10,
+    TrainingModuleType moduleType = TrainingModuleType.jobBased,
     String searchType = 'category',
     String searchText = '',
     String? departmentId,
@@ -43,6 +45,7 @@ class TrainingLibraryRepositoryImpl implements TrainingLibraryRepository {
       view: view,
       page: page,
       pageSize: pageSize,
+      moduleType: moduleType,
       searchType: searchType,
       searchText: searchText,
       departmentId: departmentId,
@@ -77,6 +80,11 @@ class TrainingLibraryRepositoryImpl implements TrainingLibraryRepository {
       title: title,
     );
   }
+
+  @override
+  Future<SeatDescriptionTrainingModule> createGeneralTrainingModule({
+    required String title,
+  }) => _remoteDataSource.createGeneralTrainingModule(title: title);
 
   @override
   Future<SeatDescriptionTrainingModuleDetail>

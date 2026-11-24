@@ -24,6 +24,7 @@ class _VideoTabContent extends StatelessWidget {
     this.isGeneratingSummary = false,
     this.isWritingSummary = false,
     this.contentHorizontalPadding = 0,
+    this.initializeOnDemand = false,
     this.fullscreenInLandscape = false,
     this.onExitLandscapeFullscreen,
     this.onUploadVideoTap,
@@ -57,6 +58,7 @@ class _VideoTabContent extends StatelessWidget {
   final bool isGeneratingSummary;
   final bool isWritingSummary;
   final double contentHorizontalPadding;
+  final bool initializeOnDemand;
   final bool fullscreenInLandscape;
   final VoidCallback? onExitLandscapeFullscreen;
   final VoidCallback? onUploadVideoTap;
@@ -90,6 +92,7 @@ class _VideoTabContent extends StatelessWidget {
       children: [
         if (canRevealVideo)
           ComplianceVideoTranscriptPanel(
+            initializeOnDemand: initializeOnDemand,
             fullscreenInLandscape: fullscreenInLandscape,
             onExitLandscapeFullscreen: onExitLandscapeFullscreen,
             videoId: (detail?.uuid, video?.uuid),
@@ -98,6 +101,7 @@ class _VideoTabContent extends StatelessWidget {
             localVideoPath: localVideoPath,
             title: detail?.title ?? '',
             thumbnailLink: detail?.previewThumbnailLink,
+            previewDuration: Duration(seconds: video?.duration ?? 0),
             activeCaptionMaxLines: 1,
             topRightActions: !isReadOnly
                 ? [

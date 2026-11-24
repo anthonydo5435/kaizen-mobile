@@ -92,9 +92,11 @@ class _TrainingLibraryResultAreaState extends State<TrainingLibraryResultArea> {
         physics: const AlwaysScrollableScrollPhysics(
           parent: ClampingScrollPhysics(),
         ),
-        children: const [
+        children: [
           TrainingLibraryStatusState(
-            message: AppStrings.trainingLibraryNoModulesFound,
+            message: controller.isGeneralListing
+                ? AppStrings.trainingLibraryNoGeneralLessons
+                : AppStrings.trainingLibraryNoModulesFound,
           ),
         ],
       );
