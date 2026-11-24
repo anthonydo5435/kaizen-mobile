@@ -123,10 +123,8 @@ class VideoPlaybackService {
         );
 
         try {
-          await localController.initialize();
-          return localController;
+          return await _initializeController(localController);
         } catch (error) {
-          await localController.dispose();
           debugPrint(
             'Local video initialization failed for $resolvedLocalFilePath: $error',
           );
@@ -151,10 +149,15 @@ class VideoPlaybackService {
     final videoUri = Uri.parse(resolvedUrl);
     final cacheKey = _cacheKeyFor(videoUri);
 
-    final cachedFile = await _getValidCachedFile(
-      cacheKey: cacheKey,
-      cacheMaxAge: cacheMaxAge,
-    );
+    File? cachedFile;
+    try {
+      cachedFile = await _getValidCachedFile(
+        cacheKey: cacheKey,
+        cacheMaxAge: cacheMaxAge,
+      );
+    } catch (_) {
+      // Cache access is optional. The player can still stream the video.
+    }
     if (cachedFile != null) {
       final cachedController = VideoPlayerController.file(
         cachedFile,
@@ -163,14 +166,16 @@ class VideoPlaybackService {
       );
 
       try {
-        await cachedController.initialize();
-        return cachedController;
+        return await _initializeController(cachedController);
       } catch (error) {
-        await cachedController.dispose();
         debugPrint(
           'Cached video initialization failed for $resolvedUrl: $error',
         );
-        await _removeCachedFileByKey(cacheKey);
+        try {
+          await _removeCachedFileByKey(cacheKey);
+        } catch (_) {
+          // A failed cache eviction must not prevent network playback.
+        }
       }
     }
 
@@ -180,8 +185,7 @@ class VideoPlaybackService {
       videoPlayerOptions: videoPlayerOptions,
       viewType: viewType,
     );
-    await controller.initialize();
-    return controller;
+    return _initializeController(controller);
   }
 
   static Future<VideoPlayerController?> acquireInitializedController(
@@ -308,8 +312,20 @@ class VideoPlaybackService {
             videoPlayerOptions: videoPlayerOptions,
             viewType: viewType,
           );
-    await controller.initialize();
-    return controller;
+    return _initializeController(controller);
+  }
+
+  static Future<VideoPlayerController> _initializeController(
+    VideoPlayerController controller,
+  ) async {
+    try {
+      await controller.initialize();
+      return controller;
+    } catch (_) {
+      // A failed native creation can leave the plugin waiting for a player ID.
+      controller.dispose().ignore();
+      rethrow;
+    }
   }
 
   static Future<void> _warmUpResolvedUri(
