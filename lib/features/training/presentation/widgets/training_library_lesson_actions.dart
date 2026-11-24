@@ -13,11 +13,13 @@ Future<void> showTrainingLibraryLessonActions(
   required TrainingLibraryLesson lesson,
 }) => controller.showLessonActions(
   lesson,
-  selectAction: (canEdit, isPubliclyAvailable) => showTrainingLibraryLessonActionsSheet(
-    context,
-    canEdit: canEdit,
-    isPubliclyAvailable: isPubliclyAvailable,
-  ),
+  selectAction: (canEdit, isPubliclyAvailable) =>
+      showTrainingLibraryLessonActionsSheet(
+        context,
+        canEdit: canEdit,
+        showVisibility: !controller.module.isGeneral,
+        isPubliclyAvailable: isPubliclyAvailable,
+      ),
   openEditor: (route, lessonId, canManageTraining) async {
     if (!context.mounted) return;
     await Navigator.of(context).push<void>(

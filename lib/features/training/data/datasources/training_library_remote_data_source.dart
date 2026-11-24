@@ -10,6 +10,7 @@ import '../../../../core/preference/app_preference.dart';
 import '../../../../core/services/file_uploader.dart';
 import '../../domain/entities/lms_public_link.dart';
 import '../../domain/entities/seat_description_training.dart';
+import '../../domain/entities/training_library_module.dart';
 import '../models/seat_description_training_model.dart';
 import '../models/training_library_page_model.dart';
 
@@ -92,6 +93,7 @@ class TrainingLibraryRemoteDataSource {
     required String view,
     required int page,
     int pageSize = 10,
+    TrainingModuleType moduleType = TrainingModuleType.jobBased,
     String searchType = 'category',
     String searchText = '',
     String? departmentId,
@@ -110,10 +112,11 @@ class TrainingLibraryRemoteDataSource {
           'job_category': jobCategoryId!.trim(),
         if (jobCategoryDescriptionId?.trim().isNotEmpty ?? false)
           'job_category_description': jobCategoryDescriptionId!.trim(),
+        'module_type': moduleType.apiValue,
         'page': page,
         'page_size': pageSize,
         'view': view,
-        'searchType': searchType,
+        if (moduleType == TrainingModuleType.jobBased) 'searchType': searchType,
         if (departmentId?.trim().isNotEmpty ?? false)
           'department': departmentId!.trim(),
         if (searchText.trim().isNotEmpty) 'search': searchText.trim(),
@@ -169,16 +172,27 @@ class TrainingLibraryRemoteDataSource {
     required String jobId,
     required String descriptionId,
     required String title,
-  }) {
+  }) => _createTrainingModule({
+    'job': jobId,
+    'job_category_description': descriptionId,
+    'title': title,
+  });
+
+  Future<SeatDescriptionTrainingModule> createGeneralTrainingModule({
+    required String title,
+  }) => _createTrainingModule({
+    'module_type': TrainingModuleType.general.apiValue,
+    'title': title,
+  });
+
+  Future<SeatDescriptionTrainingModule> _createTrainingModule(
+    Map<String, dynamic> parameters,
+  ) {
     return _apiCallExecutor.processApi<SeatDescriptionTrainingModule>(
       apiCallType: ApiCallType.post,
       endpoint: ApiEndPoints.trainingModules,
       authToken: AppPreference.getAuthToken(),
-      parameters: {
-        'job': jobId,
-        'job_category_description': descriptionId,
-        'title': title,
-      },
+      parameters: parameters,
       decoder: (json) {
         if (json is! Map<String, dynamic>) {
           throw const ApiError.invalidResponse();

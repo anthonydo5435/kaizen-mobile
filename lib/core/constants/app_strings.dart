@@ -853,9 +853,16 @@ class AppStrings {
   static const String sharedLmsCategoryLabel = 'CATEGORY';
   static const String sharedLmsDescriptionLabel = 'DESCRIPTION';
   static const String trainingLibraryTitle = 'LMS';
+  static const String trainingLibrarySeatLessons = 'Seat Lessons';
+  static const String trainingLibraryGeneralLessons = 'General Lessons';
+  static const String trainingLibraryNoGeneralLessons =
+      'No general lessons found.';
+  static const String trainingGeneralLessonCreateAccessDenied =
+      'You do not have permission to create general lessons.';
   static const String trainingLibrarySearchLesson = 'Search Lesson';
   static const String trainingLibrarySelectLesson = 'Select Lesson';
-  static const String trainingLibraryNoMatchingLessons = 'No lessons match this search.';
+  static const String trainingLibraryNoMatchingLessons =
+      'No lessons match this search.';
   static const String trainingLibraryLessonActionsHint =
       'Long press for lesson details and available actions';
   static const String trainingLibraryLessonActions = 'Actions';
@@ -904,6 +911,7 @@ class AppStrings {
   static const String trainingLibraryVisibilitySheetDescription =
       'Choose who can access this training module.';
   static const String trainingNoVideoAvailable = 'No video available.';
+  static const String trainingVideoLoadError = 'Video could not be loaded.';
   static const String trainingNoDocumentAvailable = 'No document available.';
   static const String trainingNoSopAvailable = 'No SOP available.';
   static const String trainingNoQuizQuestionsAvailable = 'No quiz questions available.';

@@ -74,6 +74,7 @@ class _TranscriptSheet extends StatelessWidget {
       (controller) => controller.seekError,
     );
     return AppSelectionSheet(
+      safeAreaBottom: false,
       child: Column(
         crossAxisAlignment: CrossAxisAlignment.stretch,
         children: [
@@ -108,18 +109,14 @@ class _TranscriptSectionState extends State<_TranscriptSection> {
     super.didChangeDependencies();
     if (_didInitialize) return;
     _didInitialize = true;
-    _initialIndex = context
-        .read<ComplianceVideoController>()
-        .activeTranscriptIndex;
+    _initialIndex = context.read<ComplianceVideoController>().activeTranscriptIndex;
     WidgetsBinding.instance.addPostFrameCallback((_) {
       if (!mounted || !_scrollController.hasClients) return;
       final row = _initialLineKey.currentContext?.findRenderObject();
       if (row is! RenderBox || !row.hasSize) return;
       final position = _scrollController.position;
       final offset = (row.size.height - position.viewportDimension) / 2;
-      _scrollController.jumpTo(
-        offset.clamp(position.minScrollExtent, position.maxScrollExtent),
-      );
+      _scrollController.jumpTo(offset.clamp(position.minScrollExtent, position.maxScrollExtent));
     });
   }
 
@@ -185,11 +182,7 @@ class _TranscriptSectionState extends State<_TranscriptSection> {
     );
   }
 
-  Widget _buildItem(
-    ComplianceVideoController controller,
-    int index, {
-    Key? key,
-  }) {
+  Widget _buildItem(ComplianceVideoController controller, int index, {Key? key}) {
     final line = controller.transcriptLines[index];
     return _TranscriptItem(
       key: key,
@@ -236,12 +229,8 @@ class _TranscriptItem extends StatelessWidget {
                   Flexible(
                     child: AppTextView.body3(
                       CustomFunctions.formatDuration(start.inSeconds),
-                      color: isHighlighted
-                          ? AppColors.secondaryColor
-                          : AppColors.textSecondary,
-                      fontWeight: isHighlighted
-                          ? FontWeight.w700
-                          : FontWeight.w500,
+                      color: isHighlighted ? AppColors.secondaryColor : AppColors.textSecondary,
+                      fontWeight: isHighlighted ? FontWeight.w700 : FontWeight.w500,
                       height: 1.6,
                     ),
                   ),
@@ -250,10 +239,7 @@ class _TranscriptItem extends StatelessWidget {
                     width: 16,
                     height: 16,
                     child: isSeeking
-                        ? const FastCircularProgressIndicator(
-                            width: 14,
-                            height: 14,
-                          )
+                        ? const FastCircularProgressIndicator(width: 14, height: 14)
                         : null,
                   ),
                 ],
@@ -264,9 +250,7 @@ class _TranscriptItem extends StatelessWidget {
           Expanded(
             child: AppTextView.body3(
               line.text,
-              color: isHighlighted
-                  ? AppColors.secondaryColor
-                  : AppColors.textPrimary,
+              color: isHighlighted ? AppColors.secondaryColor : AppColors.textPrimary,
               fontWeight: isHighlighted ? FontWeight.w700 : FontWeight.w500,
               height: 1.6,
             ),

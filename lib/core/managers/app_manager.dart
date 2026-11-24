@@ -101,6 +101,8 @@ class AppManager extends ChangeNotifier {
         user: _currentUser,
         currentOrganization: currentOrganization,
       );
+  bool get currentUserCanManageGeneralTrainingModules =>
+      AppPermissionUtils.canManageGeneralTrainingModules(_currentUser);
   bool get currentUserCanManageAnyTrainingModules =>
       AppPermissionUtils.canManageAnyTrainingModules(
         user: _currentUser,

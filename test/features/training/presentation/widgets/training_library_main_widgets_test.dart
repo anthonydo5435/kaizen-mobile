@@ -385,6 +385,7 @@ class _LibraryRepository extends Fake implements TrainingLibraryRepository {
     required String view,
     required int page,
     int pageSize = 10,
+    TrainingModuleType moduleType = TrainingModuleType.jobBased,
     String searchType = 'category',
     String searchText = '',
     String? departmentId,

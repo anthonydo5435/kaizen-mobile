@@ -8,6 +8,7 @@ import 'package:provider/provider.dart';
 import 'package:video_player/video_player.dart';
 
 import '../../../../core/constants/app_colors.dart';
+import '../../../../core/constants/app_strings.dart';
 import '../../../../core/services/video_playback_service.dart';
 import '../../../../core/utils/custom_functions.dart';
 import '../../../../core/widgets/app_text_view.dart';
@@ -45,6 +46,7 @@ class ComplianceVideoPlayer extends StatefulWidget {
     required this.title,
     this.localVideoPath,
     this.thumbnailLink,
+    this.previewDuration = Duration.zero,
     this.height = 240,
     this.showTitle = true,
     this.showSeekBar = true,
@@ -59,6 +61,7 @@ class ComplianceVideoPlayer extends StatefulWidget {
     this.onVideoBoundsChanged,
     this.onRevealControlsHandlerChanged,
     this.layoutBuilder,
+    this.initializeOnDemand = false,
     this.fullscreenInLandscape = false,
     this.onExitLandscapeFullscreen,
   });
@@ -67,6 +70,7 @@ class ComplianceVideoPlayer extends StatefulWidget {
   final String title;
   final String? localVideoPath;
   final String? thumbnailLink;
+  final Duration previewDuration;
   final double height;
   final bool showTitle;
   final bool showSeekBar;
@@ -81,6 +85,7 @@ class ComplianceVideoPlayer extends StatefulWidget {
   final ValueChanged<Rect?>? onVideoBoundsChanged;
   final ValueChanged<VoidCallback?>? onRevealControlsHandlerChanged;
   final Widget Function(Widget video, Widget bottomControls)? layoutBuilder;
+  final bool initializeOnDemand;
   final bool fullscreenInLandscape;
   final VoidCallback? onExitLandscapeFullscreen;
 
@@ -94,12 +99,12 @@ class _ComplianceVideoPlayerState extends State<ComplianceVideoPlayer>
 
   VideoPlayerController? _controller;
   Future<void>? _initializeFuture;
-  Object? _initializationError;
+  Object? _playbackError;
   int _initializationGeneration = 0;
   VideoViewType _currentViewType = VideoViewType.textureView;
   bool _didRetryWithPlatformView = false;
   late bool _showThumbnailPreview;
-  bool _isPreparingPlayback = false;
+  final _pendingPlaybackAction = ValueNotifier<Object?>(null);
   bool _isScrubbing = false;
   double? _scrubPositionMillis;
   final ValueNotifier<bool> _showPlaybackControls = ValueNotifier<bool>(true);
@@ -118,7 +123,7 @@ class _ComplianceVideoPlayerState extends State<ComplianceVideoPlayer>
     WidgetsBinding.instance.addObserver(this);
     _showPlaybackControls.addListener(_notifyControlsVisibility);
     _showThumbnailPreview = _hasThumbnail;
-    _setupController();
+    if (!widget.initializeOnDemand) _setupController();
     widget.onSeekHandlerChanged?.call(_seekToPosition);
     widget.onRevealControlsHandlerChanged?.call(_revealPlaybackControls);
   }
@@ -191,10 +196,9 @@ class _ComplianceVideoPlayerState extends State<ComplianceVideoPlayer>
 
     if (oldWidget.videoUrl != widget.videoUrl ||
         oldWidget.localVideoPath != widget.localVideoPath) {
-      _currentViewType = VideoViewType.textureView;
-      _didRetryWithPlatformView = false;
       _disposeController();
-      _setupController();
+      _pendingPlaybackAction.value = null;
+      if (!widget.initializeOnDemand) _setupController();
     }
   }
 
@@ -205,12 +209,13 @@ class _ComplianceVideoPlayerState extends State<ComplianceVideoPlayer>
     widget.onSeekHandlerChanged?.call(null);
     widget.onRevealControlsHandlerChanged?.call(null);
     _disposeController();
+    _pendingPlaybackAction.dispose();
     _showPlaybackControls.dispose();
     super.dispose();
   }
 
   void _setupController() {
-    _initializationError = null;
+    _playbackError = null;
     _controller = null;
     _videoKey = GlobalKey();
     final generation = ++_initializationGeneration;
@@ -265,7 +270,7 @@ class _ComplianceVideoPlayerState extends State<ComplianceVideoPlayer>
       }
       if (mounted && _isActiveGeneration(generation)) {
         setState(() {
-          _initializationError = error;
+          _playbackError = error;
         });
       }
       rethrow;
@@ -316,6 +321,7 @@ class _ComplianceVideoPlayerState extends State<ComplianceVideoPlayer>
         value.isPlaying &&
         !value.isCompleted &&
         !value.hasError &&
+        _playbackError == null &&
         (value.duration <= Duration.zero || value.position < value.duration);
   }
 
@@ -348,8 +354,9 @@ class _ComplianceVideoPlayerState extends State<ComplianceVideoPlayer>
     final controller = _controller;
     _controller = null;
     _initializeFuture = null;
-    _initializationError = null;
-    _isPreparingPlayback = false;
+    _playbackError = null;
+    _currentViewType = VideoViewType.textureView;
+    _didRetryWithPlatformView = false;
     _isScrubbing = false;
     _scrubPositionMillis = null;
     if (controller != null) {
@@ -370,12 +377,15 @@ class _ComplianceVideoPlayerState extends State<ComplianceVideoPlayer>
     final videoUrl = widget.videoUrl;
     final localVideoPath = widget.localVideoPath;
     final currentController = _controller;
-    if (currentController != null && currentController.value.isInitialized && !currentController.value.hasError) {
+    if (currentController != null &&
+        currentController.value.isInitialized &&
+        !currentController.value.hasError &&
+        _playbackError == null) {
       return currentController;
     }
 
     try {
-      if (_initializeFuture == null || _initializationError != null || currentController?.value.hasError == true) {
+      if (_initializeFuture == null || _playbackError != null || currentController?.value.hasError == true) {
         _disposeController();
         _setupController();
         if (mounted) {
@@ -444,47 +454,39 @@ class _ComplianceVideoPlayerState extends State<ComplianceVideoPlayer>
   }
 
   Future<void> _togglePlayback() async {
-    final activeController = _controller;
-    final wasReadyBeforeTap = activeController != null && activeController.value.isInitialized;
-    if (!wasReadyBeforeTap && mounted) {
-      setState(() {
-        _isPreparingPlayback = true;
-      });
-    }
+    if (_pendingPlaybackAction.value != null || _isOpeningFullscreen) return;
+    final action = Object();
+    _pendingPlaybackAction.value = action;
+    bool isCurrent() => mounted && _pendingPlaybackAction.value == action;
 
-    final controller = await _ensureControllerReady();
-    if (controller == null || !controller.value.isInitialized) {
-      if (mounted) {
-        setState(() {
-          _isPreparingPlayback = false;
-        });
+    try {
+      final controller = await _ensureControllerReady();
+      if (!isCurrent() || controller == null || controller != _controller) return;
+
+      if (controller.value.isPlaying) {
+        await controller.pause();
+        return;
       }
-      return;
-    }
 
-    if (controller.value.isPlaying) {
-      await controller.pause();
-      if (mounted) {
-        setState(() {
-          _isPreparingPlayback = false;
-        });
+      final position = controller.value.position;
+      final duration = controller.value.duration;
+      if (duration > Duration.zero && position >= duration) {
+        await controller.seekTo(Duration.zero);
+        if (!isCurrent() || controller != _controller) return;
       }
-      return;
-    }
 
-    final position = controller.value.position;
-    final duration = controller.value.duration;
-    if (duration > Duration.zero && position >= duration) {
-      await controller.seekTo(Duration.zero);
-    }
-
-    unawaited(VideoPlaybackService.prepareAudiblePlaybackAudioSession());
-    await controller.play();
-    if (mounted) {
-      setState(() {
+      unawaited(VideoPlaybackService.prepareAudiblePlaybackAudioSession());
+      await controller.play();
+      if (isCurrent() && controller == _controller && !controller.value.hasError) {
         _showThumbnailPreview = false;
-        _isPreparingPlayback = false;
-      });
+      }
+    } catch (error) {
+      if (isCurrent()) {
+        _playbackError = error;
+        _revealPlaybackControls();
+      }
+    } finally {
+      if (isCurrent()) _pendingPlaybackAction.value = null;
     }
   }
 
@@ -513,34 +515,24 @@ class _ComplianceVideoPlayerState extends State<ComplianceVideoPlayer>
   }
 
   Future<void> _openFullScreenVideo() async {
-    if (_isOpeningFullscreen) return;
+    if (_isOpeningFullscreen || _pendingPlaybackAction.value != null) return;
     _isOpeningFullscreen = true;
     var didOpenFullscreen = false;
+    final action = Object();
+    _pendingPlaybackAction.value = action;
     try {
-      final wasReadyBeforeOpen = _controller != null && _controller!.value.isInitialized;
-      if (!wasReadyBeforeOpen && mounted) {
-        setState(() {
-          _isPreparingPlayback = true;
-        });
-      }
-
       final controller = await _ensureControllerReady();
-      if (controller == null || !controller.value.isInitialized || !mounted) {
-        if (mounted) {
-          setState(() {
-            _isPreparingPlayback = false;
-          });
-        }
+      if (!mounted || _pendingPlaybackAction.value != action || controller == null) {
+        return;
+      }
+      if (widget.fullscreenInLandscape &&
+          MediaQuery.orientationOf(context) == Orientation.landscape) {
         return;
       }
 
       final initialPosition = controller.value.position;
       final transcriptController = context.read<ComplianceVideoController?>();
-      if (mounted) {
-        setState(() {
-          _isPreparingPlayback = false;
-        });
-      }
+      _pendingPlaybackAction.value = null;
       didOpenFullscreen = true;
       await Navigator.of(context).push<void>(
         MaterialPageRoute(
@@ -562,6 +554,9 @@ class _ComplianceVideoPlayerState extends State<ComplianceVideoPlayer>
       );
     } finally {
       _isOpeningFullscreen = false;
+      if (mounted && _pendingPlaybackAction.value == action) {
+        _pendingPlaybackAction.value = null;
+      }
       if (mounted && didOpenFullscreen && widget.fullscreenInLandscape) {
         final onExit = widget.onExitLandscapeFullscreen;
         if (onExit != null) {
@@ -579,24 +574,27 @@ class _ComplianceVideoPlayerState extends State<ComplianceVideoPlayer>
     super.build(context);
     final controller = _controller;
 
-    return FutureBuilder<void>(
-      future: _initializeFuture,
-      builder: (context, snapshot) {
-        if (controller == null) {
-          return _buildPlayerContent(snapshot: snapshot, controller: null, controllerValue: null);
-        }
+    return ValueListenableBuilder<Object?>(
+      valueListenable: _pendingPlaybackAction,
+      builder: (context, _, _) => FutureBuilder<void>(
+        future: _initializeFuture,
+        builder: (context, snapshot) {
+          if (controller == null) {
+            return _buildPlayerContent(snapshot: snapshot, controller: null, controllerValue: null);
+          }
 
-        return ValueListenableBuilder<VideoPlayerValue>(
-          valueListenable: controller,
-          builder: (context, controllerValue, child) {
-            return _buildPlayerContent(
-              snapshot: snapshot,
-              controller: controller,
-              controllerValue: controllerValue,
-            );
-          },
-        );
-      },
+          return ValueListenableBuilder<VideoPlayerValue>(
+            valueListenable: controller,
+            builder: (context, controllerValue, child) {
+              return _buildPlayerContent(
+                snapshot: snapshot,
+                controller: controller,
+                controllerValue: controllerValue,
+              );
+            },
+          );
+        },
+      ),
     );
   }
 
@@ -605,19 +603,25 @@ class _ComplianceVideoPlayerState extends State<ComplianceVideoPlayer>
     required VideoPlayerController? controller,
     required VideoPlayerValue? controllerValue,
   }) {
+    final thumbnailUrl = CustomFunctions.resolveImageUrl(widget.thumbnailLink);
+    final hasLoadError = _playbackError != null || controllerValue?.hasError == true;
+    final isReady = controller != null && controllerValue?.isInitialized == true && !hasLoadError;
+    final showThumbnailPreview =
+        _showThumbnailPreview && thumbnailUrl != null && !(controllerValue?.isPlaying ?? false);
+    final isLoading = !hasLoadError && !isReady &&
+        (_pendingPlaybackAction.value != null ||
+            (!showThumbnailPreview && snapshot.connectionState == ConnectionState.waiting));
+
     if (widget.fullscreenInLandscape &&
         MediaQuery.orientationOf(context) == Orientation.landscape) {
       return SizedBox(
         key: const ValueKey('training-inline-fullscreen-video'),
         height: widget.height,
-        child: controller == null
-            ? ColoredBox(
-                color: Colors.black,
-                child: Center(
-                  child: (_initializationError ?? snapshot.error) != null
-                      ? const Icon(Icons.error_outline, color: Colors.white)
-                      : const FastCircularProgressIndicator(),
-                ),
+        child: !isReady
+            ? _buildFullscreenPreview(
+                thumbnailUrl: showThumbnailPreview ? thumbnailUrl : null,
+                hasLoadError: hasLoadError,
+                isLoading: isLoading,
               )
             : ComplianceFullScreenVideoView(
                 controller: controller,
@@ -625,32 +629,11 @@ class _ComplianceVideoPlayerState extends State<ComplianceVideoPlayer>
                 initialPosition: controller.value.position,
                 isEmbedded: true,
                 video: VideoPlayer(controller, key: _videoKey),
-                onExit:
-                    widget.onExitLandscapeFullscreen ??
-                    () {
-                      _restoreRotationAfterFullscreen = true;
-                      unawaited(
-                        SystemChrome.setPreferredOrientations(const [DeviceOrientation.portraitUp]),
-                      );
-                    },
+                onExit: _exitLandscapeFullscreen,
               ),
       );
     }
-    final thumbnailUrl = CustomFunctions.resolveImageUrl(widget.thumbnailLink);
-    final initializationError = _initializationError ?? snapshot.error;
-    final isReady = controller != null && controllerValue?.isInitialized == true && initializationError == null;
     final isBuffering = isReady && (controllerValue?.isBuffering ?? false);
-    final showThumbnailPreview =
-        _showThumbnailPreview &&
-        thumbnailUrl != null &&
-        !(controllerValue?.isPlaying ?? false) &&
-        initializationError == null;
-    final isLoading =
-        _isPreparingPlayback ||
-        (!showThumbnailPreview &&
-            initializationError == null &&
-            !isReady &&
-            snapshot.connectionState == ConnectionState.waiting);
 
     if (widget.onVideoBoundsChanged != null) {
       WidgetsBinding.instance.addPostFrameCallback((_) => _reportVideoBounds());
@@ -703,7 +686,7 @@ class _ComplianceVideoPlayerState extends State<ComplianceVideoPlayer>
                           child: _buildOverlay(
                             controller: controller,
                             controllerValue: controllerValue,
-                            initializationError: initializationError,
+                            hasLoadError: hasLoadError,
                             isReady: isReady,
                             isLoading: isLoading,
                             isBuffering: isBuffering,
@@ -742,7 +725,7 @@ class _ComplianceVideoPlayerState extends State<ComplianceVideoPlayer>
                         _buildOverlay(
                           controller: controller,
                           controllerValue: controllerValue,
-                          initializationError: initializationError,
+                          hasLoadError: hasLoadError,
                           isReady: isReady,
                           isLoading: isLoading,
                           isBuffering: isBuffering,
@@ -756,6 +739,52 @@ class _ComplianceVideoPlayerState extends State<ComplianceVideoPlayer>
       ],
     );
     return widget.layoutBuilder?.call(video, _buildBottomControls(controller, controllerValue)) ?? video;
+  }
+
+  Widget _buildFullscreenPreview({
+    required String? thumbnailUrl,
+    required bool hasLoadError,
+    required bool isLoading,
+  }) {
+    return ColoredBox(
+      color: Colors.black,
+      child: Stack(
+        fit: StackFit.expand,
+        children: [
+          if (thumbnailUrl != null) _buildThumbnailPreview(thumbnailUrl),
+          SafeArea(
+            child: Stack(
+              children: [
+                Center(
+                  child: hasLoadError
+                      ? _buildLoadError()
+                      : _buildPlaybackControls(isLoading: isLoading),
+                ),
+                Align(
+                  alignment: Alignment.bottomRight,
+                  child: IconButton(
+                    tooltip: AppStrings.trainingExitFullscreen,
+                    color: Colors.white,
+                    icon: const Icon(Icons.fullscreen_exit_rounded),
+                    onPressed: _exitLandscapeFullscreen,
+                  ),
+                ),
+              ],
+            ),
+          ),
+        ],
+      ),
+    );
+  }
+
+  void _exitLandscapeFullscreen() {
+    final onExit = widget.onExitLandscapeFullscreen;
+    if (onExit != null) {
+      onExit();
+      return;
+    }
+    _restoreRotationAfterFullscreen = true;
+    unawaited(SystemChrome.setPreferredOrientations(const [DeviceOrientation.portraitUp]));
   }
 
   Widget _buildThumbnailPreview(String thumbnailUrl) {
@@ -790,7 +819,6 @@ class _ComplianceVideoPlayerState extends State<ComplianceVideoPlayer>
     final showThumbnail =
         _showThumbnailPreview &&
         _hasThumbnail &&
-        _initializationError == null &&
         _controller?.value.isPlaying != true;
     var media = (showThumbnail ? _thumbnailKey : _videoKey).currentContext
         ?.findRenderObject();
@@ -847,7 +875,7 @@ class _ComplianceVideoPlayerState extends State<ComplianceVideoPlayer>
   Widget _buildOverlay({
     required VideoPlayerController? controller,
     required VideoPlayerValue? controllerValue,
-    required Object? initializationError,
+    required bool hasLoadError,
     required bool isReady,
     required bool isLoading,
     required bool isBuffering,
@@ -855,12 +883,9 @@ class _ComplianceVideoPlayerState extends State<ComplianceVideoPlayer>
     bool includeTopControls = true,
   }) {
     final playbackControls = _buildPlaybackControlsVisibility(
-      child: ComplianceVideoPlaybackControls(
+      child: _buildPlaybackControls(
         isLoading: isLoading,
-        isPlaying: controllerValue?.isPlaying ?? false,
-        onTogglePlayback: initializationError != null ? null : _togglePlayback,
-        onSkipBackward: isReady ? () => _seekBy(const Duration(seconds: -10)) : null,
-        onSkipForward: isReady ? () => _seekBy(const Duration(seconds: 10)) : null,
+        controllerValue: isReady ? controllerValue : null,
       ),
     );
     return Stack(
@@ -881,17 +906,6 @@ class _ComplianceVideoPlayerState extends State<ComplianceVideoPlayer>
                   ),
                 ),
         ),
-        if (initializationError != null)
-          const Center(
-            child: Padding(
-              padding: EdgeInsets.symmetric(horizontal: 24),
-              child: AppTextView.body(
-                'Video could not be loaded.',
-                color: AppColors.textPrimary,
-                textAlign: TextAlign.center,
-              ),
-            ),
-          ),
         if (isReady && isBuffering && !showThumbnailPreview)
           Center(child: SizedBox(width: 28, height: 28, child: FastCircularProgressIndicator())),
         Positioned(
@@ -899,7 +913,9 @@ class _ComplianceVideoPlayerState extends State<ComplianceVideoPlayer>
           right: ComplianceVideoPlayer.contentHorizontalInset,
           top: 0,
           bottom: 0,
-          child: widget.fillBounds && includeTopControls
+          child: hasLoadError
+              ? Center(child: _buildLoadError())
+              : widget.fillBounds && includeTopControls
               ? Align(
                   alignment: widget.mediaAlignment,
                   child: AspectRatio(
@@ -921,6 +937,41 @@ class _ComplianceVideoPlayerState extends State<ComplianceVideoPlayer>
           ),
         if (includeTopControls) Positioned(top: widget.topControlsInset, right: 10, child: _buildTopControls()),
       ],
+    );
+  }
+
+  Widget _buildPlaybackControls({
+    required bool isLoading,
+    VideoPlayerValue? controllerValue,
+  }) {
+    return ComplianceVideoPlaybackControls(
+      isLoading: isLoading,
+      isPlaying: controllerValue?.isPlaying ?? false,
+      onTogglePlayback: _togglePlayback,
+      onSkipBackward: controllerValue == null ? null : () => _seekBy(const Duration(seconds: -10)),
+      onSkipForward: controllerValue == null ? null : () => _seekBy(const Duration(seconds: 10)),
+    );
+  }
+
+  Widget _buildLoadError() {
+    return SingleChildScrollView(
+      primary: false,
+      padding: const EdgeInsets.symmetric(horizontal: 14),
+      child: Column(
+        mainAxisSize: MainAxisSize.min,
+        children: [
+          const AppTextView.body(
+            AppStrings.trainingVideoLoadError,
+            color: AppColors.textPrimary,
+            textAlign: TextAlign.center,
+          ),
+          TextButton(
+            onPressed: _togglePlayback,
+            style: TextButton.styleFrom(foregroundColor: AppColors.secondaryColor),
+            child: const Text(AppStrings.actionRetry),
+          ),
+        ],
+      ),
     );
   }
 
@@ -1089,7 +1140,7 @@ class _ComplianceVideoPlayerState extends State<ComplianceVideoPlayer>
 
   Widget _buildDurationRow(VideoPlayerValue? controllerValue) {
     final position = _resolvedDisplayedPosition(controllerValue);
-    final duration = controllerValue?.duration ?? Duration.zero;
+    final duration = controllerValue?.duration ?? widget.previewDuration;
 
     return Wrap(
       alignment: WrapAlignment.end,

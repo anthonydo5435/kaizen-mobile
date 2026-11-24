@@ -125,7 +125,9 @@ extension _EditTrainingSectionViewStateHandlers
           terminalTasks.last.terminalEventSequence;
 
       for (final task in terminalTasks) {
-        if (task.descriptionId != widget.trainingDescriptionId) {
+        if (task.descriptionId != widget.trainingDescriptionId ||
+            (widget.trainingRoute.isGeneral &&
+                task.moduleId != controller.selectedModuleId)) {
           continue;
         }
 

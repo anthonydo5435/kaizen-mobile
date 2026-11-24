@@ -21,6 +21,7 @@ class TrainingLibraryContent extends StatelessWidget {
     required this.onSelectSeat,
     required this.onCreate,
     this.onModuleActions,
+    this.tabs,
   });
 
   final TrainingLibraryController controller;
@@ -28,9 +29,22 @@ class TrainingLibraryContent extends StatelessWidget {
   final VoidCallback onSelectSeat;
   final VoidCallback onCreate;
   final ValueChanged<TrainingLibraryModule>? onModuleActions;
+  final Widget? tabs;
 
   @override
   Widget build(BuildContext context) {
+    final listing = controller.isShowingFullscreenLoading
+        ? const Center(
+            child: FastCircularProgressIndicator(width: 24, height: 24),
+          )
+        : _TrainingLibraryFiltersAndResults(
+            key: ValueKey(controller.moduleType),
+            controller: controller,
+            onModuleTap: (module) =>
+                controller.openLesson(module, openDetails: onOpenLesson),
+            onSelectSeat: controller.isGeneralListing ? null : onSelectSeat,
+            onModuleActions: onModuleActions,
+          );
     return DrawerMainScreen(
       title: AppStrings.trainingLibraryTitle,
       selectedMenu: AppMenuType.library,
@@ -46,17 +60,12 @@ class TrainingLibraryContent extends StatelessWidget {
       child: SafeArea(
         top: false,
         bottom: false,
-        child: controller.isShowingFullscreenLoading
-            ? Center(
-                child: FastCircularProgressIndicator(width: 24, height: 24),
-              )
-            : _TrainingLibraryFiltersAndResults(
-                controller: controller,
-                onModuleTap: (module) =>
-                    controller.openLesson(module, openDetails: onOpenLesson),
-                onSelectSeat: onSelectSeat,
-                onModuleActions: onModuleActions,
-              ),
+        child: Column(
+          children: [
+            if (tabs case final tabs?) tabs,
+            Expanded(child: listing),
+          ],
+        ),
       ),
     );
   }
@@ -64,6 +73,7 @@ class TrainingLibraryContent extends StatelessWidget {
 
 class _TrainingLibraryFiltersAndResults extends StatelessWidget {
   const _TrainingLibraryFiltersAndResults({
+    super.key,
     required this.controller,
     required this.onModuleTap,
     required this.onSelectSeat,
@@ -72,7 +82,7 @@ class _TrainingLibraryFiltersAndResults extends StatelessWidget {
 
   final TrainingLibraryController controller;
   final ValueChanged<TrainingLibraryModule> onModuleTap;
-  final VoidCallback onSelectSeat;
+  final VoidCallback? onSelectSeat;
   final ValueChanged<TrainingLibraryModule>? onModuleActions;
 
   @override
@@ -98,6 +108,7 @@ class _TrainingLibraryFiltersAndResults extends StatelessWidget {
               color: AppColors.purple2,
               onRefresh: () => controller.refresh(preservePosition: true),
               child: TrainingLibraryResultArea(
+                key: PageStorageKey(controller.moduleType),
                 controller: controller,
                 items: items,
                 scrollController: controller.scrollController,

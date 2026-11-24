@@ -15,7 +15,6 @@ import '../../../../core/widgets/app_share_button.dart';
 import '../../../../core/widgets/app_swipe_reveal_action.dart';
 import '../../../../core/widgets/app_text_view.dart';
 import '../../../../core/widgets/fast_circular_progress.dart';
-import '../../../../core/widgets/paid_features_unavailable_dialog.dart';
 import '../../../../routes/app_router.dart';
 import '../../data/datasources/paygrade_remote_data_source.dart';
 import '../../data/repositories/paygrade_repository_impl.dart';
@@ -25,6 +24,7 @@ import '../providers/paygrade_detail_controller.dart';
 import 'paygrade_entry_sheet.dart';
 import 'paygrade_generate_sheet.dart';
 import 'paygrade_share_dialogue.dart';
+
 
 class PaygradeDetailScreen extends StatelessWidget {
   const PaygradeDetailScreen({super.key, required this.paygradeId, this.getPaygradesUseCase});
@@ -68,7 +68,7 @@ class PaygradeDetailView extends StatelessWidget {
       body: SafeArea(
         bottom: false,
         child: Padding(
-          padding: const EdgeInsets.fromLTRB(8, 8, 8, 24),
+          padding: const EdgeInsets.fromLTRB(16, 8, 16, 24),
           child: ListenableBuilder(
             listenable: AppManager.instance,
             builder: (context, _) {
@@ -180,8 +180,6 @@ class PaygradeDetailView extends StatelessWidget {
       children: [
         IconButton(
           onPressed: () => _goBack(context),
-          alignment: Alignment.centerLeft,
-          padding: EdgeInsets.zero,
           icon: SvgPicture.asset(
             '${AppStrings.imagePath}back.svg',
             width: 24,
@@ -320,7 +318,6 @@ class PaygradeDetailView extends StatelessWidget {
               title: title,
               description: description,
               promotionRequirement: promotionRequirement,
-              payRate: payRate,
             );
           },
     );
@@ -469,10 +466,6 @@ class _PaygradeEntryCard extends StatefulWidget {
 class _PaygradeEntryCardState extends State<_PaygradeEntryCard> {
   final ValueNotifier<bool> _isExpanded = ValueNotifier(false);
 
-  void _toggleExpansion() {
-    _isExpanded.value = !_isExpanded.value;
-  }
-
   @override
   void dispose() {
     _isExpanded.dispose();
@@ -493,7 +486,6 @@ class _PaygradeEntryCardState extends State<_PaygradeEntryCard> {
     final paygradePrefix = _buildPaygradePrefix(cleanedTitle, widget.rowNumber);
     final cardTitle = '$paygradePrefix: $cleanedTitle';
     final card = Container(
-      width: double.infinity,
       padding: const EdgeInsets.all(12),
       decoration: BoxDecoration(
         color: AppColors.surfaceDark,
@@ -553,7 +545,7 @@ class _PaygradeEntryCardState extends State<_PaygradeEntryCard> {
         label: isExpanded ? AppStrings.paygradesShowLessAction : AppStrings.paygradesShowMoreAction,
         color: AppColors.secondaryColor,
       ),
-      onLeadingActionTap: _toggleExpansion,
+      onLeadingActionTap: () => _isExpanded.value = !isExpanded,
       actionBuilder: canEdit || canDelete
           ? (context, close) => Row(
               crossAxisAlignment: CrossAxisAlignment.stretch,
@@ -562,7 +554,7 @@ class _PaygradeEntryCardState extends State<_PaygradeEntryCard> {
                   Expanded(
                     child: _PaygradeSwipeAction(
                       label: AppStrings.paygradesEditAction,
-                      color: AppColors.secondaryColor,
+                      color: AppColors.blue,
                       onTap: () {
                         close();
                         widget.onEditTap?.call();
@@ -590,11 +582,7 @@ class _PaygradeEntryCardState extends State<_PaygradeEntryCard> {
               ],
             )
           : null,
-      child: InkWell(
-        onTap: widget.isDeleting ? null : _toggleExpansion,
-        borderRadius: BorderRadius.circular(12),
-        child: card,
-      ),
+      child: card,
     );
   }
 
@@ -622,11 +610,11 @@ class _PaygradeEntryCardState extends State<_PaygradeEntryCard> {
   }
 
   Widget _buildRow(String label, String value) {
-    return Wrap(
-      spacing: 6,
-      runSpacing: 2,
+    return Row(
+      crossAxisAlignment: CrossAxisAlignment.start,
       children: [
         AppTextView.body2(label, color: AppColors.textSecondary),
+        SizedBox(width: 6),
         AppTextView.body2(
           value,
           textAlign: TextAlign.end,
@@ -804,7 +792,7 @@ class _AddPaygradeLevelButton extends StatelessWidget {
           color: Colors.transparent,
           child: InkWell(
             borderRadius: BorderRadius.circular(_borderRadius),
-            onTap: guardPaidAction(context, onTap),
+            onTap: onTap,
             child: Padding(
               padding: const EdgeInsets.symmetric(horizontal: 14, vertical: 12),
               child: Row(

@@ -1,3 +1,12 @@
+enum TrainingModuleType {
+  jobBased('job_based'),
+  general('general');
+
+  const TrainingModuleType(this.apiValue);
+
+  final String apiValue;
+}
+
 class TrainingLibraryDepartment {
   const TrainingLibraryDepartment({
     required this.id,
@@ -72,6 +81,7 @@ class TrainingLibraryModule {
     required this.thumbnailLink,
     required this.category,
     this.descriptionId,
+    this.moduleType = TrainingModuleType.jobBased,
   });
 
   final String id;
@@ -83,12 +93,14 @@ class TrainingLibraryModule {
   final List<TrainingLibraryLesson> lessons;
   final String? thumbnailLink;
   final TrainingLibraryCategory category;
+  final TrainingModuleType moduleType;
 
   /// Separate from the lesson UUID in the flat listing response. Legacy grouped
   /// responses use [id] as their description UUID.
   final String? descriptionId;
 
+  bool get isGeneral => moduleType == TrainingModuleType.general;
   int get lessonsCount => lessons.length;
-  bool get isLessonListing => descriptionId != null;
-  String get trainingDescriptionId => descriptionId ?? id;
+  bool get isLessonListing => isGeneral || descriptionId != null;
+  String get trainingDescriptionId => isGeneral ? '' : (descriptionId ?? id);
 }

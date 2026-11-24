@@ -150,6 +150,13 @@ class AppPermissionUtils {
     return false;
   }
 
+  static bool canManageGeneralTrainingModules(User? user) {
+    if (hasOwnerManagementAccess(user)) {
+      return true;
+    }
+    return user?.normalizedRoles.any(_scopedManagerRoles.contains) == true;
+  }
+
   static bool canManageAnyTrainingModules({
     required User? user,
     required Organization? currentOrganization,

@@ -2,9 +2,12 @@ import 'dart:async';
 import 'dart:convert';
 import 'dart:io';
 
+import 'package:cached_video_player_plus/cached_video_player_plus.dart';
 import 'package:flutter/material.dart';
 import 'package:flutter/services.dart';
 import 'package:flutter_test/flutter_test.dart';
+// ignore: depend_on_referenced_packages
+import 'package:flutter_cache_manager/flutter_cache_manager.dart';
 import 'package:http/http.dart' as http;
 import 'package:http/testing.dart';
 import 'package:provider/provider.dart';
@@ -15,7 +18,9 @@ import 'package:sparrowkaizen/core/network/api_endpoints.dart';
 import 'package:sparrowkaizen/core/network/api_processor.dart';
 import 'package:sparrowkaizen/core/preference/app_preference.dart';
 import 'package:sparrowkaizen/core/widgets/app_back_button.dart';
+import 'package:sparrowkaizen/core/widgets/fast_circular_progress.dart';
 import 'package:sparrowkaizen/features/compliance/presentation/pages/training/compliance_full_screen_video_view.dart';
+import 'package:sparrowkaizen/features/compliance/presentation/widgets/compliance_video_playback_controls.dart';
 import 'package:sparrowkaizen/features/compliance/presentation/widgets/compliance_video_player.dart';
 import 'package:sparrowkaizen/features/login/domain/entities/user.dart';
 import 'package:sparrowkaizen/features/training/domain/entities/seat_description_training_route.dart';
@@ -44,6 +49,7 @@ void main() {
   Completer<bool>? portraitWait;
   int portraitWaitRequests = 0;
   int portraitWaitCancellations = 0;
+  String videoUrl = '';
   late VideoPlayerPlatform originalPlatform;
   late _VideoPlatform platform;
   late Directory directory;
@@ -65,7 +71,7 @@ void main() {
       response = {
         'uuid': 'lesson',
         'title': 'Lesson',
-        'training_video': {'uuid': 'video', 'url': 'http://[', 'transcript': '[00:00] Procedure'},
+        'training_video': {'uuid': 'video', 'url': videoUrl, 'transcript': '[00:00] Procedure'},
       };
     } else if (path.endsWith(ApiEndPoints.trainingModuleDocument('lesson'))) {
       response = {'uuid': 'document', 'text': '<p>Procedure</p>'};
@@ -90,6 +96,7 @@ void main() {
     portraitWait = null;
     portraitWaitRequests = 0;
     portraitWaitCancellations = 0;
+    videoUrl = 'http://[';
     SharedPreferences.setMockInitialValues({});
     await AppPreference.init();
     await AppPreference.setAuthToken('test-token');
@@ -142,10 +149,7 @@ void main() {
     messenger.setMockMethodCallHandler(const MethodChannel('kaizenteams/video_fullscreen'), null);
   });
 
-  Future<VideoPlayerController> openTraining(
-    WidgetTester tester, {
-    Future<void> Function()? beforeInitialization,
-  }) async {
+  Future<void> mountTraining(WidgetTester tester) async {
     tester.view.physicalSize = portrait;
     tester.view.devicePixelRatio = 1;
     addTearDown(tester.view.reset);
@@ -175,6 +179,13 @@ void main() {
     );
     await tester.pumpAndSettle();
     expect(orientations.last, rotationAllowed);
+  }
+
+  Future<VideoPlayerController> openTraining(
+    WidgetTester tester, {
+    Future<void> Function()? beforeInitialization,
+  }) async {
+    await mountTraining(tester);
     final module = tester
         .element(find.byType(ComplianceVideoPlayer))
         .read<TrainingModuleController>();
@@ -216,6 +227,58 @@ void main() {
     expect(orientations.last, ['DeviceOrientation.portraitUp']);
     expect(tester.takeException(), isNull);
   }
+
+  testWidgets('streaming waits for Play and recovers from a slow connection', (tester) async {
+    videoUrl = 'https://example.test/training-slow-video.mp4';
+    platform.holdInitialization = true;
+    final originalCache = CachedVideoPlayerPlus.cacheManager;
+    CachedVideoPlayerPlus.cacheManager = _UnavailableVideoCache();
+    addTearDown(() => CachedVideoPlayerPlus.cacheManager = originalCache);
+
+    await http.runWithClient(() async {
+      await mountTraining(tester);
+      final play = find.byIcon(Icons.play_arrow_rounded);
+      final error = find.text(AppStrings.trainingVideoLoadError);
+      final retry = find.text(AppStrings.actionRetry);
+      final loading = find.descendant(
+        of: find.byType(ComplianceVideoPlaybackControls),
+        matching: find.byType(FastCircularProgressIndicator),
+      );
+      expect(play, findsOneWidget);
+      expect(loading, findsNothing);
+      expect(error, findsNothing);
+      expect(platform.creations, 0);
+      await rotate(tester, landscape);
+      expect(platform.creations, 0);
+
+      await tester.tap(play);
+      await tester.pump(const Duration(seconds: 5));
+      expect(platform.creations, 1);
+      expect(loading, findsOneWidget);
+      expect(error, findsNothing);
+
+      platform.sendError();
+      await tester.pump();
+      expect(platform.creations, 2); // Android's platform-view fallback.
+      platform.sendError();
+      await tester.pumpAndSettle();
+      expect(error, findsOneWidget);
+      expect(retry, findsOneWidget);
+
+      await rotate(tester, portrait);
+      expect(error, findsOneWidget);
+      await tester.tap(retry);
+      await tester.pump();
+      expect(loading, findsOneWidget);
+      expect(error, findsNothing);
+      expect(platform.creations, 3);
+      platform.sendInitialized();
+      await tester.pumpAndSettle();
+      expect(tester.widget<VideoPlayer>(find.byType(VideoPlayer)).controller.value.isPlaying, isTrue);
+      expect(navigationObserver.pushes, 1);
+      await closeTraining(tester);
+    }, () => client);
+  }, variant: TargetPlatformVariant({TargetPlatform.android}));
 
   for (final playing in [false, true]) {
     testWidgets(
@@ -692,21 +755,37 @@ void main() {
 Finder _tab(String label) =>
     find.descendant(of: find.byType(TrainingTabs), matching: find.text(label));
 
+class _UnavailableVideoCache extends Fake implements CacheManager {
+  @override
+  Future<FileInfo?> getFileFromCache(String key, {bool ignoreMemCache = false}) async {
+    throw StateError('Video cache is unavailable');
+  }
+}
+
 class _VideoPlatform extends VideoPlayerPlatform {
   final initialized = Completer<void>();
-  final events = StreamController<VideoEvent>();
+  final _events = <int, StreamController<VideoEvent>>{};
   Duration position = Duration.zero;
   bool holdInitialization = false;
   int creations = 0;
   final seeks = <Duration>[];
 
+  StreamController<VideoEvent> _eventsFor(int playerId) =>
+      _events.putIfAbsent(playerId, StreamController<VideoEvent>.new);
+
   void sendInitialized() {
-    events.add(
+    _eventsFor(creations == 0 ? 1 : creations).add(
       VideoEvent(
         eventType: VideoEventType.initialized,
         duration: const Duration(minutes: 1),
         size: const Size(640, 360),
       ),
+    );
+  }
+
+  void sendError() {
+    _eventsFor(creations).addError(
+      PlatformException(code: 'VideoError', message: 'Connection timed out'),
     );
   }
 
@@ -716,11 +795,11 @@ class _VideoPlatform extends VideoPlayerPlatform {
   Future<int> createWithOptions(VideoCreationOptions options) async {
     creations += 1;
     if (!holdInitialization) sendInitialized();
-    return 1;
+    return creations;
   }
 
   @override
-  Stream<VideoEvent> videoEventsFor(int playerId) => events.stream;
+  Stream<VideoEvent> videoEventsFor(int playerId) => _eventsFor(playerId).stream;
   @override
   Future<void> setLooping(int playerId, bool looping) async {}
   @override
@@ -745,7 +824,9 @@ class _VideoPlatform extends VideoPlayerPlatform {
   @override
   Widget buildViewWithOptions(VideoViewOptions options) => const SizedBox();
   @override
-  Future<void> dispose(int playerId) async => events.close();
+  Future<void> dispose(int playerId) async {
+    await _events.remove(playerId)?.close();
+  }
 }
 
 class _NavigationObserver extends NavigatorObserver {

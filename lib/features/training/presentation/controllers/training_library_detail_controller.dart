@@ -23,11 +23,13 @@ class TrainingLibraryDetailController extends ChangeNotifier {
     required GetTrainingLibraryModulesUseCase getTrainingLibraryModules,
     required TrainingLibraryRepository trainingRepository,
     required bool Function(String seatProfileId) canManageSeatTraining,
+    bool Function()? canManageGeneralTraining,
     required String view,
   }) : _module = initialModule,
        _getTrainingLibraryModules = getTrainingLibraryModules,
        _trainingRepository = trainingRepository,
        _canManageSeatTraining = canManageSeatTraining,
+       _canManageGeneralTraining = canManageGeneralTraining,
        _view = view.trim().isEmpty ? 'list' : view.trim(),
        visibilityController = TrainingLibraryLessonVisibilityController(
          trainingRepository,
@@ -40,6 +42,7 @@ class TrainingLibraryDetailController extends ChangeNotifier {
   final GetTrainingLibraryModulesUseCase _getTrainingLibraryModules;
   final TrainingLibraryRepository _trainingRepository;
   final bool Function(String seatProfileId) _canManageSeatTraining;
+  final bool Function()? _canManageGeneralTraining;
   final String _view;
   final TrainingLibraryLessonVisibilityController visibilityController;
 
@@ -59,7 +62,9 @@ class TrainingLibraryDetailController extends ChangeNotifier {
   bool get isBusy => _isRefreshing || _isDeletingLesson;
   bool get canManageTraining =>
       _module.id.trim().isNotEmpty &&
-      _module.seat.profileIds.any(_canManageSeatTraining);
+      (_module.isGeneral
+          ? _canManageGeneralTraining?.call() == true
+          : _module.seat.profileIds.any(_canManageSeatTraining));
   bool? get navigationResult => _shouldRefreshOnExit ? true : null;
   String get emptyMessage => _module.lessons.isEmpty
       ? AppStrings.trainingLibraryNoLessonsFound
@@ -80,9 +85,22 @@ class TrainingLibraryDetailController extends ChangeNotifier {
 
   SeatDescriptionTrainingRoute? viewerRouteForLesson(
     TrainingLibraryLesson lesson,
-  ) {
+  ) => _routeForLesson(lesson, selectOnOpen: true);
+
+  SeatDescriptionTrainingRoute? _routeForLesson(
+    TrainingLibraryLesson lesson, {
+    required bool selectOnOpen,
+  }) {
     final lessonId = lesson.id.trim();
-    if (lessonId.isEmpty || _module.trainingDescriptionId.trim().isEmpty) {
+    if (lessonId.isEmpty) return null;
+
+    final initialModuleId = selectOnOpen ? lessonId : null;
+    if (_module.isGeneral) {
+      return SeatDescriptionTrainingRoute.general(
+        initialModuleId: initialModuleId,
+      );
+    }
+    if (_module.trainingDescriptionId.trim().isEmpty) {
       return null;
     }
     return SeatDescriptionTrainingRoute(
@@ -90,7 +108,7 @@ class TrainingLibraryDetailController extends ChangeNotifier {
       category: _module.category.id,
       description: _module.trainingDescriptionId,
       actualSeatProfileId: _module.seat.actualId,
-      initialModuleId: lessonId,
+      initialModuleId: initialModuleId,
     );
   }
 
@@ -182,23 +200,11 @@ class TrainingLibraryDetailController extends ChangeNotifier {
     required TrainingLibraryOpenEditor openEditor,
     required ValueChanged<String> showMessage,
   }) async {
-    final lessonId = lesson.id.trim();
-    if (_isDisposed ||
-        !canManageTraining ||
-        lessonId.isEmpty ||
-        _module.trainingDescriptionId.trim().isEmpty) {
+    final route = _routeForLesson(lesson, selectOnOpen: false);
+    if (_isDisposed || !canManageTraining || route == null) {
       return;
     }
-    await openEditor(
-      SeatDescriptionTrainingRoute(
-        job: _module.seat.id,
-        category: _module.category.id,
-        description: _module.trainingDescriptionId,
-        actualSeatProfileId: _module.seat.actualId,
-      ),
-      lessonId,
-      canManageTraining,
-    );
+    await openEditor(route, lesson.id.trim(), canManageTraining);
     if (_isDisposed) {
       return;
     }
@@ -213,7 +219,7 @@ class TrainingLibraryDetailController extends ChangeNotifier {
     required TrainingLibraryLesson lesson,
     required bool isPubliclyAvailable,
   }) async {
-    if (_isDisposed || !canManageTraining) {
+    if (_isDisposed || !canManageTraining || _module.isGeneral) {
       return false;
     }
     final didUpdate = await visibilityController.updateLessonVisibility(
@@ -321,6 +327,7 @@ class TrainingLibraryDetailController extends ChangeNotifier {
         thumbnailLink: _module.thumbnailLink,
         category: _module.category,
         descriptionId: _module.descriptionId,
+        moduleType: _module.moduleType,
       );
       _shouldRefreshOnExit = true;
       visibilityController.syncWithLessons(_module.lessons);
@@ -348,6 +355,7 @@ class TrainingLibraryDetailController extends ChangeNotifier {
         view: _view,
         page: page,
         pageSize: _pageSize,
+        moduleType: _module.moduleType,
         searchType: 'category',
         searchText: '',
       );

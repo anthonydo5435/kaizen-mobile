@@ -19,10 +19,12 @@ class ComplianceVideoTranscriptPanel extends StatelessWidget {
     required this.transcript,
     this.localVideoPath,
     this.thumbnailLink,
+    this.previewDuration = Duration.zero,
     this.activeCaptionMaxLines = 2,
     this.mediaAlignment = const Alignment(0, -0.5),
     this.topControlsInset = 6,
     this.topRightActions = const <Widget>[],
+    this.initializeOnDemand = false,
     this.fullscreenInLandscape = false,
     this.onExitLandscapeFullscreen,
   });
@@ -33,10 +35,12 @@ class ComplianceVideoTranscriptPanel extends StatelessWidget {
   final String? transcript;
   final String? localVideoPath;
   final String? thumbnailLink;
+  final Duration previewDuration;
   final int activeCaptionMaxLines;
   final Alignment mediaAlignment;
   final double topControlsInset;
   final List<Widget> topRightActions;
+  final bool initializeOnDemand;
   final bool fullscreenInLandscape;
   final VoidCallback? onExitLandscapeFullscreen;
 
@@ -200,12 +204,14 @@ class _VideoPlayerArea extends StatelessWidget {
       );
     }
     return ComplianceVideoPlayer(
+      initializeOnDemand: panel.initializeOnDemand,
       fullscreenInLandscape: panel.fullscreenInLandscape,
       onExitLandscapeFullscreen: panel.onExitLandscapeFullscreen,
       videoUrl: videoUrl,
       localVideoPath: panel.localVideoPath,
       title: panel.title,
       thumbnailLink: panel.thumbnailLink,
+      previewDuration: panel.previewDuration,
       height: height,
       fillBounds: true,
       mediaAlignment: panel.mediaAlignment,

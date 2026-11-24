@@ -90,7 +90,7 @@ class TrainingLibraryModuleCard extends StatelessWidget {
                     mainAxisAlignment: MainAxisAlignment.end,
                     crossAxisAlignment: CrossAxisAlignment.start,
                     children: [
-                      if (module != null) ...[
+                      if (module != null && !module.isGeneral) ...[
                         _ModuleSeatLabel(seatTitle: module.seat.title),
                         const SizedBox(height: 3),
                       ],

@@ -115,7 +115,7 @@ class TrainingVideoUploadController extends ChangeNotifier {
   }) {
     final resolvedDescriptionId = descriptionId.trim();
     final resolvedModuleId = moduleId.trim();
-    if (resolvedDescriptionId.isEmpty || resolvedModuleId.isEmpty) {
+    if (resolvedModuleId.isEmpty) {
       return false;
     }
 
@@ -135,7 +135,7 @@ class TrainingVideoUploadController extends ChangeNotifier {
   }) {
     final resolvedDescriptionId = descriptionId.trim();
     final resolvedModuleId = moduleId.trim();
-    if (resolvedDescriptionId.isEmpty || resolvedModuleId.isEmpty) {
+    if (resolvedModuleId.isEmpty) {
       return Future<bool>.value(false);
     }
 
