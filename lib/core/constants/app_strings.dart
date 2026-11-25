@@ -135,7 +135,7 @@ class AppStrings {
   static const String homeAi = 'AI';
   static const String homeLearningTracks = 'Learning Tracks';
   static const String bottomNavPerformance = 'Performance';
-  static const String bottomNavLtc = 'LTC';
+  static const String bottomNavLtc = 'Tracks';
   static const String homeDocumentCenter = 'Document Center';
   static const String homeLibrary = 'Library';
   static const String weeklyCheckIns = 'Weekly Check-Ins';
@@ -852,17 +852,15 @@ class AppStrings {
   static const String sharedLmsSeatLabel = 'SEAT';
   static const String sharedLmsCategoryLabel = 'CATEGORY';
   static const String sharedLmsDescriptionLabel = 'DESCRIPTION';
-  static const String trainingLibraryTitle = 'LMS';
+  static const String trainingLibraryTitle = 'Library';
   static const String trainingLibrarySeatLessons = 'Seat Lessons';
   static const String trainingLibraryGeneralLessons = 'General Lessons';
-  static const String trainingLibraryNoGeneralLessons =
-      'No general lessons found.';
+  static const String trainingLibraryNoGeneralLessons = 'No general lessons found.';
   static const String trainingGeneralLessonCreateAccessDenied =
       'You do not have permission to create general lessons.';
   static const String trainingLibrarySearchLesson = 'Search Lesson';
   static const String trainingLibrarySelectLesson = 'Select Lesson';
-  static const String trainingLibraryNoMatchingLessons =
-      'No lessons match this search.';
+  static const String trainingLibraryNoMatchingLessons = 'No lessons match this search.';
   static const String trainingLibraryLessonActionsHint =
       'Long press for lesson details and available actions';
   static const String trainingLibraryLessonActions = 'Actions';

@@ -69,8 +69,7 @@ class AppBottomNavBar extends StatelessWidget {
       icon: destination.icon,
       selectedIcon: destination.selectedIcon,
       isSelected: selectedMenu == destination.menu,
-      selectionHorizontalPadding:
-          destination.menu == AppMenuType.performanceSnapshot ? 8 : 0,
+      selectionHorizontalPadding: destination.menu == AppMenuType.performanceSnapshot ? 8 : 0,
       onTap: () => onSelected(destination.menu),
     );
   }).toList();
