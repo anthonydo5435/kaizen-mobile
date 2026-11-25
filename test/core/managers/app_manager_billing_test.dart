@@ -15,16 +15,18 @@ void main() {
   });
   tearDown(manager.resetSessionState);
 
-  test('only paid status or the trial flag allow paid features', () {
+  test('billing without an access flag allows paid, active, or trial', () {
     expect(manager.hasRestrictedBillingStatus, isTrue);
     expect(manager.showBillingBanner, isFalse);
 
-    manager.saveActiveCompany(_companyWithBillingStatus('paid'));
-    expect(manager.hasRestrictedBillingStatus, isFalse);
-    expect(manager.showBillingBanner, isFalse);
-    expect(manager.showTrialBanner, isFalse);
+    for (final status in ['paid', 'active']) {
+      manager.saveActiveCompany(_companyWithBillingStatus(status));
+      expect(manager.hasRestrictedBillingStatus, isFalse, reason: status);
+      expect(manager.showBillingBanner, isFalse, reason: status);
+      expect(manager.showTrialBanner, isFalse, reason: status);
+    }
 
-    for (final status in ['unpaid', 'canceled', 'active', 'trialing', null]) {
+    for (final status in ['unpaid', 'canceled', 'trialing', null]) {
       manager.saveActiveCompany(_companyWithBillingStatus(status));
       expect(manager.hasRestrictedBillingStatus, isTrue, reason: '$status');
       expect(manager.showBillingBanner, isTrue, reason: '$status');
@@ -44,6 +46,42 @@ void main() {
     manager.saveActiveCompany(CompanyDetails.fromApiJson({'uuid': 'company'}));
     expect(manager.hasRestrictedBillingStatus, isTrue);
     expect(manager.showBillingBanner, isTrue);
+  });
+
+  test('active billing follows the saved server access flag', () async {
+    for (final canUsePaidFeatures in [true, false]) {
+      final company = _companyWithBillingStatus(
+        'active',
+        canUsePaidFeatures: canUsePaidFeatures,
+      );
+      manager.saveActiveCompany(company);
+      expect(manager.hasRestrictedBillingStatus, !canUsePaidFeatures);
+      expect(manager.showBillingBanner, !canUsePaidFeatures);
+      expect(manager.showTrialBanner, isFalse);
+
+      await AppPreference.saveActiveCompany(company);
+      manager.resetSessionState();
+      await manager.hydrateCurrentUser();
+      expect(manager.hasRestrictedBillingStatus, !canUsePaidFeatures);
+    }
+  });
+
+  test('server denial replaces a dismissed trial banner with billing', () {
+    manager.saveActiveCompany(
+      _companyWithBillingStatus('trialing', isInTrial: true),
+    );
+    manager.dismissBillingBanner();
+    manager.saveActiveCompany(
+      _companyWithBillingStatus(
+        'trialing',
+        isInTrial: true,
+        canUsePaidFeatures: false,
+      ),
+    );
+
+    expect(manager.hasRestrictedBillingStatus, isTrue);
+    expect(manager.showBillingBanner, isTrue);
+    expect(manager.showTrialBanner, isFalse);
   });
 
   test(
@@ -95,9 +133,15 @@ CompanyDetails _companyWithBillingStatus(
   String? status, {
   String uuid = 'company',
   bool isInTrial = false,
+  bool? canUsePaidFeatures,
 }) {
   return CompanyDetails.fromApiJson({
     'uuid': uuid,
-    'billing': {'status': status, 'is_in_trial': isInTrial},
+    'billing': {
+      'status': status,
+      'is_in_trial': isInTrial,
+      if (canUsePaidFeatures != null)
+        'can_use_paid_features': canUsePaidFeatures,
+    },
   });
 }

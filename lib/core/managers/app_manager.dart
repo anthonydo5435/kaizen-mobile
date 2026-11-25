@@ -53,13 +53,18 @@ class AppManager extends ChangeNotifier {
   bool get _isInTrial => _billingDetails?.isInTrial == true;
   bool get _canShowBillingBanner =>
       !_isBillingBannerDismissed && _currentRouteName != AppRouter.splash;
-  bool get hasRestrictedBillingStatus =>
-      _billingDetails?.status != 'paid' && !_isInTrial;
+  bool get hasRestrictedBillingStatus {
+    final status = _billingDetails?.status;
+    return !(_billingDetails?.canUsePaidFeatures ??
+        (status == 'paid' || status == 'active' || _isInTrial));
+  }
+
   bool get showBillingBanner =>
       (_activeCompany != null || _billingDetails != null) &&
       hasRestrictedBillingStatus &&
       _canShowBillingBanner;
-  bool get showTrialBanner => _isInTrial && _canShowBillingBanner;
+  bool get showTrialBanner =>
+      _isInTrial && !hasRestrictedBillingStatus && _canShowBillingBanner;
   String? get currentRouteName => _currentRouteName;
   String? get activatingOrganizationId => _activatingOrganizationId;
   CompanyBillingDetails? get billingDetails => _billingDetails;
@@ -367,9 +372,10 @@ class AppManager extends ChangeNotifier {
 
   void _updateBillingDetails(CompanyBillingDetails? billingDetails) {
     final wasInTrial = _isInTrial;
+    final wasRestricted = hasRestrictedBillingStatus;
     _billingDetails = billingDetails;
     if (wasInTrial != _isInTrial ||
-        (!_isInTrial && !hasRestrictedBillingStatus)) {
+        wasRestricted != hasRestrictedBillingStatus) {
       _isBillingBannerDismissed = false;
     }
   }

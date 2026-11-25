@@ -29,7 +29,7 @@ class CompanyBillingDetails {
   final String? cancelAt;
   final bool cancelAtPeriodEnd;
   final String? latestInvoiceStatus;
-  final bool canUsePaidFeatures;
+  final bool? canUsePaidFeatures;
   final String? stripeSubscriptionId;
   final String? lastPaymentFailedAt;
   final bool isTrialSetupComplete;
@@ -51,7 +51,7 @@ class CompanyBillingDetails {
       cancelAt: _readString(json['cancel_at']),
       cancelAtPeriodEnd: _readBool(json['cancel_at_period_end']) ?? false,
       latestInvoiceStatus: _readString(json['latest_invoice_status']),
-      canUsePaidFeatures: _readBool(json['can_use_paid_features']) ?? false,
+      canUsePaidFeatures: _readBool(json['can_use_paid_features']),
       stripeSubscriptionId: _readString(json['stripe_subscription_id']),
       lastPaymentFailedAt: _readString(json['last_payment_failed_at']),
       isTrialSetupComplete: _readBool(json['is_trial_setup_complete']) ?? false,
@@ -72,7 +72,8 @@ class CompanyBillingDetails {
       'cancel_at': cancelAt,
       'cancel_at_period_end': cancelAtPeriodEnd,
       'latest_invoice_status': latestInvoiceStatus,
-      'can_use_paid_features': canUsePaidFeatures,
+      if (canUsePaidFeatures != null)
+        'can_use_paid_features': canUsePaidFeatures,
       'stripe_subscription_id': stripeSubscriptionId,
       'last_payment_failed_at': lastPaymentFailedAt,
       'is_trial_setup_complete': isTrialSetupComplete,

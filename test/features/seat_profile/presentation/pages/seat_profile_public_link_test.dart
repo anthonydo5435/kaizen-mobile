@@ -30,9 +30,10 @@ void main() {
   });
   tearDown(() => AppManager.instance.resetSessionState());
 
-  testWidgets('details load the link before opening the card share dialog', (
-    tester,
-  ) async {
+  testWidgets('active billing allows seat profile sharing', (tester) async {
+    AppManager.instance.saveBillingDetails(
+      CompanyBillingDetails.fromApiJson({'status': 'active'}),
+    );
     final pending = Completer<String?>();
     final useCase = _UseCase()..pendingLink = pending.future;
     String? copied;
@@ -64,6 +65,7 @@ void main() {
 
     await tester.tap(find.byTooltip(AppStrings.shareAction));
     await tester.pump();
+    expect(find.text(AppStrings.paidFeaturesUnavailableMessage), findsNothing);
     expect(find.byType(FastCircularProgressIndicator), findsOneWidget);
     expect(find.text(AppStrings.shareCreateLinkAction), findsNothing);
     pending.complete(_existingLink);
