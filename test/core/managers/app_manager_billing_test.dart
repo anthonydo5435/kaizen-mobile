@@ -15,61 +15,56 @@ void main() {
   });
   tearDown(manager.resetSessionState);
 
-  test('billing without an access flag allows paid, active, or trial', () {
-    expect(manager.hasRestrictedBillingStatus, isTrue);
+  test('a missing access flag restricts all billing statuses', () {
+    expect(manager.canUsePaidFeatures, isFalse);
     expect(manager.showBillingBanner, isFalse);
 
-    for (final status in ['paid', 'active']) {
-      manager.saveActiveCompany(_companyWithBillingStatus(status));
-      expect(manager.hasRestrictedBillingStatus, isFalse, reason: status);
-      expect(manager.showBillingBanner, isFalse, reason: status);
-      expect(manager.showTrialBanner, isFalse, reason: status);
-    }
-
-    for (final status in ['unpaid', 'canceled', 'trialing', null]) {
-      manager.saveActiveCompany(_companyWithBillingStatus(status));
-      expect(manager.hasRestrictedBillingStatus, isTrue, reason: '$status');
-      expect(manager.showBillingBanner, isTrue, reason: '$status');
-
-      manager.saveActiveCompany(
-        _companyWithBillingStatus(status, isInTrial: true),
-      );
-      expect(
-        manager.hasRestrictedBillingStatus,
-        isFalse,
-        reason: '$status in trial',
-      );
-      expect(manager.showBillingBanner, isFalse, reason: '$status in trial');
-      expect(manager.showTrialBanner, isTrue, reason: '$status in trial');
+    for (final status in ['paid', 'active', 'unpaid', 'trialing', null]) {
+      for (final isInTrial in [false, true]) {
+        manager.saveActiveCompany(
+          _companyWithBillingStatus(status, isInTrial: isInTrial),
+        );
+        final reason = 'status: $status, isInTrial: $isInTrial';
+        expect(manager.canUsePaidFeatures, isFalse, reason: reason);
+        expect(manager.showBillingBanner, isTrue, reason: reason);
+        expect(manager.showTrialBanner, isFalse, reason: reason);
+      }
     }
 
     manager.saveActiveCompany(CompanyDetails.fromApiJson({'uuid': 'company'}));
-    expect(manager.hasRestrictedBillingStatus, isTrue);
+    expect(manager.canUsePaidFeatures, isFalse);
     expect(manager.showBillingBanner, isTrue);
   });
 
-  test('active billing follows the saved server access flag', () async {
-    for (final canUsePaidFeatures in [true, false]) {
-      final company = _companyWithBillingStatus(
-        'active',
-        canUsePaidFeatures: canUsePaidFeatures,
-      );
-      manager.saveActiveCompany(company);
-      expect(manager.hasRestrictedBillingStatus, !canUsePaidFeatures);
-      expect(manager.showBillingBanner, !canUsePaidFeatures);
-      expect(manager.showTrialBanner, isFalse);
+  test('paid access follows the saved server flag across statuses', () async {
+    for (final status in ['paid', 'active', 'canceled', null]) {
+      for (final canUsePaidFeatures in [true, false]) {
+        final company = _companyWithBillingStatus(
+          status,
+          canUsePaidFeatures: canUsePaidFeatures,
+        );
+        manager.saveActiveCompany(company);
+        expect(manager.canUsePaidFeatures, canUsePaidFeatures);
+        expect(manager.showBillingBanner, !canUsePaidFeatures);
+        expect(manager.showTrialBanner, isFalse);
 
-      await AppPreference.saveActiveCompany(company);
-      manager.resetSessionState();
-      await manager.hydrateCurrentUser();
-      expect(manager.hasRestrictedBillingStatus, !canUsePaidFeatures);
+        await AppPreference.saveActiveCompany(company);
+        manager.resetSessionState();
+        await manager.hydrateCurrentUser();
+        expect(manager.canUsePaidFeatures, canUsePaidFeatures);
+      }
     }
   });
 
   test('server denial replaces a dismissed trial banner with billing', () {
     manager.saveActiveCompany(
-      _companyWithBillingStatus('trialing', isInTrial: true),
+      _companyWithBillingStatus(
+        'trialing',
+        isInTrial: true,
+        canUsePaidFeatures: true,
+      ),
     );
+    expect(manager.showTrialBanner, isTrue);
     manager.dismissBillingBanner();
     manager.saveActiveCompany(
       _companyWithBillingStatus(
@@ -79,7 +74,7 @@ void main() {
       ),
     );
 
-    expect(manager.hasRestrictedBillingStatus, isTrue);
+    expect(manager.canUsePaidFeatures, isFalse);
     expect(manager.showBillingBanner, isTrue);
     expect(manager.showTrialBanner, isFalse);
   });
@@ -90,11 +85,12 @@ void main() {
       final company = CompanyDetails.fromApiJson({
         'uuid': 'company',
         'isInTrial': true,
+        'billing': {'canUsePaidFeatures': true},
       });
       await AppPreference.saveActiveCompany(company);
       await manager.hydrateCurrentUser();
       expect(manager.billingDetails?.isInTrial, isTrue);
-      expect(manager.hasRestrictedBillingStatus, isFalse);
+      expect(manager.canUsePaidFeatures, isTrue);
 
       manager.saveActiveCompany(
         CompanyDetails.fromApiJson({
@@ -102,7 +98,7 @@ void main() {
           'billing': {'status': 'unpaid', 'isInTrial': false},
         }),
       );
-      expect(manager.hasRestrictedBillingStatus, isTrue);
+      expect(manager.canUsePaidFeatures, isFalse);
     },
   );
 
@@ -117,7 +113,9 @@ void main() {
     manager.saveBillingDetails(canceledCompany.billing);
     expect(manager.showBillingBanner, isFalse);
 
-    manager.saveActiveCompany(_companyWithBillingStatus('paid'));
+    manager.saveActiveCompany(
+      _companyWithBillingStatus('paid', canUsePaidFeatures: true),
+    );
     manager.saveActiveCompany(canceledCompany);
     expect(manager.showBillingBanner, isTrue);
 

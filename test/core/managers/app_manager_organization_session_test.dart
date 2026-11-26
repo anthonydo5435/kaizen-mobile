@@ -175,11 +175,11 @@ void main() {
         await manager.initialize(requireSuccess: true);
         final company = CompanyDetails.fromApiJson({
           'uuid': 'first',
-          'billing': {'status': 'paid'},
+          'billing': {'can_use_paid_features': true},
         });
         await AppPreference.saveActiveCompany(company);
         manager.saveActiveCompany(company);
-        expect(manager.hasRestrictedBillingStatus, isFalse);
+        expect(manager.canUsePaidFeatures, isTrue);
 
         expect(
           await manager.setActiveOrganization(
@@ -189,7 +189,7 @@ void main() {
           isTrue,
         );
         expect(manager.currentOrganizationId, 'second');
-        expect(manager.hasRestrictedBillingStatus, isTrue);
+        expect(manager.canUsePaidFeatures, isFalse);
         expect(await AppPreference.getActiveCompany(), isNull);
       }, () => client);
     },

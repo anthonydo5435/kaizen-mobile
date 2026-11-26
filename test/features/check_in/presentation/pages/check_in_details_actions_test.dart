@@ -48,7 +48,7 @@ void main() {
     ApiCallExecutor.clearGetCache();
     AppManager.instance.resetSessionState();
     AppManager.instance.saveBillingDetails(
-      CompanyBillingDetails.fromApiJson({'status': 'paid'}),
+      CompanyBillingDetails.fromApiJson({'can_use_paid_features': true}),
     );
     final user = User(uuid: 'reviewer', isOwner: true);
     await AppPreference.saveUser(user);

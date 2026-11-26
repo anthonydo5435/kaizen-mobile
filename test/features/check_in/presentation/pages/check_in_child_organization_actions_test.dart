@@ -222,7 +222,7 @@ Future<void> _saveUser({required bool isOwner, bool reviewer = true}) async {
   await AppPreference.saveUser(user);
   AppManager.instance.updateCurrentUser(user);
   AppManager.instance.saveBillingDetails(
-    CompanyBillingDetails.fromApiJson({'status': 'paid'}),
+    CompanyBillingDetails.fromApiJson({'can_use_paid_features': true}),
   );
 }
 

@@ -166,6 +166,7 @@ void main() {
         CompanyBillingDetails.fromApiJson({
           'status': 'unpaid',
           'is_in_trial': true,
+          'can_use_paid_features': true,
         }),
       );
       await tester.pumpAndSettle();

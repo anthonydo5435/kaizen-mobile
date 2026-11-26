@@ -358,6 +358,7 @@ void main() {
             CompanyBillingDetails.fromApiJson({
               'status': 'canceled',
               'isInTrial': true,
+              'can_use_paid_features': true,
             }),
           );
           await tester.tap(generateAssignment);

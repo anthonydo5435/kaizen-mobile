@@ -39,7 +39,7 @@ void main() {
     AppManager.instance.resetSessionState();
     addTearDown(AppManager.instance.resetSessionState);
     AppManager.instance.saveBillingDetails(
-      CompanyBillingDetails.fromApiJson({'status': 'paid'}),
+      CompanyBillingDetails.fromApiJson({'can_use_paid_features': true}),
     );
     ApiCallExecutor.clearGetCache();
     final user = User(uuid: 'owner', isOwner: true);

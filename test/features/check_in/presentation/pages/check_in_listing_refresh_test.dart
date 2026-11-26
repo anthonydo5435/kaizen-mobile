@@ -113,7 +113,7 @@ void main() {
     await AppPreference.setAuthToken('test-token');
     AppManager.instance.resetSessionState();
     AppManager.instance.saveBillingDetails(
-      CompanyBillingDetails.fromApiJson({'status': 'paid'}),
+      CompanyBillingDetails.fromApiJson({'can_use_paid_features': true}),
     );
     ApiCallExecutor.clearGetCache();
   });

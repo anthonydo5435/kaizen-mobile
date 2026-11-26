@@ -51,7 +51,9 @@ class CompanyBillingDetails {
       cancelAt: _readString(json['cancel_at']),
       cancelAtPeriodEnd: _readBool(json['cancel_at_period_end']) ?? false,
       latestInvoiceStatus: _readString(json['latest_invoice_status']),
-      canUsePaidFeatures: _readBool(json['can_use_paid_features']),
+      canUsePaidFeatures:
+          _readBool(json['can_use_paid_features']) ??
+          _readBool(json['canUsePaidFeatures']),
       stripeSubscriptionId: _readString(json['stripe_subscription_id']),
       lastPaymentFailedAt: _readString(json['last_payment_failed_at']),
       isTrialSetupComplete: _readBool(json['is_trial_setup_complete']) ?? false,

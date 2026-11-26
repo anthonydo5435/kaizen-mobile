@@ -18,7 +18,7 @@ import '../../support/single_description_fixtures.dart';
 void main() {
   setUp(() {
     AppManager.instance.saveBillingDetails(
-      CompanyBillingDetails.fromApiJson({'status': 'paid'}),
+      CompanyBillingDetails.fromApiJson({'can_use_paid_features': true}),
     );
   });
   tearDown(() => AppManager.instance.saveBillingDetails(null));

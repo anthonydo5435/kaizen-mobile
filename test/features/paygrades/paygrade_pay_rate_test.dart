@@ -31,7 +31,7 @@ void main() {
     await AppPreference.init();
     AppManager.instance.resetSessionState();
     AppManager.instance.saveBillingDetails(
-      CompanyBillingDetails.fromApiJson({'status': 'paid'}),
+      CompanyBillingDetails.fromApiJson({'can_use_paid_features': true}),
     );
     AppManager.instance.updateCurrentUser(
       User(uuid: 'owner', isOwner: true, organizationUuid: 'org'),

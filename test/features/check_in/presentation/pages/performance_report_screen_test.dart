@@ -43,7 +43,7 @@ void main() {
     await AppPreference.init();
     AppManager.instance.resetSessionState();
     AppManager.instance.saveBillingDetails(
-      CompanyBillingDetails.fromApiJson({'status': 'paid'}),
+      CompanyBillingDetails.fromApiJson({'can_use_paid_features': true}),
     );
     ApiCallExecutor.clearGetCache();
     repository = ReportRepository();
@@ -866,7 +866,7 @@ void main() {
       await tester.tap(find.text(AppStrings.paidFeaturesUnavailableOk));
       await tester.pumpAndSettle();
       AppManager.instance.saveBillingDetails(
-        CompanyBillingDetails.fromApiJson({'status': 'paid'}),
+        CompanyBillingDetails.fromApiJson({'can_use_paid_features': true}),
       );
       final before = tester.getSize(button);
       final generating = audit.generatePerformanceReportRemarks();

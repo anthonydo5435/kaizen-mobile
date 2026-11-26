@@ -10,7 +10,7 @@ import 'app_dialog_style.dart';
 import 'app_text_view.dart';
 
 bool showBillingRestrictionIfNeeded(BuildContext context) {
-  if (!AppManager.instance.hasRestrictedBillingStatus) return false;
+  if (AppManager.instance.canUsePaidFeatures) return false;
   unawaited(PaidFeaturesUnavailableDialog.show(context));
   return true;
 }

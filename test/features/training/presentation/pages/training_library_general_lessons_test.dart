@@ -40,7 +40,7 @@ void main() {
         User(uuid: 'owner', isOwner: true, organizationUuid: 'org-id'),
       );
       appManager.saveBillingDetails(
-        CompanyBillingDetails.fromApiJson({'status': 'paid'}),
+        CompanyBillingDetails.fromApiJson({'can_use_paid_features': true}),
       );
       appManager.dismissBillingBanner();
       addTearDown(appManager.resetSessionState);

@@ -124,7 +124,7 @@ void main() {
     ApiCallExecutor.clearGetCache();
     AppManager.instance.resetSessionState();
     AppManager.instance.saveBillingDetails(
-      CompanyBillingDetails.fromApiJson({'status': 'paid'}),
+      CompanyBillingDetails.fromApiJson({'can_use_paid_features': true}),
     );
     AppManager.instance.updateCurrentUser(User(uuid: 'learner'));
     final messenger =

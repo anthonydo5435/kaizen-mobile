@@ -11,7 +11,7 @@ import 'package:sparrowkaizen/core/widgets/share_dialogue.dart';
 void main() {
   setUp(() {
     AppManager.instance.saveBillingDetails(
-      CompanyBillingDetails.fromApiJson({'status': 'paid'}),
+      CompanyBillingDetails.fromApiJson({'can_use_paid_features': true}),
     );
   });
   tearDown(() => AppManager.instance.saveBillingDetails(null));

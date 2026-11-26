@@ -27,7 +27,7 @@ void main() {
     await AppPreference.init();
     AppManager.instance.resetSessionState();
     AppManager.instance.saveBillingDetails(
-      CompanyBillingDetails.fromApiJson({'status': 'paid'}),
+      CompanyBillingDetails.fromApiJson({'can_use_paid_features': true}),
     );
     AppManager.instance.updateCurrentUser(User(uuid: 'owner', isOwner: true));
     useCase = SeatProfileCreateUseCase();
@@ -153,7 +153,7 @@ void main() {
       await tap(tester, find.text(AppStrings.paidFeaturesUnavailableOk));
 
       AppManager.instance.saveBillingDetails(
-        CompanyBillingDetails.fromApiJson({'status': 'paid'}),
+        CompanyBillingDetails.fromApiJson({'can_use_paid_features': true}),
       );
       await tap(tester, update);
       expect(useCase.updates.single.id, 'actual-seat');
@@ -190,7 +190,7 @@ void main() {
     await tap(tester, find.text(AppStrings.paidFeaturesUnavailableOk));
 
     AppManager.instance.saveBillingDetails(
-      CompanyBillingDetails.fromApiJson({'status': 'paid'}),
+      CompanyBillingDetails.fromApiJson({'can_use_paid_features': true}),
     );
     await tap(tester, addOrUpdateCategory);
     AppManager.instance.saveBillingDetails(

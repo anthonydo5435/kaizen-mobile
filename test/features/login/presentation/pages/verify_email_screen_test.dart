@@ -100,7 +100,7 @@ void main() {
         ApiEndPoints.companyDetail => {
           'uuid': 'org',
           'name': 'Workspace',
-          'billing': {'status': 'paid'},
+          'billing': {'can_use_paid_features': true},
         },
         ApiEndPoints.trainingModulesAll => {'results': []},
         _ => throw StateError('Unexpected endpoint $endpoint'),

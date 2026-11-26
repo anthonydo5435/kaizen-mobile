@@ -561,7 +561,7 @@ class _ComplianceTrainingScreenViewState
       return;
     }
 
-    if (AppManager.instance.hasRestrictedBillingStatus) {
+    if (!AppManager.instance.canUsePaidFeatures) {
       await PaidFeaturesUnavailableDialog.show(context);
       if (mounted) {
         _selectTab(fallbackTabIndex);

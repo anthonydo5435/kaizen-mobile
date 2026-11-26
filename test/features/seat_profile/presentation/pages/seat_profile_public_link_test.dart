@@ -22,7 +22,7 @@ void main() {
     await AppPreference.init();
     AppManager.instance.resetSessionState();
     AppManager.instance.saveBillingDetails(
-      CompanyBillingDetails.fromApiJson({'status': 'paid'}),
+      CompanyBillingDetails.fromApiJson({'can_use_paid_features': true}),
     );
     AppManager.instance.updateCurrentUser(
       User(uuid: 'owner', isOwner: true, organizationUuid: 'org'),
@@ -30,10 +30,7 @@ void main() {
   });
   tearDown(() => AppManager.instance.resetSessionState());
 
-  testWidgets('active billing allows seat profile sharing', (tester) async {
-    AppManager.instance.saveBillingDetails(
-      CompanyBillingDetails.fromApiJson({'status': 'active'}),
-    );
+  testWidgets('paid access allows seat profile sharing', (tester) async {
     final pending = Completer<String?>();
     final useCase = _UseCase()..pendingLink = pending.future;
     String? copied;
@@ -91,10 +88,13 @@ void main() {
   });
 
   testWidgets(
-    'the Share button shows the billing dialog for a canceled company',
+    'the Share button shows the billing dialog when paid access is denied',
     (tester) async {
       AppManager.instance.saveBillingDetails(
-        CompanyBillingDetails.fromApiJson({'status': 'canceled'}),
+        CompanyBillingDetails.fromApiJson({
+          'status': 'active',
+          'can_use_paid_features': false,
+        }),
       );
       AppManager.instance.dismissBillingBanner();
       final useCase = _UseCase();

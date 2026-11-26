@@ -27,7 +27,7 @@ import 'package:sparrowkaizen/features/compliance/presentation/widgets/document_
 void main() {
   setUp(() {
     AppManager.instance.saveBillingDetails(
-      CompanyBillingDetails.fromApiJson({'status': 'paid'}),
+      CompanyBillingDetails.fromApiJson({'can_use_paid_features': true}),
     );
   });
   tearDown(() => AppManager.instance.saveBillingDetails(null));
@@ -156,6 +156,7 @@ void main() {
       CompanyBillingDetails.fromApiJson({
         'status': 'past_due',
         'isInTrial': true,
+        'can_use_paid_features': true,
       }),
     );
     final bytes = await tester.runAsync(() => photo.readAsBytes());

@@ -32,7 +32,7 @@ void main() {
       ApiCallExecutor.clearGetCache();
       AppManager.instance.resetSessionState();
       AppManager.instance.saveBillingDetails(
-        CompanyBillingDetails.fromApiJson({'status': 'paid'}),
+        CompanyBillingDetails.fromApiJson({'can_use_paid_features': true}),
       );
       AppManager.instance.updateCurrentUser(
         User(uuid: 'owner', isOwner: true, organizationUuid: 'org-id'),
@@ -192,7 +192,9 @@ void main() {
             await tester.tap(find.text(AppStrings.paidFeaturesUnavailableOk));
             await tester.pumpAndSettle();
             AppManager.instance.saveBillingDetails(
-              CompanyBillingDetails.fromApiJson({'status': 'paid'}),
+              CompanyBillingDetails.fromApiJson({
+                'can_use_paid_features': true,
+              }),
             );
           }
           await tester.tap(generate);

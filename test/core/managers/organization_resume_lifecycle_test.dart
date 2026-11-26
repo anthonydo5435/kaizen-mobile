@@ -68,7 +68,11 @@ void main() {
       final manager = AppManager.instance;
       final trialCompany = CompanyDetails.fromApiJson({
         'uuid': 'first',
-        'billing': {'status': 'unpaid', 'is_in_trial': true},
+        'billing': {
+          'status': 'unpaid',
+          'is_in_trial': true,
+          'can_use_paid_features': true,
+        },
       });
       manager.saveActiveCompany(trialCompany);
       await tester.pumpAndSettle();
@@ -83,7 +87,7 @@ void main() {
       );
       await tester.pumpAndSettle();
       expect(find.byType(BillingBanner), findsNothing);
-      expect(manager.hasRestrictedBillingStatus, isFalse);
+      expect(manager.canUsePaidFeatures, isTrue);
 
       manager.saveActiveCompany(trialCompany);
       await tester.pumpAndSettle();
